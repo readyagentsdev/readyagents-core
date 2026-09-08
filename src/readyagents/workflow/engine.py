@@ -9,6 +9,7 @@ from readyagents.errors import (
     ApprovalRequired,
     AuthorizationError,
     BudgetExceeded,
+    CancellationRequested,
     CircuitOpen,
     ReadyAgentsError,
     WorkflowError,
@@ -25,6 +26,7 @@ from readyagents.workflow.state import RunState, utc_now
 log = get_logger("engine")
 
 _MAX_STEPS = 500
+_TERMINAL_STATUSES = frozenset({"cancelled", "succeeded", "failed", "paused"})
 
 
 def run_workflow(
@@ -34,12 +36,22 @@ def run_workflow(
     *,
     metadata: Mapping[str, Any] | None = None,
     state: RunState | None = None,
+    run_id: str | None = None,
 ) -> RunState:
     nodes = workflow.node_map()
     if state is None:
-        state = RunState.start(workflow.name, inputs, metadata=metadata)
+        state = RunState.start(workflow.name, inputs, metadata=metadata, run_id=run_id)
         current = workflow.start or workflow.nodes[0].id
         seen: set[str] = set()
+    elif _is_fresh_start(state):
+        current = workflow.start or workflow.nodes[0].id
+        seen = set()
+        state.status = "running"
+        state.finished_at = None
+        if inputs:
+            state.inputs.update(dict(inputs))
+        if metadata:
+            state.metadata.update(dict(metadata))
     else:
         current, seen = _resume_cursor(workflow, state)
         if inputs:
@@ -49,6 +61,7 @@ def run_workflow(
 
     if ctx.usage_state is None:
         ctx.usage_state = state
+    _arm_cancellation_persist(ctx, state)
     _persist(ctx, state)
     log_event(
         log,
@@ -65,6 +78,7 @@ def run_workflow(
 
     steps = 0
     try:
+        _raise_if_cancelled(ctx, state)
         while current:
             steps += 1
             if steps > _MAX_STEPS:
@@ -84,7 +98,17 @@ def run_workflow(
                 run_id=state.run_id,
                 node_id=node.id,
             )
-            _execute_with_policy(node, state, ctx)
+            _raise_if_cancelled(ctx, state)
+            try:
+                _execute_with_policy(node, state, ctx)
+            except CancellationRequested:
+                raise
+            except ApprovalRequired:
+                raise
+            except ReadyAgentsError:
+                _raise_if_cancelled(ctx, state)
+                raise
+            _raise_if_cancelled(ctx, state)
             state.pending_node = None
             _persist(ctx, state)
             if ctx.auditor is not None:
@@ -96,6 +120,7 @@ def run_workflow(
                     actor=ctx.actor,
                 )
             current = _next_node(workflow, node, state)
+        _raise_if_cancelled(ctx, state)
         state.pending_node = None
         state.pending = None
         state.finish("succeeded")
@@ -111,6 +136,12 @@ def run_workflow(
         }
         state.finish("cancelled")
         _persist(ctx, state)
+        raise
+    except CancellationRequested as exc:
+        _finalize_cancelled(ctx, state, current, nodes)
+        exc.state = state
+        if not exc.run_id:
+            exc.run_id = state.run_id
         raise
     except ApprovalRequired as exc:
         state.pending_node = current
@@ -198,7 +229,52 @@ def _resume_cursor(workflow: WorkflowSpec, state: RunState) -> tuple[str | None,
     return current, completed
 
 
+def _is_fresh_start(state: RunState) -> bool:
+    return state.status in {"queued", "running"} and not state.results and not state.pending_node
+
+
+def _raise_if_cancelled(ctx: ExecutionContext, state: RunState) -> None:
+    if ctx.cancellation is None:
+        return
+    ctx.cancellation.raise_if_requested(run_id=state.run_id)
+
+
+def _arm_cancellation_persist(ctx: ExecutionContext, state: RunState) -> None:
+    token = ctx.cancellation
+    if token is None:
+        return
+    token.clear_listeners()
+    token.add_listener(lambda: _persist(ctx, state))
+
+
+def _finalize_cancelled(
+    ctx: ExecutionContext,
+    state: RunState,
+    current: str | None,
+    nodes: Mapping[str, NodeSpec],
+) -> None:
+    with ctx._persist_lock:
+        already = state.status == "cancelled"
+        if not already:
+            state.pending_node = current
+            state.pending = {
+                "node_id": current,
+                "type": str(nodes[current].type) if current in nodes else "?",
+                "error": "cancelled",
+            }
+            state.finish("cancelled")
+    if already:
+        return
+    _persist(ctx, state)
+    if ctx.auditor is not None:
+        ctx.auditor("run_finished", run_id=state.run_id, status="cancelled", actor=ctx.actor)
+
+
 def _persist(ctx: ExecutionContext, state: RunState) -> None:
+    token = ctx.cancellation
+    with ctx._persist_lock:
+        if token is not None and token.is_requested() and state.status not in _TERMINAL_STATUSES:
+            state.status = "cancel_requested"
     if ctx.on_persist is None:
         return
     ctx.on_persist(state)

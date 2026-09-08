@@ -4,7 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from readyagents.config import Settings, clear_settings_cache, load_settings, require_api_key
+from readyagents.config import (
+    MAX_CONCURRENT_RUNS_HARD,
+    MAX_PENDING_RUNS_HARD,
+    Settings,
+    clear_settings_cache,
+    load_settings,
+    require_api_key,
+)
 from readyagents.errors import LLMError
 from readyagents.llm.registry import get_provider
 
@@ -140,3 +147,16 @@ def test_implicit_default_uses_compat_key() -> None:
     provider, model_id = get_provider(settings=settings, implicit=True)
     assert provider.name == "openai-compat"
     assert model_id == "llama-3.1-8b-instant"
+
+
+def test_oversized_http_run_limits_clamp_instead_of_failing_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clear_settings_cache()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("READYAGENTS_MCP_MAX_CONCURRENT_RUNS", "999")
+    monkeypatch.setenv("READYAGENTS_MCP_MAX_PENDING_RUNS", "9999")
+    settings = load_settings(env_file=())
+    assert settings.mcp_max_concurrent_runs == MAX_CONCURRENT_RUNS_HARD
+    assert settings.mcp_max_pending_runs == MAX_PENDING_RUNS_HARD
+    clear_settings_cache()

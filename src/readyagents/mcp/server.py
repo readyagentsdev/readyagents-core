@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 from typing import Any
 
-from readyagents.config import get_settings
+from readyagents.config import MAX_HTTP_BODY_BYTES, get_settings
 from readyagents.errors import MCPError
 from readyagents.mcp.builtin import builtin_tools
 
@@ -53,6 +54,114 @@ def construct_server(*, allow_http: bool | None = None, workspace: Path | None =
 def serve_stdio(*, allow_http: bool | None = None, workspace: Path | None = None) -> None:
     """Run a stdio MCP server exposing builtin tools."""
     construct_server(allow_http=allow_http, workspace=workspace).run(transport="stdio")
+
+
+def streamable_http_app(
+    server: Any,
+    *,
+    host: str,
+    port: int,
+    max_body_bytes: int = MAX_HTTP_BODY_BYTES,
+) -> Any:
+    """Return the SDK Streamable HTTP Starlette app mounted at /mcp. Feature-detect."""
+    method = getattr(server, "streamable_http_app", None)
+    if method is None:
+        raise MCPError(
+            "This mcp package does not support Streamable HTTP. "
+            "Upgrade with: pip install 'mcp>=2' or pip install -e '.[mcp]'"
+        )
+    kwargs: dict[str, Any] = {
+        "streamable_http_path": "/mcp",
+        "host": host,
+        "max_request_body_size": max_body_bytes,
+    }
+    security = _transport_security_settings(host, port)
+    if security is not None:
+        kwargs["transport_security"] = security
+    # Keep SDK default response mode so Accept can negotiate JSON vs SSE.
+    kwargs.pop("json_response", None)
+    if not callable(method):
+        return method
+    return _call_supported_kwargs(method, kwargs)
+
+
+def _transport_security_settings(host: str, port: int) -> Any | None:
+    try:
+        from mcp.server.transport_security import TransportSecuritySettings
+    except ImportError:
+        return None
+    try:
+        return TransportSecuritySettings(
+            enable_dns_rebinding_protection=True,
+            allowed_hosts=_dns_allowed_hosts(host, port),
+            allowed_origins=_dns_allowed_origins(host, port),
+        )
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _dns_bind_names(host: str) -> list[str]:
+    names: list[str] = []
+    for item in (host, "127.0.0.1", "localhost", "::1"):
+        if item and item not in names:
+            names.append(item)
+    return names
+
+
+def _host_header_variants(name: str, port: int) -> list[str]:
+    variants: list[str] = []
+
+    def add(value: str) -> None:
+        if value not in variants:
+            variants.append(value)
+
+    ipv6 = ":" in name and not name.startswith("[")
+    bracketed = f"[{name}]" if ipv6 else name
+    add(name)
+    add(bracketed)
+    add(f"{bracketed}:{port}")
+    if not ipv6:
+        add(f"{name}:{port}")
+    add(f"{name}:*")
+    add(f"{bracketed}:*")
+    return variants
+
+
+def _dns_allowed_hosts(host: str, port: int) -> list[str]:
+    hosts: list[str] = []
+    for name in _dns_bind_names(host):
+        for variant in _host_header_variants(name, port):
+            if variant not in hosts:
+                hosts.append(variant)
+    return hosts
+
+
+def _dns_allowed_origins(host: str, port: int) -> list[str]:
+    origins: list[str] = []
+    for name in _dns_bind_names(host):
+        ipv6 = ":" in name and not name.startswith("[")
+        shown = f"[{name}]" if ipv6 else name
+        for value in (f"http://{shown}:{port}", f"http://{shown}:*"):
+            if value not in origins:
+                origins.append(value)
+    return origins
+
+
+def _call_supported_kwargs(method: Any, kwargs: dict[str, Any]) -> Any:
+    try:
+        signature = inspect.signature(method)
+        params = signature.parameters
+    except (TypeError, ValueError):
+        return method()
+    if any(param.kind is inspect.Parameter.VAR_KEYWORD for param in params.values()):
+        accepted = dict(kwargs)
+    else:
+        accepted = {key: value for key, value in kwargs.items() if key in params}
+    accepted.pop("json_response", None)
+    try:
+        return method(**accepted) if accepted else method()
+    except TypeError:
+        return method()
 
 
 def _register_server_tools(server: Any, tools: dict[str, Any], *, workspace: Path) -> None:

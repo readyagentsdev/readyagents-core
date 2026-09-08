@@ -96,3 +96,34 @@ class CircuitOpen(LLMError):
     def __init__(self, model: str) -> None:
         self.model = model
         super().__init__(f"Circuit breaker open for model '{model}'")
+
+
+class CancellationRequested(ReadyAgentsError):
+    """Cooperative cancellation reached an engine safe point."""
+
+    def __init__(
+        self,
+        message: str = "Run cancellation requested",
+        *,
+        run_id: str | None = None,
+        reason: str | None = None,
+    ) -> None:
+        self.reason = reason
+        super().__init__(message)
+        self.run_id = run_id
+
+
+class RunConflict(ReadyAgentsError):
+    """Run cannot accept this mutation (wrong status, in-flight resume, idempotency mismatch)."""
+
+
+class HttpAuthError(MCPError):
+    """Missing or invalid HTTP bearer credentials."""
+
+
+class HttpRequestError(MCPError):
+    """Malformed HTTP extension request (bad JSON, unknown fields, bad id, limits)."""
+
+    def __init__(self, message: str, *, status_code: int = 400) -> None:
+        self.status_code = status_code
+        super().__init__(message)

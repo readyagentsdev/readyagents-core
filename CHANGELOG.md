@@ -4,6 +4,22 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Added
+
+- Opt-in authenticated MCP Streamable HTTP transport and a local asynchronous run API with
+  start, poll, decide, and cooperative-cancel task handles. Stdio remains the default, and core
+  still has no scheduler, recovery worker, hosted service, or mandatory HTTP dependency.
+
+### Security
+
+- Optional MCP HTTP is loopback-only in v0.9, authenticates with a bearer token from the
+  environment (never argv), and rejects DNS-rebinding Host/Origin values.
+
+### Docs
+
+- MCP Streamable HTTP (`/mcp`) and the ReadyAgents `/runs` task-handle extension are
+  documented separately. Official MCP Tasks, MRTR, and elicitation are not claimed.
+
 ## 0.8.2 — 2026-09-03
 
 ### Added

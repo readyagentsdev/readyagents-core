@@ -11,6 +11,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from readyagents.errors import ConfigError, LLMError
 
+DEFAULT_MCP_TOKEN_ENV = "READYAGENTS_MCP_TOKEN"
+MAX_CONCURRENT_RUNS_HARD = 32
+MAX_PENDING_RUNS_HARD = 256
+MAX_HTTP_BODY_BYTES = 1_048_576
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1", "0:0:0:0:0:0:0:1"})
+
 
 def _env_files() -> tuple[Path, ...]:
     """Lowest-priority first: `.env-ai` then `.env`. OS env still wins."""
@@ -124,6 +130,26 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("READYAGENTS_PAUSE_NOTIFY_URL"),
     )
+    mcp_http_host: str = Field(
+        default="127.0.0.1",
+        validation_alias=AliasChoices("READYAGENTS_MCP_HTTP_HOST"),
+    )
+    mcp_http_port: int = Field(
+        default=8765,
+        ge=1,
+        le=65535,
+        validation_alias=AliasChoices("READYAGENTS_MCP_HTTP_PORT"),
+    )
+    mcp_max_concurrent_runs: int = Field(
+        default=4,
+        ge=1,
+        validation_alias=AliasChoices("READYAGENTS_MCP_MAX_CONCURRENT_RUNS"),
+    )
+    mcp_max_pending_runs: int = Field(
+        default=32,
+        ge=1,
+        validation_alias=AliasChoices("READYAGENTS_MCP_MAX_PENDING_RUNS"),
+    )
 
     def fallback_model_list(self) -> list[str]:
         if not self.fallback_models:
@@ -153,6 +179,20 @@ class Settings(BaseSettings):
             return None
         if isinstance(value, str) and not value.strip():
             return None
+        return value
+
+    @field_validator("mcp_max_concurrent_runs", mode="after")
+    @classmethod
+    def _clamp_mcp_max_concurrent_runs(cls, value: int) -> int:
+        if value > MAX_CONCURRENT_RUNS_HARD:
+            return MAX_CONCURRENT_RUNS_HARD
+        return value
+
+    @field_validator("mcp_max_pending_runs", mode="after")
+    @classmethod
+    def _clamp_mcp_max_pending_runs(cls, value: int) -> int:
+        if value > MAX_PENDING_RUNS_HARD:
+            return MAX_PENDING_RUNS_HARD
         return value
 
     def workspace_path(self) -> Path:

@@ -61,9 +61,18 @@ If the node has no explicit `model:` and the default provider has no key, the en
 | `READYAGENTS_REDACT_LITERALS` | Comma-separated extra strings to mask |
 | `READYAGENTS_REDACT_PATTERNS` | Comma-separated extra regexes to mask |
 | `READYAGENTS_ACTOR` | Default actor id for RBAC hooks |
-| `READYAGENTS_PAUSE_NOTIFY_URL` | Outbound POST when an approval node pauses (core does not listen) |
+| `READYAGENTS_PAUSE_NOTIFY_URL` | Outbound POST when an approval node pauses (core does not listen for that webhook) |
+| `READYAGENTS_MCP_TOKEN` | Bearer token for optional MCP Streamable HTTP (`/mcp`) and the ReadyAgents `/runs` extension. Never pass the token as a CLI flag. If empty at HTTP startup, the process generates ≥256 bits and prints it once to stderr (never persisted or logged). |
 
 Inspect and resume those records with `readyagents runs list`, `readyagents runs show`, and `readyagents resume`. Audit events (append-only JSONL) live in `$READYAGENTS_HOME/audit/`.
+
+Optional MCP HTTP is not started by setting `READYAGENTS_MCP_TOKEN`. Start it explicitly:
+
+```bash
+readyagents mcp serve --transport streamable-http --host 127.0.0.1 --port 8765
+```
+
+`--token-env` selects a different variable name if you do not want `READYAGENTS_MCP_TOKEN`. `--auth none` is loopback-only and warns. v0.9 rejects non-loopback binds. `/runs` always persists; there is no network `--no-persist`. Never put provider keys in `/runs` JSON. Workspace confinement, SSRF public-IP pinning, secrets/RBAC/PII hooks, and append-only audit still apply. See [mcp.md](mcp.md).
 
 Secrets backends and authorizers are pack hooks. Env / `.env` remains the default BYOK path; core does not vendor Vault or AWS SDKs.
 
