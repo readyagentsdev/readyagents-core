@@ -2,7 +2,7 @@
 
 ReadyAgents includes an MCP **client** (call other servers from a workflow) and an MCP **server** (expose this toolkit to other agents).
 
-MCP is an **optional extra**. Builtin tools are Python and need no Node.js.
+MCP is an **optional extra**. Builtin tools are Python and need no Node.js. A core install without the extra still runs keyless workflows. MCP/HTTP imports fail only when those paths are used (`MCPError`). No new mandatory dependency.
 
 ```bash
 pip install -e ".[mcp]"
@@ -50,15 +50,17 @@ Core examples do **not** require MCP servers.
 
 ## Server: expose ReadyAgents
 
+Stdio is the **default** and is unchanged. The synchronous MCP tool `run_workflow` remains.
+
 ```bash
 readyagents mcp serve
+readyagents mcp serve --transport stdio
+readyagents mcp serve --transport streamable-http --host 127.0.0.1 --port 8765
 ```
 
-Speaks MCP over **stdio**. Other agents can call `now`, `calc`, `json_get`, `json_set`, `json_merge`, `list_dir`, `read_file`, `write_file`, `http_get` (if enabled), and `run_workflow`.
+Requires `pip install -e ".[mcp]"`. Flags: [cli.md](cli.md).
 
-`run_workflow` takes `path` (workflow file) and `inputs_json` (JSON object). `path` must stay under the server workspace (the same sandbox as `list_dir` / `read_file` / `write_file`).
-
-Point your MCP host at the `readyagents` CLI command. Example Claude Desktop / host config sketch:
+Point your MCP host at the `readyagents` CLI command. Example Claude Desktop / host config sketch (**stdio**):
 
 ```json
 {
@@ -71,12 +73,148 @@ Point your MCP host at the `readyagents` CLI command. Example Claude Desktop / h
 }
 ```
 
+Registry `server.json` still describes that stdio package. Streamable HTTP is an explicit local command, not a hosted remote.
+
+### MCP-standard vs ReadyAgents extension
+
+When Streamable HTTP is enabled, one foreground process exposes **two different** HTTP surfaces. Do not mix them up.
+
+| Surface | What it is | What it is not |
+| --- | --- | --- |
+| `/mcp` | Official Python MCP SDK **Streamable HTTP** (framing, session, protocol headers, JSON vs SSE) | Not a custom WebSocket. Not the deprecated HTTP+SSE transport from protocol `2024-11-05` reimplemented as a custom transport. |
+| `/runs` | ReadyAgents JSON **extension**: start, poll, decide, cooperative-cancel | Not an MCP JSON-RPC method. Not official MCP Tasks. |
+
+This server does **not** advertise MCP Tasks, Multi Round-Trip Requests (MRTR), or protocol elicitation. An approval pause is out-of-band persisted HITL (`type: approval` on the run record), not an MCP elicitation.
+
+### `/mcp` — MCP Streamable HTTP
+
+```bash
+readyagents mcp serve --transport streamable-http --host 127.0.0.1 --port 8765
+```
+
+The MCP endpoint is `http://127.0.0.1:8765/mcp`. Transport framing, session IDs, protocol-version headers, and JSON vs SSE response negotiation are handled by the installed Python MCP SDK. ReadyAgents does not claim conformance beyond that SDK.
+
+Over `/mcp`, tools are the same as stdio: `now`, `calc`, `json_get`, `json_set`, `json_merge`, `list_dir`, `read_file`, `write_file`, `http_get` (if enabled), and synchronous `run_workflow`. `run_workflow` still waits for the workflow to finish or pause and returns the run record as JSON. For a durable handle that outlives the original HTTP request, use `/runs`.
+
+v0.9 binds **loopback only**. Non-loopback hosts are rejected.
+
+### `/runs` — ReadyAgents JSON extension
+
+Authenticated JSON API on the same foreground process. Persistence cannot be disabled. The identifier is the full opaque 32-hex `run_id` (no prefixes).
+
+A stdlib example that talks **only** to `/runs` (not MCP JSON-RPC) is `examples/mcp_http_client.py`. It does not start the server. HITL reuses `examples/approval_gate.yaml`; there is no separate `async_approval.yaml`.
+
+#### `POST /runs` → `202` after a durable queued/running record
+
+```http
+POST /runs
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{"path": "examples/calc_pipeline.yaml", "inputs": {}, "actor": "local-integrator", "dry_run": false}
+```
+
+Accepted fields: `path` (required string), `inputs` (object, default `{}`), `actor` (optional string), `dry_run` (boolean, default false). Unknown fields → `400`. Never send provider keys in this JSON.
+
+Optional `Idempotency-Key`: the same key and body replay the original handle for the life of this process; a conflicting body → `409`. A full queue (`--max-pending-runs`, default 32) → `429` with no run record.
+
+```http
+HTTP/1.1 202 Accepted
+Location: /runs/<32-hex>
+```
+
+```json
+{
+  "ok": true,
+  "run_id": "<32-hex>",
+  "status": "queued",
+  "links": {
+    "self": "/runs/<32-hex>",
+    "decide": "/runs/<32-hex>/decide",
+    "cancel": "/runs/<32-hex>/cancel"
+  }
+}
+```
+
+#### `GET /runs/{full_id}` → `200`
+
+Returns `ok`, the existing `RunState.to_record()` fields, and additive `links`. A paused record includes `pending_node` and the persisted `pending.prompt`. `404` unknown, `400` malformed or prefix ids. Unique-prefix lookup is CLI-only.
+
+#### `POST /runs/{id}/decide`
+
+```json
+{"node_id": "gate", "decision": "approve", "actor": "reviewer"}
+```
+
+`decision` is `approve` or `reject`. The node must be the currently pending approval node. `202` with status `running` when resume is submitted, `409` conflict, `403` RBAC, `404` unknown. Broader decision-file shapes stay on the CLI.
+
+#### `POST /runs/{id}/cancel`
+
+```json
+{"actor": "local-integrator", "reason": "caller timeout"}
+```
+
+`202` with `cancel_requested` until a safe engine point, then `cancelled`. Already-terminal → `200` (idempotent). Cooperative: does not kill a blocking tool or provider call.
+
+#### Error envelope
+
+Every `/runs` error uses:
+
+```json
+{
+  "ok": false,
+  "error": "RunConflict",
+  "message": "Run is not awaiting a decision",
+  "run_id": "<32-hex or null>",
+  "request_id": "..."
+}
+```
+
+### Authentication
+
+With `--auth token` (default), all `/mcp` and `/runs` requests require:
+
+```http
+Authorization: Bearer <opaque-token>
+```
+
+- `--auth token` (default). Token from `--token-env` (default `READYAGENTS_MCP_TOKEN`).
+- There is **no** token-value CLI flag (process listings expose argv).
+- If token auth is on and the env var is empty, the process generates at least 256 bits of entropy and prints the token once to **stderr**. It is never persisted or logged.
+- `--auth none` is allowed only on an exact loopback bind and prints a warning.
+- Compare token bytes in constant time. Missing or wrong credentials → `401` with `WWW-Authenticate: Bearer`.
+- `Host` and browser `Origin` are checked against the configured loopback listener (DNS rebinding).
+- Responses use `Cache-Control: no-store`.
+
+### Lifecycle limits (v0.9)
+
+This is a **request-driven foreground door**. It is not a scheduler, cron, watcher, queue scanner, retry daemon, auto-start, or hosted control plane. It does not recover incomplete runs on startup.
+
+Stopping the command stops the listener and the in-process executor. Work does **not** survive process death. A run JSON file may remain on disk; nothing resumes it automatically. v0.9 has no SQLite compare-and-swap store and no browser approval UI.
+
+`--max-concurrent-runs` defaults to 4. `--max-pending-runs` defaults to 32.
+
+### Example client
+
+```bash
+# terminal 1
+pip install -e ".[mcp]"
+readyagents mcp serve --transport streamable-http --host 127.0.0.1 --port 8765
+
+# terminal 2 (same token; printed to stderr if generated)
+export READYAGENTS_MCP_TOKEN=...
+python examples/mcp_http_client.py
+python examples/mcp_http_client.py --path examples/calc_pipeline.yaml
+```
+
 ## Security notes
 
 - `list_dir` / `read_file` / `write_file` cannot escape the workspace directory
 - YAML `workspace:` cannot relocate the sandbox outside `READYAGENTS_WORKSPACE`
-- MCP `run_workflow` only loads a workflow file under that same root
+- MCP `run_workflow` and `POST /runs` only load a workflow file under that same root
 - MCP client tools are registered as `server.tool` and cannot replace sandbox builtins (`read_file`)
 - MCP stdio children do not inherit `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` unless set in `mcp_servers.*.env`
 - `http_get` is opt-in
 - `calc` does not evaluate arbitrary Python
+- Never send provider keys in `/runs` request JSON; use env / pack secret hooks
+- Do not expose the v0.9 HTTP door to the internet

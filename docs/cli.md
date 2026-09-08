@@ -95,7 +95,9 @@ readyagents resume abcdef --decision-file decision.json
 
 ## `readyagents decide RUN_ID`
 
-Inject an approval decision from outside the CLI (a pack, a ticket webhook, a file drop) and resume. Core does **not** run an HTTP server; a pack can receive the webhook and call this.
+Inject an approval decision from outside the CLI (a pack, a ticket webhook, a file drop) and resume.
+
+Core still does not auto-start a listener. An optional foreground MCP HTTP door (`readyagents mcp serve --transport streamable-http`) exposes `POST /runs/{id}/decide`; see [mcp.md](mcp.md). A pack can still receive a webhook and call this CLI.
 
 ```bash
 readyagents decide abcdef --node gate --decision approve
@@ -146,7 +148,27 @@ readyagents runs report <run_id> --out /tmp/run.html
 
 ## `readyagents mcp serve`
 
-Stdio MCP server. Requires `pip install -e ".[mcp]"` from this checkout. See [mcp.md](mcp.md).
+MCP server. Requires `pip install -e ".[mcp]"`. **Stdio is the default** and needs no new flag. See [mcp.md](mcp.md).
+
+```bash
+readyagents mcp serve
+readyagents mcp serve --transport stdio
+readyagents mcp serve --transport streamable-http --host 127.0.0.1 --port 8765
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--transport` | `stdio` (default) or `streamable-http` |
+| `--host` | HTTP bind address (default `127.0.0.1`). HTTP only. v0.9 rejects non-loopback binds. |
+| `--port` | HTTP port (default `8765`, range 1–65535). HTTP only. |
+| `--auth` | `token` (default) or `none`. `none` is allowed only on an exact loopback bind and prints a warning. |
+| `--token-env` | Env var that holds the bearer token (default `READYAGENTS_MCP_TOKEN`). There is **no** token-value CLI flag. |
+| `--max-concurrent-runs` | In-process executor cap (default `4`). HTTP only. |
+| `--max-pending-runs` | Queue cap (default `32`); extra `POST /runs` return `429` without a record. HTTP only. |
+
+If `--auth token` and the env var is empty, the process generates at least 256 bits of entropy and prints the token once to stderr. It is never persisted or logged.
+
+`streamable-http` mounts official MCP Streamable HTTP at `/mcp` and the ReadyAgents `/runs` extension on the same loopback listener. `/runs` is not an MCP JSON-RPC method and is not official MCP Tasks. Stopping the command stops both the listener and the in-process executor; work does not survive process death. A keyless `/runs` client is `examples/mcp_http_client.py` (does not start the server).
 
 ## `readyagents packs`
 

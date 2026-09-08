@@ -1,3 +1,69 @@
+# ReadyAgents Core 0.9.0 (Unreleased)
+
+**Opt-in loopback Streamable HTTP and local task handles. Stdio unchanged. No hosted recovery.**
+
+ReadyAgents v0.9 can expose its MCP toolkit through an explicitly started, loopback-only Streamable HTTP server. Long workflows may be submitted for an immediate durable run_id, then polled, approved, or cancelled without holding the original request open. The task-handle routes are a documented ReadyAgents extension; MRTR/elicitation and restart-surviving workers are not claimed. Existing stdio hosts continue to work unchanged.
+
+## Try it (no API keys)
+
+```bash
+git clone https://github.com/readyagents/readyagents-core.git
+cd readyagents-core
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -e ".[mcp]"
+readyagents run examples/calc_pipeline.yaml
+```
+
+Terminal 1 (foreground; token is `READYAGENTS_MCP_TOKEN`, or printed once to stderr if generated):
+
+```bash
+readyagents mcp serve --transport streamable-http --host 127.0.0.1 --port 8765
+```
+
+Terminal 2:
+
+```bash
+export READYAGENTS_MCP_TOKEN=...   # same token as the server
+python examples/mcp_http_client.py
+python examples/mcp_http_client.py --path examples/calc_pipeline.yaml
+```
+
+Stdio still needs no new flag:
+
+```bash
+readyagents mcp serve
+```
+
+HITL over `/runs` reuses `examples/approval_gate.yaml` (no separate async-approval fixture).
+
+## What we deliberately left out of core
+
+- Scheduler, cron, watcher, queue scanner, retry daemon, auto-start
+- Hosted control plane; recovery of incomplete runs on startup
+- Official MCP Tasks, MRTR, protocol elicitation
+- Non-loopback binds (v0.9 rejects them)
+- Work that survives process death: stopping the command stops the listener and in-process executor
+
+## Compatibility
+
+- Python 3.11+
+- `readyagents mcp serve` still defaults to stdio
+- Synchronous `run_workflow` MCP tool remains
+- Existing 0.8.x workflow YAML and stdio hosts still work
+- Core install without `[mcp]` still runs keyless workflows; HTTP imports fail only when used (`MCPError`)
+
+## Docs
+
+- [MCP](docs/mcp.md)
+- [CLI](docs/cli.md)
+- [Configuration](docs/configuration.md)
+- [Why ReadyAgents](docs/why-readyagents.md)
+- [Security](SECURITY.md)
+- [Changelog](CHANGELOG.md)
+
+---
+
 # ReadyAgents Core 0.8.1
 
 **`readyagents` is on PyPI.** Same engine as 0.8.0. Install docs no longer say the package is missing.
