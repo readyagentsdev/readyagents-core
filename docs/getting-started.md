@@ -8,25 +8,31 @@
 
 ## Install
 
-Current version is **0.8.0**. This package is **not on PyPI**. Clone the repo and install from that checkout.
-
-First-run clip: [watch the 60-second run](https://www.youtube.com/watch?v=D69o_HTGNQk)
+Current version is **0.8.2**. Preferred install is from PyPI:
 
 ```bash
-git clone https://github.com/readyagents/readyagents-core.git
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install readyagentsdev
+```
+
+Or clone and install editable:
+
+```bash
+git clone https://github.com/readyagentsdev/readyagents-core.git
 cd readyagents-core
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e .
 ```
 
-That is enough for builtin-tool workflows (no API keys). LLM and MCP extras are optional and still come from this checkout:
+Builtin-tool workflows need no API keys. LLM and MCP extras:
 
 ```bash
-pip install -e ".[openai]"
-pip install -e ".[anthropic]"
-pip install -e ".[mcp]"
-pip install -e ".[all]"
+pip install "readyagentsdev[openai]"
+pip install "readyagentsdev[anthropic]"
+pip install "readyagentsdev[mcp]"
+pip install "readyagentsdev[all]"
 ```
 
 Agent nodes need a key in `.env` after you install the matching extra.
