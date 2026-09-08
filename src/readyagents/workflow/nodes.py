@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import threading
-import time
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -14,6 +13,7 @@ from readyagents.errors import (
     ApprovalRequired,
     AuthorizationError,
     BudgetExceeded,
+    CancellationRequested,
     CircuitOpen,
     LLMError,
     NodeError,
@@ -36,6 +36,7 @@ from readyagents.llm.resilience import (
 from readyagents.llm.tool_calls import spec_from_tool
 from readyagents.logging import get_logger, log_event
 from readyagents.tools import ToolRegistry
+from readyagents.workflow.cancellation import CancellationToken, cancellable_sleep
 from readyagents.workflow.schema import NodeSpec, NodeType, WorkflowSpec
 from readyagents.workflow.state import RunState
 from readyagents.workflow.structured import validate_structured_output
@@ -85,6 +86,7 @@ class ExecutionContext:
         fallback_models: list[str] | None = None,
         cache_llm: bool = False,
         usage_state: RunState | None = None,
+        cancellation: CancellationToken | None = None,
     ) -> None:
         self.workflow = workflow
         self.tools = tools
@@ -109,7 +111,9 @@ class ExecutionContext:
         self.fallback_models = list(fallback_models or [])
         self.cache_llm = cache_llm
         self.usage_state = usage_state
+        self.cancellation = cancellation
         self.last_tool_rounds: list[dict[str, Any]] = []
+        self._persist_lock = threading.Lock()
 
     def decision_for(self, node_id: str) -> str | None:
         value = self.decisions.get(node_id)
@@ -147,6 +151,7 @@ class ExecutionContext:
             fallback_models=self.fallback_models,
             cache_llm=self.cache_llm,
             usage_state=self.usage_state,
+            cancellation=self.cancellation,
         )
 
 
@@ -565,8 +570,12 @@ def execute_node_with_policy(
     last_error: BaseException | None = None
 
     for attempt in range(1, attempts + 1):
+        if ctx.cancellation is not None:
+            ctx.cancellation.raise_if_requested(run_id=state.run_id)
         try:
             return _call_with_timeout(node, state, ctx), attempt
+        except CancellationRequested:
+            raise
         except ApprovalRequired:
             raise
         except (BudgetExceeded, AuthorizationError, CircuitOpen):
@@ -583,7 +592,7 @@ def execute_node_with_policy(
             )
             if attempt >= attempts:
                 break
-            time.sleep(backoff * (multiplier ** (attempt - 1)))
+            cancellable_sleep(backoff * (multiplier ** (attempt - 1)), ctx.cancellation)
         except Exception as exc:  # noqa: BLE001
             last_error = exc
             log.warning(
@@ -596,7 +605,7 @@ def execute_node_with_policy(
             )
             if attempt >= attempts:
                 break
-            time.sleep(backoff * (multiplier ** (attempt - 1)))
+            cancellable_sleep(backoff * (multiplier ** (attempt - 1)), ctx.cancellation)
 
     if isinstance(last_error, NodeError) and last_error.node_id == node.id:
         raise last_error
@@ -703,6 +712,13 @@ def _run_foreach(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> list
             if ctx.on_persist is not None:
                 ctx.on_persist(state)
             raise
+        except CancellationRequested:
+            bucket[node.id] = [
+                {"index": i, "status": "ok", "output": outputs[i]} for i in range(len(outputs))
+            ]
+            if ctx.on_persist is not None:
+                ctx.on_persist(state)
+            raise
         except Exception:
             bucket[node.id] = [
                 {"index": i, "status": "ok", "output": outputs[i]} for i in range(len(outputs))
@@ -796,6 +812,8 @@ def _run_parallel(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dic
             output, _attempt = execute_node_with_policy(branch, state, ctx)
             return branch.id, output
         except ApprovalRequired:
+            raise
+        except CancellationRequested:
             raise
         except NodeError:
             raise

@@ -27,6 +27,7 @@ from readyagents.packs.loader import (
 )
 from readyagents.policy import redactor_from_settings, resolve_authorizer
 from readyagents.tools import ToolRegistry, default_registry
+from readyagents.workflow.cancellation import CancellationToken
 from readyagents.workflow.engine import run_workflow
 from readyagents.workflow.nodes import ExecutionContext
 from readyagents.workflow.schema import WorkflowSpec, validate_required_inputs
@@ -109,9 +110,14 @@ def run_workflow_file(
     decision_file: Path | str | None = None,
     on_pause: Any | None = None,
     no_cache: bool = False,
+    run_id: str | None = None,
+    initial_state: RunState | None = None,
+    cancellation: CancellationToken | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     workflow = load_workflow(path)
+    if initial_state is not None and resume_state is not None:
+        raise WorkflowError("initial_state and resume_state are mutually exclusive")
     merged_decisions: dict[str, str] = {}
     if decision_file:
         merged_decisions.update(load_decision_file(decision_file))
@@ -124,6 +130,11 @@ def run_workflow_file(
         if inputs:
             merged.update(inputs)
         validate_required_inputs(workflow, merged)
+    elif initial_state is not None:
+        overrides = dict(initial_state.inputs)
+        if inputs:
+            overrides.update(inputs)
+        merged = merge_inputs(workflow, overrides)
     else:
         merged = merge_inputs(workflow, inputs)
 
@@ -254,6 +265,7 @@ def run_workflow_file(
         fallback_models=fallback,
         cache_llm=cache_enabled,
         usage_state=resume_state,
+        cancellation=cancellation,
     )
     metadata = {
         "source": str(source_path),
@@ -268,7 +280,8 @@ def run_workflow_file(
             merged,
             ctx,
             metadata=metadata,
-            state=resume_state,
+            state=resume_state if resume_state is not None else initial_state,
+            run_id=run_id,
         )
     finally:
         if mcp is not None:
@@ -294,6 +307,7 @@ def resume_run(
     decision_file: Path | str | None = None,
     on_pause: Any | None = None,
     no_cache: bool = False,
+    cancellation: CancellationToken | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     state = load_run(settings.runs_dir(), run_id)
@@ -317,6 +331,7 @@ def resume_run(
         decision_file=decision_file,
         on_pause=on_pause,
         no_cache=no_cache,
+        cancellation=cancellation,
     )
 
 
