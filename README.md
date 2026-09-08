@@ -1,11 +1,11 @@
 # ReadyAgents Core
 
-<!-- mcp-name: io.github.readyagents/readyagents -->
+<!-- mcp-name: io.github.readyagentsdev/readyagents -->
 ReadyAgents is a free, self-hosted Apache-2.0 local one-shot agent workflow engine plus MCP toolkit: clone it, bring your own keys; always-on packs are waitlisted and not for sale.
 
-Site: [readyagents.dev](https://readyagents.dev). Repo: [github.com/readyagents/readyagents-core](https://github.com/readyagents/readyagents-core).
+Site: [readyagents.dev](https://readyagents.dev). Repo: [github.com/readyagentsdev/readyagents-core](https://github.com/readyagentsdev/readyagents-core).
 
-Tried it? Open an [I-ran-this](https://github.com/readyagents/readyagents-core/issues/new?template=i-ran-this.md) issue. We are not launching. We are listening.
+Tried it? Open an [I-ran-this](https://github.com/readyagentsdev/readyagents-core/issues/new?template=i-ran-this.md) issue. We are not launching. We are listening.
 
 This repository is the free core. You keep the provider account and the bill. Install with `pip install readyagentsdev`, or from this clone.
 
@@ -16,7 +16,7 @@ Requires Python 3.11+. Current version is **0.8.2**. Install with `pip install r
 First-run clip: [watch the 60-second run](https://www.youtube.com/watch?v=D69o_HTGNQk)
 
 ```bash
-git clone https://github.com/readyagents/readyagents-core.git
+git clone https://github.com/readyagentsdev/readyagents-core.git
 cd readyagents-core
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
