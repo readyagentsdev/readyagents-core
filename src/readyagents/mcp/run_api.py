@@ -360,7 +360,7 @@ class RunCoordinator:
         )
         self._runs_dir = self.settings.runs_dir()
         self._lock = threading.RLock()
-        self._run_locks: dict[str, threading.Lock] = {}
+        self._run_locks: dict[str, threading.RLock] = {}
         self._tokens: dict[str, Any] = {}
         self._in_flight_resume: set[str] = set()
         self._active: set[str] = set()
@@ -534,11 +534,11 @@ class RunCoordinator:
         body["links"] = _links(state.run_id)
         return body
 
-    def _run_lock(self, run_id: str) -> threading.Lock:
+    def _run_lock(self, run_id: str) -> threading.RLock:
         with self._lock:
             lock = self._run_locks.get(run_id)
             if lock is None:
-                lock = threading.Lock()
+                lock = threading.RLock()
                 self._run_locks[run_id] = lock
             return lock
 
@@ -883,12 +883,13 @@ class RunCoordinator:
             token.request(actor=actor, reason=reason)
             state.status = "cancel_requested"
             self._persist(state)
-            snapshot = self._record_payload(state)
-            snapshot["status"] = "cancel_requested"
             with self._lock:
                 active = run_id in self._active
             if not active:
                 self._finish_cancelled(run_id)
+                return self._record_payload(load_run_exact(self._runs_dir, run_id))
+            snapshot = self._record_payload(state)
+            snapshot["status"] = "cancel_requested"
             return snapshot
 
     def _finish_cancelled(self, run_id: str) -> None:

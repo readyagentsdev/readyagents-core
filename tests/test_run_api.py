@@ -16,6 +16,7 @@ from readyagents.mcp.run_api import (
     load_run_exact,
 )
 from readyagents.tools import FunctionTool, ToolRegistry
+from readyagents.workflow.state import RunState, persist_run
 
 try:
     from starlette.testclient import TestClient
@@ -717,5 +718,40 @@ def test_coordinator_defaults_workspace_from_settings(tmp_settings) -> None:
     coord = RunCoordinator(settings=tmp_settings)
     try:
         assert coord.workspace == tmp_settings.workspace_path()
+    finally:
+        coord.shutdown()
+
+
+def test_cancel_inactive_queued_run_does_not_deadlock(tmp_settings) -> None:
+    """Cancel a persisted queued run that has no in-process worker.
+
+    ``_cancel`` holds the per-run lock and then calls ``_finish_cancelled``,
+    which takes the same lock. A non-reentrant lock deadlocks this path.
+    """
+    coord = RunCoordinator(settings=tmp_settings, workspace=tmp_settings.workspace_path())
+    run_id = "ab" * 16
+    queued = RunState.start("inactive-cancel", {}, run_id=run_id)
+    queued.status = "queued"
+    persist_run(queued, tmp_settings.runs_dir())
+    box: dict[str, object] = {}
+
+    def _cancel() -> None:
+        try:
+            box["out"] = coord.cancel(run_id, {"actor": "tester"})
+        except Exception as exc:  # noqa: BLE001
+            box["err"] = exc
+
+    thread = threading.Thread(target=_cancel, name="cancel-inactive")
+    thread.start()
+    thread.join(3.0)
+    try:
+        assert not thread.is_alive(), "cancel deadlocked on per-run lock"
+        assert "err" not in box, box.get("err")
+        payload = box["out"]
+        assert isinstance(payload, dict)
+        assert payload["run_id"] == run_id
+        assert payload["status"] == "cancelled"
+        loaded = load_run_exact(tmp_settings.runs_dir(), run_id)
+        assert loaded.status == "cancelled"
     finally:
         coord.shutdown()
