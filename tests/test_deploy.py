@@ -57,14 +57,23 @@ def test_m4_outbound_copies_exist() -> None:
     assert (ROOT / "examples" / "packs" / "hitl_gate.py").is_file()
 
 
+# Opt-in foreground Streamable HTTP may import uvicorn inside mcp/http.py only.
+# That module is started by `readyagents mcp serve --transport streamable-http`
+# and is not an always-on worker, scheduler, or hosted control plane.
+_ALLOWED_RUNTIME = {
+    ("src/readyagents/mcp/http.py", "uvicorn"),
+}
+
+
 def test_core_src_has_no_always_on_or_control_plane() -> None:
     root = ROOT / "src" / "readyagents"
     hits: list[str] = []
     for path in root.rglob("*.py"):
         text = path.read_text(encoding="utf-8")
+        rel = str(path.relative_to(ROOT))
         for token in _BANNED_RUNTIME:
-            if token in text:
-                hits.append(f"{path.relative_to(ROOT)}: {token}")
+            if token in text and (rel, token) not in _ALLOWED_RUNTIME:
+                hits.append(f"{rel}: {token}")
     assert hits == []
     compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert "readyagents" in compose
