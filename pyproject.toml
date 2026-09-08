@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "readyagents"
+name = "readyagents-dev"
 version = "0.8.2"
 description = "Local one-shot YAML/JSON agent workflow engine + MCP toolkit (BYOK)."
 readme = "README.md"
@@ -48,12 +48,15 @@ dev = [
 readyagents = "readyagents.cli:app"
 
 [project.urls]
-Homepage = "https://readyagents.dev/"
-Documentation = "https://github.com/readyagents/readyagents-core/tree/main/docs"
-Issues = "https://github.com/readyagents/readyagents-core/issues"
-Source = "https://github.com/readyagents/readyagents-core"
+Homepage = "https://readyagents.dev"
+Source = "https://github.com/readyagentsdev/readyagents-core"
+Issues = "https://github.com/readyagentsdev/readyagents-core"
+Documentation = "https://github.com/readyagentsdev/readyagents-core/tree/main/docs"
 
 [project.entry-points."readyagents.packs"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/readyagents"]
 
 [tool.hatch.build.targets.sdist]
 include = [
