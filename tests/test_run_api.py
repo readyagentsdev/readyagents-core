@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import inspect
 import json
 import shutil
 import threading
@@ -12,7 +11,6 @@ import pytest
 
 from readyagents.mcp.run_api import (
     RunCoordinator,
-    build_run_routes,
     load_run_exact,
 )
 from readyagents.tools import FunctionTool, ToolRegistry
@@ -22,11 +20,6 @@ try:
     from starlette.testclient import TestClient
 except ImportError:  # pragma: no cover
     TestClient = None  # type: ignore[misc, assignment]
-
-try:
-    from readyagents.mcp.http import compose_http_app
-except ImportError:
-    compose_http_app = None
 
 
 SLOW_WF = """
@@ -101,26 +94,17 @@ TERMINAL = frozenset({"succeeded", "failed", "cancelled"})
 
 
 def _make_app(coordinator: RunCoordinator, settings: Any) -> Any:
-    if compose_http_app is not None:
-        params = inspect.signature(compose_http_app).parameters
-        kwargs: dict[str, Any] = {}
-        candidates = {
-            "coordinator": coordinator,
-            "settings": settings,
-            "workspace": coordinator.workspace,
-            "extra_tools": coordinator._extra_tools,
-            "extra_packs": coordinator._extra_packs or None,
-        }
-        for name, value in candidates.items():
-            if name in params:
-                kwargs[name] = value
-        try:
-            return compose_http_app(**kwargs)
-        except TypeError:
-            pass
-    from starlette.applications import Starlette
+    from readyagents.mcp.http import compose_http_app
+    from readyagents.mcp.server import construct_server
 
-    return Starlette(routes=build_run_routes(coordinator))
+    server = construct_server(allow_http=False, workspace=coordinator.workspace)
+    return compose_http_app(
+        server=server,
+        coordinator=coordinator,
+        token=None,
+        bind_host="127.0.0.1",
+        bind_port=8765,
+    )
 
 
 def _wait(predicate, *, timeout: float = 5.0, interval: float = 0.05):
@@ -238,7 +222,11 @@ def api_factory(tmp_settings, workspace: Path):
         )
         coords.append(coord)
         if TestClient is not None:
-            client = TestClient(_make_app(coord, tmp_settings), raise_server_exceptions=True)
+            client = TestClient(
+                _make_app(coord, tmp_settings),
+                base_url="http://127.0.0.1:8765",
+                raise_server_exceptions=True,
+            )
         else:
             client = _HandleClient(coord)
         clients.append(client)
@@ -546,6 +534,40 @@ def test_idempotency_replay_and_mismatch_409(api_factory) -> None:
         fresh = client.post("/runs", json={"path": "slow.yaml"})
         assert fresh.status_code == 202
         assert _json(fresh)["run_id"] != run_id
+    finally:
+        release.set()
+
+
+def test_concurrent_same_idempotency_key_creates_one_run(api_factory, tmp_settings) -> None:
+    tools, release, entered, _calls = _blocking_tool()
+    _coord, client = api_factory(extra_tools=tools)
+    barrier = threading.Barrier(2)
+    results: list[Any] = []
+
+    def _post() -> None:
+        barrier.wait(timeout=5)
+        results.append(
+            client.post(
+                "/runs",
+                json={"path": "slow.yaml"},
+                headers={"Idempotency-Key": "race-key"},
+            )
+        )
+
+    try:
+        workers = [threading.Thread(target=_post, name=f"idem-{i}") for i in range(2)]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(5)
+            assert not worker.is_alive()
+        assert len(results) == 2
+        assert all(item.status_code == 202 for item in results)
+        ids = {_json(item)["run_id"] for item in results}
+        assert len(ids) == 1
+        files = [p for p in _run_files(tmp_settings) if p.name.endswith(".json")]
+        assert len(files) == 1
+        assert files[0].stem in ids
     finally:
         release.set()
 

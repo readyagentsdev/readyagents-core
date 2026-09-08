@@ -143,13 +143,11 @@ class Settings(BaseSettings):
     mcp_max_concurrent_runs: int = Field(
         default=4,
         ge=1,
-        le=MAX_CONCURRENT_RUNS_HARD,
         validation_alias=AliasChoices("READYAGENTS_MCP_MAX_CONCURRENT_RUNS"),
     )
     mcp_max_pending_runs: int = Field(
         default=32,
         ge=1,
-        le=MAX_PENDING_RUNS_HARD,
         validation_alias=AliasChoices("READYAGENTS_MCP_MAX_PENDING_RUNS"),
     )
 

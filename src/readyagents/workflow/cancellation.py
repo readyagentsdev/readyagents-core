@@ -64,6 +64,10 @@ class CancellationToken:
         if pending:
             callback()
 
+    def clear_listeners(self) -> None:
+        with self._lock:
+            self._listeners.clear()
+
 
 def cancellable_sleep(seconds: float, token: CancellationToken | None) -> None:
     """Sleep ``seconds``, or until ``token`` is requested (then raise CancellationRequested)."""

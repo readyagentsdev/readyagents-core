@@ -243,6 +243,7 @@ def _arm_cancellation_persist(ctx: ExecutionContext, state: RunState) -> None:
     token = ctx.cancellation
     if token is None:
         return
+    token.clear_listeners()
     token.add_listener(lambda: _persist(ctx, state))
 
 

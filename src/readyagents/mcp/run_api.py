@@ -550,6 +550,18 @@ class RunCoordinator:
                 self._tokens[run_id] = token
             return token
 
+    def _new_token(self, run_id: str) -> Any:
+        token = CancellationToken()
+        with self._lock:
+            self._tokens[run_id] = token
+        return token
+
+    def _release_idempotency(self, key: str) -> None:
+        with self._lock:
+            previous = self._idempotency.pop(key, None)
+        if previous is not None and previous[0] == "pending" and previous[2] is not None:
+            previous[2].set()
+
     def _persist(self, state: RunState) -> None:
         persist_run(state, self._runs_dir, redactor=self._redactor)
 
@@ -589,47 +601,70 @@ class RunCoordinator:
         key = (idempotency_key or "").strip() or None
         canonical = _canonical_body(body)
         digest = _body_hash(canonical)
+        pending_event: threading.Event | None = None
         if key:
+            while True:
+                waiter: threading.Event | None = None
+                with self._lock:
+                    previous = self._idempotency.get(key)
+                    if previous is None:
+                        pending_event = threading.Event()
+                        self._idempotency[key] = ("pending", digest, pending_event, None)
+                        break
+                    kind = previous[0]
+                    prev_hash = previous[1]
+                    if prev_hash != digest:
+                        raise RunConflict(
+                            "Idempotency-Key was reused with a different request body"
+                        )
+                    if kind == "ready":
+                        handle = previous[3]
+                        assert handle is not None
+                        return dict(handle)
+                    waiter = previous[2]
+                if waiter is None:
+                    continue
+                waiter.wait(timeout=30.0)
+
+        with self._lock:
+            if self._shutdown:
+                if key:
+                    self._release_idempotency(key)
+                raise ServiceUnavailable("run API is shutting down")
+
+        try:
+            try:
+                wf_path = confine_under(path_raw, self.workspace, what="workflow")
+            except ConfigError as exc:
+                raise HttpRequestError(str(exc)) from exc
+            if not wf_path.is_file():
+                raise ConfigError(f"Workflow file not found: {wf_path}")
+
+            workflow = load_workflow(wf_path)
+            merged = merge_inputs(workflow, inputs)
+            self._authorizer.check(actor, "run", workflow.name)
+
+            declared = (workflow.workspace or "").strip()
+            try:
+                run_workspace = (
+                    confine_under(declared, self.workspace, what="workspace")
+                    if declared
+                    else self.workspace
+                )
+            except ConfigError as exc:
+                raise HttpRequestError(str(exc)) from exc
+            allow_http = bool(workflow.allow_http or self.settings.allow_http)
+
             with self._lock:
-                previous = self._idempotency.get(key)
-            if previous is not None:
-                prev_hash, handle = previous
-                if prev_hash != digest:
-                    raise RunConflict("Idempotency-Key was reused with a different request body")
-                return dict(handle)
-
-        with self._lock:
-            if self._shutdown:
-                raise ServiceUnavailable("run API is shutting down")
-
-        try:
-            wf_path = confine_under(path_raw, self.workspace, what="workflow")
-        except ConfigError as exc:
-            raise HttpRequestError(str(exc)) from exc
-        if not wf_path.is_file():
-            raise ConfigError(f"Workflow file not found: {wf_path}")
-
-        workflow = load_workflow(wf_path)
-        merged = merge_inputs(workflow, inputs)
-        self._authorizer.check(actor, "run", workflow.name)
-
-        declared = (workflow.workspace or "").strip()
-        try:
-            run_workspace = (
-                confine_under(declared, self.workspace, what="workspace")
-                if declared
-                else self.workspace
-            )
-        except ConfigError as exc:
-            raise HttpRequestError(str(exc)) from exc
-        allow_http = bool(workflow.allow_http or self.settings.allow_http)
-
-        with self._lock:
-            if self._shutdown:
-                raise ServiceUnavailable("run API is shutting down")
-            if self._queued + self._running >= self.max_pending_runs:
-                raise QueueOverflow("too many pending runs")
-            self._queued += 1
+                if self._shutdown:
+                    raise ServiceUnavailable("run API is shutting down")
+                if self._queued + self._running >= self.max_pending_runs:
+                    raise QueueOverflow("too many pending runs")
+                self._queued += 1
+        except Exception:
+            if key:
+                self._release_idempotency(key)
+            raise
 
         run_id = uuid4().hex
         state = RunState.start(
@@ -646,14 +681,14 @@ class RunCoordinator:
             run_id=run_id,
         )
         state.status = "queued"
-        # Engine resume-cursor fallback (until runner grows initial_state).
-        state.pending_node = workflow.start
-        token = self._token_for(run_id)
+        token = self._new_token(run_id)
         try:
             self._persist(state)
         except Exception:
             with self._lock:
                 self._queued = max(0, self._queued - 1)
+            if key:
+                self._release_idempotency(key)
             raise
 
         handle = {
@@ -664,7 +699,9 @@ class RunCoordinator:
         }
         if key:
             with self._lock:
-                self._idempotency[key] = (digest, dict(handle))
+                self._idempotency[key] = ("ready", digest, None, dict(handle))
+            if pending_event is not None:
+                pending_event.set()
         with self._lock:
             self._active.add(run_id)
         try:
@@ -681,6 +718,8 @@ class RunCoordinator:
             with self._lock:
                 self._queued = max(0, self._queued - 1)
                 self._active.discard(run_id)
+            if key:
+                self._release_idempotency(key)
             state.status = "failed"
             state.errors.append("failed to submit run")
             state.finish("failed")
@@ -787,7 +826,7 @@ class RunCoordinator:
                 with self._lock:
                     self._in_flight_resume.discard(run_id)
                 raise
-            token = self._token_for(run_id)
+            token = self._new_token(run_id)
             with self._lock:
                 self._active.add(run_id)
             try:

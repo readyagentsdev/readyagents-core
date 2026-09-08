@@ -113,7 +113,7 @@ class ExecutionContext:
         self.usage_state = usage_state
         self.cancellation = cancellation
         self.last_tool_rounds: list[dict[str, Any]] = []
-        self._persist_lock = threading.Lock()
+        self._persist_lock = threading.RLock()
 
     def decision_for(self, node_id: str) -> str | None:
         value = self.decisions.get(node_id)
