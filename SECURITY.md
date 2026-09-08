@@ -6,7 +6,9 @@ If you find a vulnerability in ReadyAgents Core, please **do not** open a public
 
 The GitHub account [readyagents](https://github.com/readyagents) is a **User**, not an Organization.
 
-Use [private vulnerability reporting](https://github.com/readyagents/readyagents-core/security/advisories/new) on this repository. That form is the working contact.
+Use [private vulnerability reporting](https://github.com/readyagents/readyagents-core/security/advisories/new) on this repository for vulnerability reports.
+
+Public contact: [info@readyagents.dev](mailto:info@readyagents.dev)
 
 Include:
 
