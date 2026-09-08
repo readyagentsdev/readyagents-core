@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import secrets
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,12 @@ from readyagents.mcp.server import construct_server, mcp_available
 pytestmark = pytest.mark.skipif(not mcp_available(), reason="mcp extra not installed")
 
 runner = CliRunner()
+
+
+def _plain(text: str) -> str:
+    """Strip ANSI and whitespace so Rich wrapping cannot hide tokens."""
+    return re.sub(r"\s+", "", re.sub(r"\x1b\[[0-9;]*m", "", text))
+
 
 TOKEN = "s3cret-readyagents-mcp-bearer-test-token"
 _EXPECTED_TOOLS = (
@@ -294,7 +301,7 @@ def test_bad_origin_rejected(tmp_path: Path) -> None:
 def test_mcp_serve_help_has_streamable_http_not_token_flag() -> None:
     result = runner.invoke(app, ["mcp", "serve", "--help"])
     assert result.exit_code == 0, result.stdout + result.stderr
-    text = result.stdout
+    text = _plain(result.stdout)
     assert "--transport" in text
     assert "streamable-http" in text
     assert "--token-env" in text
