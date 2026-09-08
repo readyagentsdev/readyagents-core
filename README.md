@@ -7,11 +7,11 @@ Site: [readyagents.dev](https://readyagents.dev). Repo: [github.com/readyagents/
 
 Tried it? Open an [I-ran-this](https://github.com/readyagents/readyagents-core/issues/new?template=i-ran-this.md) issue. We are not launching. We are listening.
 
-This repository is the free core. You keep the provider account and the bill. Install with `pip install readyagents-dev`, or from this clone.
+This repository is the free core. You keep the provider account and the bill. Install with `pip install readyagentsdev`, or from this clone.
 
 ## 60-second start
 
-Requires Python 3.11+. Current version is **0.8.2**. Install with `pip install readyagents-dev`, or from this clone.
+Requires Python 3.11+. Current version is **0.8.2**. Install with `pip install readyagentsdev`, or from this clone.
 
 First-run clip: [watch the 60-second run](https://www.youtube.com/watch?v=D69o_HTGNQk)
 
@@ -30,7 +30,7 @@ readyagents runs list
 Or from PyPI (the wheel does not ship `examples/`):
 
 ```bash
-pip install readyagents-dev
+pip install readyagentsdev
 readyagents new my-flow
 ```
 
@@ -136,10 +136,10 @@ flowchart LR
 LLM and MCP extras are optional.
 
 ```bash
-pip install "readyagents-dev[openai]"
-pip install "readyagents-dev[anthropic]"
-pip install "readyagents-dev[mcp]"
-pip install "readyagents-dev[all]"
+pip install "readyagentsdev[openai]"
+pip install "readyagentsdev[anthropic]"
+pip install "readyagentsdev[mcp]"
+pip install "readyagentsdev[all]"
 ```
 
 From a clone, the same extras are `pip install -e ".[openai]"` (and `anthropic` / `mcp` / `all`).

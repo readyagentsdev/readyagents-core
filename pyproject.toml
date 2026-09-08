@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "readyagents-dev"
+name = "readyagentsdev"
 version = "0.8.2"
 description = "Local one-shot YAML/JSON agent workflow engine + MCP toolkit (BYOK)."
 readme = "README.md"
