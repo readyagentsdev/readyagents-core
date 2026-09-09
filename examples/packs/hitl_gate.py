@@ -6,14 +6,19 @@ pure functions; ``serve_once`` starts a one-request stdlib server for checks.
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
 from collections.abc import Mapping
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 
 from readyagents.config import Settings, get_settings
+from readyagents.decisions.signing import (
+    parse_signature_header,
+    sign_body,
+)
+from readyagents.decisions.signing import (
+    verify_signed_body as _verify_hmac,
+)
 from readyagents.errors import ReadyAgentsError
 from readyagents.packs import BasePack
 from readyagents.workflow.runner import resume_run
@@ -21,35 +26,30 @@ from readyagents.workflow.state import RunState, parse_decision_payload
 
 SIGNATURE_HEADER = "X-ReadyAgents-Signature"
 
+__all__ = [
+    "SIGNATURE_HEADER",
+    "SignatureError",
+    "sign_body",
+    "parse_signature_header",
+    "verify_signed_body",
+    "apply_signed_decision",
+    "handle_http_post",
+    "serve_once",
+    "HitlGatePack",
+    "get_pack",
+]
+
 
 class SignatureError(ValueError):
     """Missing, empty, or forged HMAC on a Gate decision payload."""
 
 
-def sign_body(secret: str, body: bytes) -> str:
-    return hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
-
-
-def parse_signature_header(value: str | None) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    if not text:
-        return None
-    lowered = text.lower()
-    if lowered.startswith("sha256="):
-        text = text.split("=", 1)[1].strip()
-    return text or None
-
-
 def verify_signed_body(secret: str, body: bytes, signature: str | None) -> dict[str, Any]:
     """Return the JSON object if HMAC-SHA256 matches. Never resumes a run."""
-    parsed = parse_signature_header(signature)
-    if not parsed:
-        raise SignatureError("unsigned decision: missing signature")
-    expected = sign_body(secret, body)
-    if not hmac.compare_digest(expected, parsed):
-        raise SignatureError("forged decision: signature mismatch")
+    try:
+        _verify_hmac(secret, body, signature)
+    except ValueError as exc:
+        raise SignatureError(str(exc)) from exc
     try:
         data = json.loads(body.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
