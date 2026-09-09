@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 1.2.0 — 2026-09-10
+
 ### Added
 
 - **Agent firewall.** Optional `readyagents.policy.yaml` (or `--policy` /
