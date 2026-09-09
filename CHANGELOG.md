@@ -2,7 +2,7 @@
 
 All notable changes to ReadyAgents Core.
 
-## Unreleased
+## 0.9.0 — 2026-09-09
 
 ### Added
 
