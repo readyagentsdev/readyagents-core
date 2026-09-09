@@ -36,7 +36,7 @@ v0.10 Streamable HTTP is an explicit foreground command (`readyagents mcp serve 
 - `--auth none` is allowed only on an exact loopback bind and prints a warning. Do not expose this listener to the internet.
 - `Host` and browser `Origin` are checked against the configured loopback listener (DNS-rebinding defense). Responses use `Cache-Control: no-store`.
 - Workspace confinement (`confine_under`), SSRF public-IP pinning, secrets/RBAC/PII hooks, append-only audit, and signed decisions still apply. Provider keys are never accepted in request JSON.
-- Cooperative cancel does not kill a blocking tool or provider call. Status stays `cancel_requested` until a safe engine point.
+- Cooperative cancel does not kill a blocking tool or provider call. Status stays `cancel_requested` until a safe engine point. Retry backoff is a safe point and finishes as `cancelled`.
 
 MCP `tasks/update` approvals have the **same authority** as `readyagents decide` and the localhost approval UI. They travel the existing RBAC authorizer, optional HMAC (`READYAGENTS_DECISION_SECRET`), and append-only audit path. An unsigned (when a decision secret is configured) or unauthorized MCP approval is refused, audited, and leaves the run paused. Do not treat a 2026 MCP client as a weaker door.
 

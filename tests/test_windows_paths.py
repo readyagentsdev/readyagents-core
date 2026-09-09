@@ -7,6 +7,7 @@ Skipped cases must include a greppable ``skip-reason:`` string.
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -28,6 +29,7 @@ SKIP_REASON_83 = "skip-reason: 8.3 names are a Windows resolver feature"
 SKIP_REASON_TRAILING = "skip-reason: trailing-dot space is a Windows normalisation"
 SKIP_REASON_SYMLINK = "skip-reason: symlink privilege missing"
 SKIP_REASON_MACOS = "skip-reason: not macOS /tmp vs /private/tmp"
+SKIP_REASON_JUNCTION = "skip-reason: junction/reparse point is a Windows feature"
 
 
 # ---------------------------------------------------------------------------
@@ -229,6 +231,72 @@ def test_symlink_file_escape_resolve_within(tmp_path: Path) -> None:
         tool_write_file("leak.txt", "x", workspace=tmp_path)
 
 
+def _create_junction(link: Path, target: Path) -> None:
+    """Create a Windows directory junction. Raises OSError if inexpressible."""
+    if sys.platform != "win32":
+        raise OSError("junctions require Windows")
+    target.mkdir(parents=True, exist_ok=True)
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    proc = subprocess.run(
+        ["cmd.exe", "/c", "mklink", "/J", str(link), str(target.resolve())],
+        capture_output=True,
+        text=True,
+        creationflags=flags,
+    )
+    if proc.returncode != 0 or not link.exists():
+        detail = (proc.stderr or proc.stdout or "mklink /J failed").strip()
+        raise OSError(detail)
+
+
+def test_junction_reparse_point_escape(tmp_path: Path) -> None:
+    """Junctions are reparse points; Path.is_symlink() often misses them."""
+    if sys.platform != "win32":
+        pytest.skip(SKIP_REASON_JUNCTION)
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    outside = tmp_path / "outside"
+    secret = outside / "secret.txt"
+    secret.parent.mkdir()
+    secret.write_text("nope", encoding="utf-8")
+    junction = workspace / "leak"
+    try:
+        _create_junction(junction, outside)
+    except OSError:
+        pytest.skip(SKIP_REASON_JUNCTION)
+    # The corpus exists because is_symlink() is False for junctions.
+    is_junction = getattr(junction, "is_junction", None)
+    if callable(is_junction):
+        assert junction.is_junction()
+    assert junction.is_dir()
+    with pytest.raises(PathError, match="outside"):
+        resolve_within("leak/secret.txt", workspace)
+    with pytest.raises((PathError, ConfigError), match="outside"):
+        confine_under("leak/secret.txt", workspace, what="path")
+    with pytest.raises(ToolError, match="outside"):
+        tool_read_file("leak/secret.txt", workspace=workspace)
+    with pytest.raises(ToolError, match="outside"):
+        tool_write_file("leak/secret.txt", "x", workspace=workspace)
+
+
+def test_junction_inside_workspace_is_contained(tmp_path: Path) -> None:
+    """A junction that resolves inside the root is allowed (resolve-then-compare)."""
+    if sys.platform != "win32":
+        pytest.skip(SKIP_REASON_JUNCTION)
+    workspace = tmp_path / "ws"
+    inner = workspace / "inner"
+    inner.mkdir(parents=True)
+    note = inner / "note.txt"
+    note.write_text("ok", encoding="utf-8")
+    junction = workspace / "alias"
+    try:
+        _create_junction(junction, inner)
+    except OSError:
+        pytest.skip(SKIP_REASON_JUNCTION)
+    got = resolve_within("alias/note.txt", workspace)
+    assert got == note.resolve()
+    assert tool_read_file("alias/note.txt", workspace=workspace) == "ok"
+
+
 def test_symlink_escape_confine_pack_path(tmp_path: Path) -> None:
     workspace = tmp_path / "ws"
     workspace.mkdir()
@@ -323,6 +391,7 @@ def test_coverage_summary_records_every_skip_reason(capsys: pytest.CaptureFixtur
         SKIP_REASON_TRAILING,
         SKIP_REASON_SYMLINK,
         SKIP_REASON_MACOS,
+        SKIP_REASON_JUNCTION,
     ]
     for reason in reasons:
         assert "skip-reason:" in reason
@@ -332,4 +401,5 @@ def test_coverage_summary_records_every_skip_reason(capsys: pytest.CaptureFixtur
     assert SKIP_REASON_TRAILING in captured.out
     assert SKIP_REASON_SYMLINK in captured.out
     assert SKIP_REASON_MACOS in captured.out
-    assert captured.out.count("skip-reason:") >= 4
+    assert SKIP_REASON_JUNCTION in captured.out
+    assert captured.out.count("skip-reason:") >= 5

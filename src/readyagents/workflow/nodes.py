@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -114,6 +115,23 @@ class ExecutionContext:
         self.cancellation = cancellation
         self.last_tool_rounds: list[dict[str, Any]] = []
         self._persist_lock = threading.RLock()
+        self._in_flight = 0
+        self._in_flight_lock = threading.Lock()
+
+    def enter_node_body(self) -> None:
+        """Mark a node body (not retry backoff) as executing."""
+        with self._in_flight_lock:
+            self._in_flight += 1
+
+    def leave_node_body(self) -> None:
+        with self._in_flight_lock:
+            if self._in_flight > 0:
+                self._in_flight -= 1
+
+    def node_body_in_flight(self) -> bool:
+        """True while a node body is executing; False during retry backoff."""
+        with self._in_flight_lock:
+            return self._in_flight > 0
 
     def decision_for(self, node_id: str) -> str | None:
         value = self.decisions.get(node_id)
@@ -566,6 +584,15 @@ def _estimate_tokens(*texts: str) -> int:
     return max(1, total // 4)
 
 
+@contextmanager
+def _track_node_body(ctx: ExecutionContext) -> Iterator[None]:
+    ctx.enter_node_body()
+    try:
+        yield
+    finally:
+        ctx.leave_node_body()
+
+
 def execute_node_with_policy(
     node: NodeSpec, state: RunState, ctx: ExecutionContext
 ) -> tuple[Any, int]:
@@ -580,7 +607,8 @@ def execute_node_with_policy(
         if ctx.cancellation is not None:
             ctx.cancellation.raise_if_requested(run_id=state.run_id)
         try:
-            return _call_with_timeout(node, state, ctx), attempt
+            with _track_node_body(ctx):
+                return _call_with_timeout(node, state, ctx), attempt
         except CancellationRequested:
             raise
         except ApprovalRequired:
@@ -589,30 +617,20 @@ def execute_node_with_policy(
             raise
         except ReadyAgentsError as exc:
             last_error = exc
-            log.warning(
-                "Node %s attempt %s/%s failed: %s",
-                node.id,
-                attempt,
-                attempts,
-                exc,
-                extra={"run_id": state.run_id, "node_id": node.id},
-            )
-            if attempt >= attempts:
-                break
-            cancellable_sleep(backoff * (multiplier ** (attempt - 1)), ctx.cancellation)
         except Exception as exc:  # noqa: BLE001
             last_error = exc
-            log.warning(
-                "Node %s attempt %s/%s failed: %s",
-                node.id,
-                attempt,
-                attempts,
-                exc,
-                extra={"run_id": state.run_id, "node_id": node.id},
-            )
-            if attempt >= attempts:
-                break
-            cancellable_sleep(backoff * (multiplier ** (attempt - 1)), ctx.cancellation)
+        log.warning(
+            "Node %s attempt %s/%s failed: %s",
+            node.id,
+            attempt,
+            attempts,
+            last_error,
+            extra={"run_id": state.run_id, "node_id": node.id},
+        )
+        if attempt >= attempts:
+            break
+        # Retry backoff is a cooperative safe point, not an in-flight node body.
+        cancellable_sleep(backoff * (multiplier ** (attempt - 1)), ctx.cancellation)
 
     if isinstance(last_error, NodeError) and last_error.node_id == node.id:
         raise last_error
