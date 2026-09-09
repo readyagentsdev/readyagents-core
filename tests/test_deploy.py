@@ -60,8 +60,13 @@ def test_m4_outbound_copies_exist() -> None:
 # Opt-in foreground Streamable HTTP may import uvicorn inside mcp/http.py only.
 # That module is started by `readyagents mcp serve --transport streamable-http`
 # and is not an always-on worker, scheduler, or hosted control plane.
+# The approval UI is the same class of door: explicit `approvals serve`, stdlib
+# HTTP, loopback only, stops when the foreground command stops.
 _ALLOWED_RUNTIME = {
     ("src/readyagents/mcp/http.py", "uvicorn"),
+    ("src/readyagents/approvals/server.py", "HTTPServer"),
+    ("src/readyagents/approvals/server.py", "BaseHTTPRequestHandler"),
+    ("src/readyagents/approvals/server.py", "ThreadingHTTPServer"),
 }
 
 
