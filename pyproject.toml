@@ -43,6 +43,7 @@ dev = [
     "openai>=1.40",
     "anthropic>=0.34",
     "mcp>=1.2,<3",
+    "jsonschema>=4.18",
 ]
 
 [project.scripts]
@@ -63,6 +64,7 @@ packages = ["src/readyagents"]
 "src/readyagents/approvals/assets/index.html" = "readyagents/approvals/assets/index.html"
 "src/readyagents/approvals/assets/app.js" = "readyagents/approvals/assets/app.js"
 "src/readyagents/approvals/assets/style.css" = "readyagents/approvals/assets/style.css"
+"schemas/workflow-v1.json" = "readyagents/schemas/workflow-v1.json"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -75,6 +77,7 @@ include = [
     "/Dockerfile",
     "/docker-compose.yml",
     "/Makefile",
+    "/schemas",
 ]
 
 [tool.pytest.ini_options]

@@ -385,6 +385,9 @@ readyagents run workflow.yaml --approve gate
 }
 
 
+_SCHEMA_MODELINE = "# yaml-language-server: $schema=./workflow.schema.json\n"
+
+
 def create_project(dest: Path, *, name: str, template: str = "pipeline") -> list[Path]:
     dest = dest.expanduser().resolve()
     dest.mkdir(parents=True, exist_ok=True)
@@ -394,14 +397,21 @@ def create_project(dest: Path, *, name: str, template: str = "pipeline") -> list
     workflow = dest / "workflow.yaml"
     readme = dest / "README.md"
     env_example = dest / ".env.example"
-    for path in (workflow, readme, env_example):
+    schema_file = dest / "workflow.schema.json"
+    for path in (workflow, readme, env_example, schema_file):
         if path.exists():
             raise ConfigError(f"Refusing to overwrite existing file: {path}")
     slug = _slug(name)
-    workflow.write_text(_WORKFLOWS[kind].format(name=slug), encoding="utf-8")
+    from readyagents.workflow.jsonschema import workflow_json_schema_text
+
+    body = _WORKFLOWS[kind].format(name=slug)
+    if not body.startswith("# yaml-language-server:"):
+        body = _SCHEMA_MODELINE + body
+    workflow.write_text(body, encoding="utf-8")
+    schema_file.write_text(workflow_json_schema_text(), encoding="utf-8")
     readme.write_text(_READMES[kind].format(name=slug), encoding="utf-8")
     env_example.write_text(_ENV, encoding="utf-8")
-    return [workflow, readme, env_example]
+    return [workflow, readme, env_example, schema_file]
 
 
 def _slug(name: str) -> str:

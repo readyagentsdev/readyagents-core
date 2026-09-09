@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from readyagents.audit import audit_dir_for, make_auditor
 from readyagents.config import Settings, get_settings
-from readyagents.errors import ConfigError, WorkflowError
+from readyagents.errors import ConfigError, SourceMapBoundError, WorkflowError
 from readyagents.llm.base import LLMProvider
 from readyagents.llm.cache import LLMCache
 from readyagents.llm.resilience import CircuitBreaker, usd_to_micros
@@ -39,8 +39,9 @@ log = get_logger("runner")
 _APPROVE = {"approve", "approved", "yes", "true", "accept", "ok"}
 
 
-def load_workflow(path: Path | str) -> WorkflowSpec:
+def load_workflow(path: Path | str, *, display_path: str | None = None) -> WorkflowSpec:
     file = Path(path)
+    shown = display_path if display_path is not None else str(path)
     if not file.is_file():
         raise ConfigError(f"Workflow file not found: {file}")
     text = file.read_text(encoding="utf-8")
@@ -50,13 +51,23 @@ def load_workflow(path: Path | str) -> WorkflowSpec:
         else:
             data = yaml.safe_load(text)
     except (json.JSONDecodeError, yaml.YAMLError) as exc:
-        raise WorkflowError(f"Could not parse {file}: {exc}") from exc
+        from readyagents.workflow.source_map import locate_errors
+
+        problems = locate_errors(exc, path, source=text, display_path=shown)
+        raise WorkflowError(f"Could not parse {file}: {exc}", problems=problems) from exc
     if not isinstance(data, dict):
         raise WorkflowError(f"Workflow {file} must be a mapping")
     try:
         return WorkflowSpec.model_validate(data)
     except ValidationError as exc:
-        raise WorkflowError(_format_validation(file, exc)) from exc
+        from readyagents.workflow.source_map import LocatedError, locate_errors
+
+        try:
+            problems = locate_errors(exc, path, source=text, display_path=shown)
+        except SourceMapBoundError as bound:
+            problems = [LocatedError(loc=(), message=str(bound), position=None)]
+            raise WorkflowError(_format_validation(file, exc), problems=problems) from bound
+        raise WorkflowError(_format_validation(file, exc), problems=problems) from exc
 
 
 def _format_validation(path: Path, exc: ValidationError) -> str:

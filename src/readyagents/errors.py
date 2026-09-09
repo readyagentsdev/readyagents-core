@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 
 class ReadyAgentsError(Exception):
     """Base error for all ReadyAgents failures."""
@@ -17,6 +19,10 @@ class ConfigError(ReadyAgentsError):
 class WorkflowError(ReadyAgentsError):
     """Invalid workflow definition or graph execution problem."""
 
+    def __init__(self, message: str, *, problems: list[Any] | None = None) -> None:
+        super().__init__(message)
+        self.problems = list(problems or [])
+
 
 class NodeError(ReadyAgentsError):
     """A single node failed after retries / timeout."""
@@ -24,6 +30,7 @@ class NodeError(ReadyAgentsError):
     def __init__(self, node_id: str, message: str, *, cause: BaseException | None = None) -> None:
         self.node_id = node_id
         self.cause = cause
+        self.problems = list(getattr(cause, "problems", None) or [])
         super().__init__(f"Node '{node_id}': {message}")
 
 
@@ -165,3 +172,7 @@ class RunStoreError(ReadyAgentsError):
 
 class RunStoreConflict(RunStoreError):
     """Optimistic concurrency failure (revision mismatch or missing row)."""
+
+
+class SourceMapBoundError(WorkflowError):
+    """YAML compose/index exceeded node-count or nesting-depth bounds."""

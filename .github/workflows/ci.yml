@@ -25,6 +25,8 @@ jobs:
         run: |
           ruff check src tests
           ruff format --check src tests
+      - name: Schema drift
+        run: readyagents schema --check schemas/workflow-v1.json
       - name: Pytest
         run: python -m pytest
       - name: Keyless examples (dry-run, resume, approval, parallel, include)

@@ -52,7 +52,7 @@ readyagents eval examples/eval/pass.yaml
 readyagents run examples/list_dir.yaml
 ```
 
-Scaffold a local starter (workflow + README + `.env.example`):
+Scaffold a local starter (workflow + README + `.env.example` + a local JSON Schema):
 
 ```bash
 readyagents new my-flow
@@ -60,6 +60,8 @@ readyagents run my-flow/workflow.yaml
 readyagents new demo --template gated
 readyagents run demo/workflow.yaml --approve gate
 ```
+
+Scaffolds start `workflow.yaml` with a `yaml-language-server` modeline pointing at `./workflow.schema.json` (the hosted `$id` URL 404s today, so the default is a local file). For an air-gapped copy: `readyagents schema --output .readyagents/workflow.schema.json`. Editor setup: [authoring.md](authoring.md).
 
 Human-in-the-loop (no keys):
 

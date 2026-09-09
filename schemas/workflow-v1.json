@@ -1,0 +1,928 @@
+{
+  "$defs": {
+    "BudgetSpec": {
+      "additionalProperties": false,
+      "description": "Optional token/cost budget for LLM calls in this workflow.",
+      "properties": {
+        "max_cost_usd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Maximum estimated LLM cost in USD for the run.",
+          "title": "Max Cost Usd"
+        },
+        "max_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Maximum LLM tokens for the run. Further calls raise BudgetExceeded.",
+          "title": "Max Tokens"
+        }
+      },
+      "title": "BudgetSpec",
+      "type": "object"
+    },
+    "CircuitSpec": {
+      "additionalProperties": false,
+      "description": "Process-local circuit breaker for LLM providers.",
+      "properties": {
+        "cooldown_seconds": {
+          "default": 60.0,
+          "description": "Seconds to skip a model after the breaker opens.",
+          "minimum": 0,
+          "title": "Cooldown Seconds",
+          "type": "number"
+        },
+        "failure_threshold": {
+          "default": 3,
+          "description": "Consecutive failures before the breaker opens.",
+          "minimum": 1,
+          "title": "Failure Threshold",
+          "type": "integer"
+        }
+      },
+      "title": "CircuitSpec",
+      "type": "object"
+    },
+    "EdgeSpec": {
+      "additionalProperties": false,
+      "description": "Optional explicit edge between two nodes.",
+      "properties": {
+        "from": {
+          "description": "Source node id.",
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "description": "Destination node id.",
+          "title": "To",
+          "type": "string"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional condition for taking this edge.",
+          "title": "When"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "title": "EdgeSpec",
+      "type": "object"
+    },
+    "MCPServerSpec": {
+      "additionalProperties": false,
+      "description": "Stdio MCP server launched for this workflow.",
+      "properties": {
+        "args": {
+          "description": "Arguments passed to the executable.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Args",
+          "type": "array"
+        },
+        "command": {
+          "description": "Executable to launch (no shell).",
+          "title": "Command",
+          "type": "string"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Working directory; must stay inside the workspace.",
+          "title": "Cwd"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra environment variables for the server process.",
+          "title": "Env",
+          "type": "object"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "title": "MCPServerSpec",
+      "type": "object"
+    },
+    "NodeSpec": {
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "agent"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "cache": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Override workflow/settings LLM cache for this agent node.",
+                "title": "Cache"
+              },
+              "fallback_models": {
+                "description": "Extra provider:model refs if this agent's primary model fails.",
+                "items": {
+                  "type": "string"
+                },
+                "title": "Fallback Models",
+                "type": "array"
+              },
+              "max_tool_rounds": {
+                "anyOf": [
+                  {
+                    "maximum": 20,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Cap on agent tool-call rounds (default 8, max 20).",
+                "title": "Max Tool Rounds"
+              },
+              "model": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "LLM ref for this agent (provider:model). Overrides default_model.",
+                "title": "Model"
+              },
+              "output_schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "JSON Schema object; agent output is parsed and validated.",
+                "title": "Output Schema"
+              },
+              "prompt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Agent or approval prompt. Templates allowed.",
+                "title": "Prompt"
+              },
+              "system": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional system prompt for agent nodes.",
+                "title": "System"
+              },
+              "tools": {
+                "description": "Allowlist of registry tool names this agent may call.",
+                "items": {
+                  "type": "string"
+                },
+                "title": "Tools",
+                "type": "array"
+              }
+            },
+            "required": [
+              "prompt"
+            ],
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "tool"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "arguments": {
+                "additionalProperties": true,
+                "description": "Arguments passed to the tool. Values may be templates.",
+                "title": "Arguments",
+                "type": "object"
+              },
+              "tool": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Registry tool name (calc, read_file, server.tool, …).",
+                "title": "Tool"
+              }
+            },
+            "required": [
+              "tool"
+            ],
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "condition"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "else": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Successor node id when the condition/approval is false.",
+                "title": "Else"
+              },
+              "then": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Successor node id when the condition/approval is true.",
+                "title": "Then"
+              },
+              "when": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Condition expression (not Python eval).",
+                "title": "When"
+              }
+            },
+            "required": [
+              "when"
+            ],
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "transform"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "json_path": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "JSON path applied during a transform.",
+                "title": "Json Path"
+              },
+              "parse_json": {
+                "default": false,
+                "description": "Parse the transform result as JSON.",
+                "title": "Parse Json",
+                "type": "boolean"
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional input value or template for a transform.",
+                "title": "Source"
+              },
+              "template": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Transform output template.",
+                "title": "Template"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "approval"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "else": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Successor node id when the condition/approval is false.",
+                "title": "Else"
+              },
+              "prompt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Agent or approval prompt. Templates allowed.",
+                "title": "Prompt"
+              },
+              "then": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Successor node id when the condition/approval is true.",
+                "title": "Then"
+              }
+            },
+            "required": [
+              "prompt"
+            ],
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "parallel"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "branches": {
+                "description": "Child nodes run concurrently. Each branch needs a unique id.",
+                "items": {
+                  "$ref": "#/$defs/NodeSpec"
+                },
+                "title": "Branches",
+                "type": "array"
+              }
+            },
+            "required": [
+              "branches"
+            ],
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "include"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "inputs": {
+                "additionalProperties": true,
+                "description": "Inputs passed to the included workflow.",
+                "title": "Inputs",
+                "type": "object"
+              },
+              "path": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Workspace-relative path of the included workflow file.",
+                "title": "Path"
+              }
+            },
+            "required": [
+              "path"
+            ],
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "foreach"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "body": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NodeSpec"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Node executed once per item."
+              },
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Template or input name of the list to iterate.",
+                "title": "Items"
+              },
+              "max_items": {
+                "anyOf": [
+                  {
+                    "maximum": 100,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Maximum items this foreach will process (1–100).",
+                "title": "Max Items"
+              }
+            },
+            "required": [
+              "items",
+              "body"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "description": "One node in the workflow graph.",
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Human-readable note; ignored at runtime.",
+          "title": "Description"
+        },
+        "id": {
+          "description": "Unique node id (letters, numbers, _ or -).",
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "next": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Default successor node id.",
+          "title": "Next"
+        },
+        "output_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Alias for this node's output in templates ({{key}}).",
+          "title": "Output Key"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RetrySpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Retry policy for this node."
+        },
+        "timeout_seconds": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Soft timeout in seconds for this node.",
+          "title": "Timeout Seconds"
+        },
+        "type": {
+          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach. Packs may add additional types.",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "title": "NodeSpec",
+      "type": "object"
+    },
+    "RetrySpec": {
+      "additionalProperties": false,
+      "description": "Retry policy for a node.",
+      "properties": {
+        "backoff_multiplier": {
+          "default": 2.0,
+          "description": "Multiplier applied to backoff after each failed attempt.",
+          "minimum": 1.0,
+          "title": "Backoff Multiplier",
+          "type": "number"
+        },
+        "backoff_seconds": {
+          "default": 1.0,
+          "description": "Initial backoff in seconds after a failed attempt.",
+          "minimum": 0,
+          "title": "Backoff Seconds",
+          "type": "number"
+        },
+        "max_attempts": {
+          "default": 1,
+          "description": "Maximum attempts including the first try (1–20).",
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Max Attempts",
+          "type": "integer"
+        }
+      },
+      "title": "RetrySpec",
+      "type": "object"
+    }
+  },
+  "$id": "https://readyagents.dev/schema/workflow/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "YAML/JSON workflow file format for ReadyAgents Core. The v1 path tracks the file format, not the package version. Cross-field rules (cycles, route targets, include graphs) are enforced by Pydantic at load time, not by this schema. Packs may add node types and fields; node objects stay open.",
+  "properties": {
+    "$schema": {
+      "description": "Optional JSON Schema identifier or relative path for editors. Ignored by ReadyAgents at load time; the CLI never fetches this URL.",
+      "type": "string"
+    },
+    "allow_http": {
+      "default": false,
+      "description": "Enable the builtin http_get tool.",
+      "title": "Allow Http",
+      "type": "boolean"
+    },
+    "budget": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BudgetSpec"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional token/cost budget for LLM calls."
+    },
+    "cache_llm": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Opt in to the local LLM response cache.",
+      "title": "Cache Llm"
+    },
+    "circuit": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CircuitSpec"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Process-local LLM circuit breaker."
+    },
+    "default_model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Default LLM ref (provider:model) for agent nodes.",
+      "title": "Default Model"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Human-readable description.",
+      "title": "Description"
+    },
+    "edges": {
+      "description": "Optional explicit edges {from, to, when}.",
+      "items": {
+        "$ref": "#/$defs/EdgeSpec"
+      },
+      "title": "Edges",
+      "type": "array"
+    },
+    "fallback_models": {
+      "description": "Workflow-level fallback LLM refs after the primary fails.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Fallback Models",
+      "type": "array"
+    },
+    "inputs": {
+      "additionalProperties": true,
+      "description": "Default inputs. A value may be a scalar or {default, description}.",
+      "title": "Inputs",
+      "type": "object"
+    },
+    "mcp_servers": {
+      "additionalProperties": {
+        "$ref": "#/$defs/MCPServerSpec"
+      },
+      "description": "Named stdio MCP servers available to this workflow.",
+      "title": "Mcp Servers",
+      "type": "object"
+    },
+    "name": {
+      "description": "Workflow name stored on the run record.",
+      "title": "Name",
+      "type": "string"
+    },
+    "nodes": {
+      "description": "Nodes in the workflow graph.",
+      "items": {
+        "$ref": "#/$defs/NodeSpec"
+      },
+      "title": "Nodes",
+      "type": "array"
+    },
+    "on_pause_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Outbound webhook URL when an approval node pauses.",
+      "title": "On Pause Url"
+    },
+    "redact": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Opt in to PII redaction for this workflow.",
+      "title": "Redact"
+    },
+    "required_inputs": {
+      "description": "Input keys that must be present after defaults and CLI overrides.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Required Inputs",
+      "type": "array"
+    },
+    "start": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "First node id (defaults to the first node).",
+      "title": "Start"
+    },
+    "version": {
+      "default": "1",
+      "description": "Free-form workflow version string (not the schema id).",
+      "title": "Version",
+      "type": "string"
+    },
+    "workspace": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Sandbox directory; must stay under the configured workspace root.",
+      "title": "Workspace"
+    }
+  },
+  "required": [
+    "name",
+    "nodes"
+  ],
+  "title": "ReadyAgents workflow",
+  "type": "object",
+  "x-readyagents-version": "0.10.1"
+}

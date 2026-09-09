@@ -22,34 +22,77 @@ class NodeType(StrEnum):
 
 
 class RetrySpec(BaseModel):
+    """Retry policy for a node."""
+
     model_config = ConfigDict(extra="forbid")
 
-    max_attempts: int = Field(default=1, ge=1, le=20)
-    backoff_seconds: float = Field(default=1.0, ge=0)
-    backoff_multiplier: float = Field(default=2.0, ge=1.0)
+    max_attempts: int = Field(
+        default=1,
+        ge=1,
+        le=20,
+        description="Maximum attempts including the first try (1–20).",
+    )
+    backoff_seconds: float = Field(
+        default=1.0,
+        ge=0,
+        description="Initial backoff in seconds after a failed attempt.",
+    )
+    backoff_multiplier: float = Field(
+        default=2.0,
+        ge=1.0,
+        description="Multiplier applied to backoff after each failed attempt.",
+    )
 
 
 class BudgetSpec(BaseModel):
+    """Optional token/cost budget for LLM calls in this workflow."""
+
     model_config = ConfigDict(extra="forbid")
 
-    max_tokens: int | None = Field(default=None, ge=0)
-    max_cost_usd: float | None = Field(default=None, ge=0)
+    max_tokens: int | None = Field(
+        default=None,
+        ge=0,
+        description="Maximum LLM tokens for the run. Further calls raise BudgetExceeded.",
+    )
+    max_cost_usd: float | None = Field(
+        default=None,
+        ge=0,
+        description="Maximum estimated LLM cost in USD for the run.",
+    )
 
 
 class CircuitSpec(BaseModel):
+    """Process-local circuit breaker for LLM providers."""
+
     model_config = ConfigDict(extra="forbid")
 
-    failure_threshold: int = Field(default=3, ge=1)
-    cooldown_seconds: float = Field(default=60.0, ge=0)
+    failure_threshold: int = Field(
+        default=3,
+        ge=1,
+        description="Consecutive failures before the breaker opens.",
+    )
+    cooldown_seconds: float = Field(
+        default=60.0,
+        ge=0,
+        description="Seconds to skip a model after the breaker opens.",
+    )
 
 
 class MCPServerSpec(BaseModel):
+    """Stdio MCP server launched for this workflow."""
+
     model_config = ConfigDict(extra="forbid")
 
-    command: str
-    args: list[str] = Field(default_factory=list)
-    env: dict[str, str] = Field(default_factory=dict)
-    cwd: str | None = None
+    command: str = Field(description="Executable to launch (no shell).")
+    args: list[str] = Field(default_factory=list, description="Arguments passed to the executable.")
+    env: dict[str, str] = Field(
+        default_factory=dict,
+        description="Extra environment variables for the server process.",
+    )
+    cwd: str | None = Field(
+        default=None,
+        description="Working directory; must stay inside the workspace.",
+    )
 
 
 class NodeSpec(BaseModel):
@@ -57,52 +100,124 @@ class NodeSpec(BaseModel):
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    id: str = Field(min_length=1)
-    type: str
-    timeout_seconds: float | None = Field(default=None, gt=0)
-    retry: RetrySpec | None = None
-    next: str | None = None
-    output_key: str | None = None
-    description: str | None = None
+    id: str = Field(min_length=1, description="Unique node id (letters, numbers, _ or -).")
+    type: str = Field(
+        description=(
+            "Node kind. Built-ins: agent, tool, condition, transform, approval, "
+            "parallel, include, foreach. Packs may add types."
+        )
+    )
+    timeout_seconds: float | None = Field(
+        default=None,
+        gt=0,
+        description="Soft timeout in seconds for this node.",
+    )
+    retry: RetrySpec | None = Field(default=None, description="Retry policy for this node.")
+    next: str | None = Field(default=None, description="Default successor node id.")
+    output_key: str | None = Field(
+        default=None,
+        description="Alias for this node's output in templates ({{key}}).",
+    )
+    description: str | None = Field(
+        default=None,
+        description="Human-readable note; ignored at runtime.",
+    )
 
     # agent
-    prompt: str | None = None
-    system: str | None = None
-    model: str | None = None
+    prompt: str | None = Field(
+        default=None,
+        description="Agent or approval prompt. Templates allowed.",
+    )
+    system: str | None = Field(default=None, description="Optional system prompt for agent nodes.")
+    model: str | None = Field(
+        default=None,
+        description="LLM ref for this agent (provider:model). Overrides default_model.",
+    )
 
     # tool
-    tool: str | None = None
-    arguments: dict[str, Any] = Field(default_factory=dict)
+    tool: str | None = Field(
+        default=None,
+        description="Registry tool name (calc, read_file, server.tool, …).",
+    )
+    arguments: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Arguments passed to the tool. Values may be templates.",
+    )
 
     # condition
-    when: str | None = None
-    then: str | None = None
-    else_: str | None = Field(default=None, alias="else")
+    when: str | None = Field(default=None, description="Condition expression (not Python eval).")
+    then: str | None = Field(
+        default=None,
+        description="Successor node id when the condition/approval is true.",
+    )
+    else_: str | None = Field(
+        default=None,
+        alias="else",
+        description="Successor node id when the condition/approval is false.",
+    )
 
     # transform
-    template: str | None = None
-    source: str | None = None
-    json_path: str | None = None
-    parse_json: bool = False
+    template: str | None = Field(default=None, description="Transform output template.")
+    source: str | None = Field(
+        default=None,
+        description="Optional input value or template for a transform.",
+    )
+    json_path: str | None = Field(default=None, description="JSON path applied during a transform.")
+    parse_json: bool = Field(default=False, description="Parse the transform result as JSON.")
 
     # parallel
-    branches: list[NodeSpec] = Field(default_factory=list)
+    branches: list[NodeSpec] = Field(
+        default_factory=list,
+        description="Child nodes run concurrently. Each branch needs a unique id.",
+    )
 
     # include (sub-workflow)
-    path: str | None = None
-    call_inputs: dict[str, Any] = Field(default_factory=dict, alias="inputs")
+    path: str | None = Field(
+        default=None,
+        description="Workspace-relative path of the included workflow file.",
+    )
+    call_inputs: dict[str, Any] = Field(
+        default_factory=dict,
+        alias="inputs",
+        description="Inputs passed to the included workflow.",
+    )
 
     # agent extras
-    fallback_models: list[str] = Field(default_factory=list)
-    output_schema: dict[str, Any] | None = None
-    cache: bool | None = None
-    tools: list[str] = Field(default_factory=list)
-    max_tool_rounds: int | None = Field(default=None, ge=1, le=20)
+    fallback_models: list[str] = Field(
+        default_factory=list,
+        description="Extra provider:model refs if this agent's primary model fails.",
+    )
+    output_schema: dict[str, Any] | None = Field(
+        default=None,
+        description="JSON Schema object; agent output is parsed and validated.",
+    )
+    cache: bool | None = Field(
+        default=None,
+        description="Override workflow/settings LLM cache for this agent node.",
+    )
+    tools: list[str] = Field(
+        default_factory=list,
+        description="Allowlist of registry tool names this agent may call.",
+    )
+    max_tool_rounds: int | None = Field(
+        default=None,
+        ge=1,
+        le=20,
+        description="Cap on agent tool-call rounds (default 8, max 20).",
+    )
 
     # foreach
-    items: str | None = None
-    max_items: int | None = Field(default=None, ge=1, le=100)
-    body: NodeSpec | None = None
+    items: str | None = Field(
+        default=None,
+        description="Template or input name of the list to iterate.",
+    )
+    max_items: int | None = Field(
+        default=None,
+        ge=1,
+        le=100,
+        description="Maximum items this foreach will process (1–100).",
+    )
+    body: NodeSpec | None = Field(default=None, description="Node executed once per item.")
 
     @field_validator("id")
     @classmethod
@@ -179,11 +294,13 @@ class NodeSpec(BaseModel):
 
 
 class EdgeSpec(BaseModel):
+    """Optional explicit edge between two nodes."""
+
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    from_: str = Field(alias="from")
-    to: str
-    when: str | None = None
+    from_: str = Field(alias="from", description="Source node id.")
+    to: str = Field(description="Destination node id.")
+    when: str | None = Field(default=None, description="Optional condition for taking this edge.")
 
 
 class WorkflowSpec(BaseModel):
@@ -191,24 +308,66 @@ class WorkflowSpec(BaseModel):
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
-    name: str
-    version: str = "1"
-    description: str | None = None
-    inputs: dict[str, Any] = Field(default_factory=dict)
-    required_inputs: list[str] = Field(default_factory=list)
-    start: str | None = None
-    nodes: list[NodeSpec]
-    edges: list[EdgeSpec] = Field(default_factory=list)
-    mcp_servers: dict[str, MCPServerSpec] = Field(default_factory=dict)
-    allow_http: bool = False
-    workspace: str | None = None
-    default_model: str | None = None
-    budget: BudgetSpec | None = None
-    fallback_models: list[str] = Field(default_factory=list)
-    circuit: CircuitSpec | None = None
-    on_pause_url: str | None = None
-    cache_llm: bool | None = None
-    redact: bool | None = None
+    name: str = Field(description="Workflow name stored on the run record.")
+    version: str = Field(
+        default="1",
+        description="Free-form workflow version string (not the schema id).",
+    )
+    description: str | None = Field(default=None, description="Human-readable description.")
+    inputs: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Default inputs. A value may be a scalar or {default, description}.",
+    )
+    required_inputs: list[str] = Field(
+        default_factory=list,
+        description="Input keys that must be present after defaults and CLI overrides.",
+    )
+    start: str | None = Field(
+        default=None,
+        description="First node id (defaults to the first node).",
+    )
+    nodes: list[NodeSpec] = Field(description="Nodes in the workflow graph.")
+    edges: list[EdgeSpec] = Field(
+        default_factory=list,
+        description="Optional explicit edges {from, to, when}.",
+    )
+    mcp_servers: dict[str, MCPServerSpec] = Field(
+        default_factory=dict,
+        description="Named stdio MCP servers available to this workflow.",
+    )
+    allow_http: bool = Field(default=False, description="Enable the builtin http_get tool.")
+    workspace: str | None = Field(
+        default=None,
+        description="Sandbox directory; must stay under the configured workspace root.",
+    )
+    default_model: str | None = Field(
+        default=None,
+        description="Default LLM ref (provider:model) for agent nodes.",
+    )
+    budget: BudgetSpec | None = Field(
+        default=None,
+        description="Optional token/cost budget for LLM calls.",
+    )
+    fallback_models: list[str] = Field(
+        default_factory=list,
+        description="Workflow-level fallback LLM refs after the primary fails.",
+    )
+    circuit: CircuitSpec | None = Field(
+        default=None,
+        description="Process-local LLM circuit breaker.",
+    )
+    on_pause_url: str | None = Field(
+        default=None,
+        description="Outbound webhook URL when an approval node pauses.",
+    )
+    cache_llm: bool | None = Field(
+        default=None,
+        description="Opt in to the local LLM response cache.",
+    )
+    redact: bool | None = Field(
+        default=None,
+        description="Opt in to PII redaction for this workflow.",
+    )
 
     @model_validator(mode="after")
     def _graph(self) -> WorkflowSpec:

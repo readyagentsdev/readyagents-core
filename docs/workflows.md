@@ -1,6 +1,12 @@
 # Workflows
 
-Workflows are YAML or JSON documents validated with Pydantic.
+Workflows are YAML or JSON documents validated with Pydantic. A derived JSON Schema 2020-12 document describes the **file** format for editors (`readyagents schema`, `schemas/workflow-v1.json`). See [authoring.md](authoring.md) for completion setup, the `$schema` / modeline convention, and source-located errors.
+
+The schema `$id` path segment `v1` tracks the workflow file format, not the package version. Additive changes (new optional field, new node type, widened enum) keep `v1`. A breaking change to the file format would mint `v2` and ship both files for at least one minor release. `x-readyagents-version` on a generated copy records which Core release produced it.
+
+`https://readyagents.dev/schema/workflow/v1.json` is the identifier; the website does not serve that URL today. Scaffolds point at a local `./workflow.schema.json` instead. ReadyAgents never fetches a `$schema` URL.
+
+A top-level `$schema` key in a JSON workflow is ignored at load time. A `yaml-language-server` modeline is a comment and is already inert.
 
 ## Minimal example
 

@@ -4,6 +4,15 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Added
+
+- `readyagents schema` emits a JSON Schema 2020-12 document generated from the workflow models, shipped
+  as `schemas/workflow-v1.json` and referenced from every scaffold, so YAML editors offer completion and
+  inline validation while authoring.
+- Workflow validation errors now report file, line, column, and a caret excerpt, including inside
+  `parallel` branches, `foreach` bodies, and included sub-workflows. `validate --json` gains an additive
+  `problems` array.
+
 ## 0.10.1 — 2026-09-09
 
 ### Security
