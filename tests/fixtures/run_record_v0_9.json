@@ -1,0 +1,30 @@
+{
+  "run_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "workflow": "legacy-nine",
+  "status": "succeeded",
+  "started_at": "2026-09-08T00:00:00+00:00",
+  "finished_at": "2026-09-08T00:00:01+00:00",
+  "pending_node": null,
+  "pending": null,
+  "inputs": {"n": 1},
+  "outputs": {"summary": "ok"},
+  "output_keys": {"summary": "ok"},
+  "node_outputs": {"t": "ok"},
+  "node_results": [
+    {
+      "node_id": "t",
+      "type": "transform",
+      "status": "ok",
+      "output": "ok",
+      "error": null,
+      "attempts": 1,
+      "started_at": "2026-09-08T00:00:00+00:00",
+      "finished_at": "2026-09-08T00:00:01+00:00",
+      "usage": {},
+      "tool_rounds": []
+    }
+  ],
+  "metadata": {"source": "legacy.yaml"},
+  "errors": [],
+  "usage": {}
+}

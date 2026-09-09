@@ -26,6 +26,7 @@ class EvalCase:
     expect_status: str = "succeeded"
     expect_outputs: dict[str, Any] | None = None
     expect_contains: dict[str, str] | None = None
+    cassette: Path | None = None
 
 
 @dataclass
@@ -105,6 +106,10 @@ def _case_from_mapping(raw: object, *, index: int, suite: Path) -> EvalCase:
     expect_status = raw.get("expect_status", "succeeded")
     if not isinstance(expect_status, str) or not expect_status.strip():
         raise ConfigError(f"Eval case {name!r} field 'expect_status' must be a string")
+    cassette_field = raw.get("cassette")
+    cassette_path: Path | None = None
+    if isinstance(cassette_field, str) and cassette_field.strip():
+        cassette_path = Path(suite).parent / cassette_field.strip()
     return EvalCase(
         name=name,
         workflow=workflow,
@@ -113,6 +118,7 @@ def _case_from_mapping(raw: object, *, index: int, suite: Path) -> EvalCase:
         expect_status=expect_status.strip(),
         expect_outputs=_optional_mapping_field(raw, "expect_outputs", name),
         expect_contains=_optional_str_mapping_field(raw, "expect_contains", name),
+        cassette=cassette_path,
     )
 
 
@@ -193,6 +199,11 @@ def run_eval(
     results: list[EvalResult] = []
     for case in cases:
         try:
+            extra: dict[str, Any] = {}
+            if case.cassette is not None:
+                extra["offline"] = True
+                extra["cassette_path"] = case.cassette
+                extra["record"] = False
             if isinstance(case.workflow, (Path, str)):
                 state = run_workflow_file_test(
                     case.workflow,
@@ -202,6 +213,7 @@ def run_eval(
                     persist=False,
                     decisions=case.decisions,
                     extra_tools=tools,
+                    **extra,
                 )
             else:
                 state = run_workflow_spec(

@@ -4,6 +4,32 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 1.0.0 — 2026-09-09
+
+### Added
+
+- **Run Time Machine.** `readyagents run --record` captures a run's model and tool calls into a
+  content-addressed cassette; `readyagents runs replay --offline` re-executes that run
+  deterministically with no network, no API key, and no spend; `readyagents runs fork` branches a
+  new run from any node checkpoint with optionally edited state; `readyagents runs diff` reports
+  where two runs first diverged and the token and cost delta; and `readyagents runs freeze` turns
+  a run into a redacted, offline regression fixture that `readyagents eval` runs in CI for free.
+- Every replay reports per-node determinism — sealed, recomputed, or unsealable — so a run is
+  never claimed to be reproducible when it is not.
+
+### Security
+
+- Cassettes contain full prompts and completions; recording is opt-in and freeze re-verifies
+  redaction.
+
+### Changed
+
+- ReadyAgents Core is 1.0.0. The workflow file format, the run-record format, CLI command names
+  and exit codes, the documented `--json` envelope keys, the pack protocol, and the declared
+  Python API are covered by a published stability contract and deprecation policy.
+- The ReadyAgents `/runs` HTTP alias is not removed at 1.0; removal is restated as no earlier
+  than v1.2.
+
 ## 0.12.0 — 2026-09-09
 
 ### Added

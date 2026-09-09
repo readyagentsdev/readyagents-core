@@ -119,6 +119,9 @@ def run_workflow_file(
     initial_state: RunState | None = None,
     cancellation: CancellationToken | None = None,
     store: Any | None = None,
+    record: bool | None = None,
+    offline: bool = False,
+    cassette_path: Path | str | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     workflow = load_workflow(path)
@@ -239,6 +242,39 @@ def run_workflow_file(
     if no_cache:
         cache_enabled = False
     llm_cache = LLMCache(settings.cache_dir()) if cache_enabled else None
+    want_record = bool(settings.record if record is None else record)
+    if offline:
+        want_record = False
+    cassette = None
+    secret_values: list[str] = []
+    if want_record or offline:
+        from readyagents.replay.cassette import Cassette
+        from readyagents.replay.record import known_secret_values
+
+        secret_values = known_secret_values(settings, pack_secrets or None)
+        if offline:
+            path = Path(cassette_path) if cassette_path else None
+            if path is None:
+                raise ConfigError(
+                    "Offline replay requires a cassette. Record one with --record "
+                    "or READYAGENTS_RECORD=1."
+                )
+            cassette = Cassette.load(
+                path,
+                max_entry_bytes=settings.cassette_max_entry_bytes,
+                max_bytes=settings.cassette_max_bytes,
+            )
+            if llm is None:
+                from readyagents.replay.offline import CassetteProvider
+
+                llm = CassetteProvider(cassette)
+        else:
+            cassette = Cassette.new(
+                run_id="",
+                workflow=workflow.name,
+                max_entry_bytes=settings.cassette_max_entry_bytes,
+                max_bytes=settings.cassette_max_bytes,
+            )
     fallback = list(workflow.fallback_models or []) + settings.fallback_model_list()
     pause_url = workflow.on_pause_url or settings.pause_notify_url
 
@@ -276,6 +312,10 @@ def run_workflow_file(
         cache_llm=cache_enabled,
         usage_state=resume_state,
         cancellation=cancellation,
+        cassette=cassette,
+        offline=offline,
+        recording=want_record,
+        cassette_secrets=secret_values,
     )
     metadata = {
         "source": str(source_path),
@@ -284,6 +324,10 @@ def run_workflow_file(
         "workspace": str(workspace),
         "actor": resolved_actor,
     }
+    if offline:
+        metadata["replay"] = True
+    if want_record:
+        metadata["recorded"] = True
     try:
         state = run_workflow(
             workflow,
@@ -293,6 +337,34 @@ def run_workflow_file(
             state=resume_state if resume_state is not None else initial_state,
             run_id=run_id,
         )
+        if cassette is not None:
+            state.metadata["determinism"] = cassette.report.as_dict()
+        _write_cassette(
+            cassette,
+            want_record,
+            settings,
+            ctx,
+            state=state,
+            persist_fn=_save if persist else None,
+        )
+        if not want_record and any(str(n.type) == "agent" for n in workflow.nodes):
+            from readyagents.replay.record import first_run_hint
+
+            hint = first_run_hint(recording=False, has_agent=True)
+            if hint:
+                log.info("%s", hint)
+        return state
+    except Exception as exc:
+        run_state = getattr(exc, "state", None)
+        _write_cassette(
+            cassette,
+            want_record,
+            settings,
+            ctx,
+            state=run_state if isinstance(run_state, RunState) else None,
+            persist_fn=_save if persist else None,
+        )
+        raise
     finally:
         if mcp is not None:
             mcp.close()
@@ -300,7 +372,30 @@ def run_workflow_file(
             closer = getattr(store, "close", None)
             if callable(closer):
                 closer()
-    return state
+
+
+def _write_cassette(
+    cassette: Any,
+    want_record: bool,
+    settings: Settings,
+    ctx: ExecutionContext,
+    *,
+    state: RunState | None = None,
+    persist_fn: Any = None,
+) -> None:
+    if not want_record or cassette is None:
+        return
+    run_id = state.run_id if state is not None else (cassette.run_id or "unassigned")
+    cassette.run_id = run_id
+    dest = settings.cassettes_dir() / f"{run_id}.json"
+    cassette.save(dest, root=settings.home_path())
+    if state is not None:
+        state.metadata["cassette"] = str(dest)
+        state.metadata["recorded"] = True
+        if cassette.report is not None:
+            state.metadata["determinism"] = cassette.report.as_dict()
+        if persist_fn is not None:
+            persist_fn(state)
 
 
 def resume_run(
@@ -380,6 +475,7 @@ def replay_run(
     secrets: Any | None = None,
     decision_file: Path | str | None = None,
     no_cache: bool = False,
+    offline: bool = False,
 ) -> RunState:
     """Start a new run with the stored workflow path and inputs."""
     settings = settings or get_settings()
@@ -391,7 +487,11 @@ def replay_run(
         source = previous.metadata.get("source")
         if not source:
             raise ConfigError(f"Run {previous.run_id} has no stored workflow path. Cannot replay.")
-        return run_workflow_file(
+        cassette_path = previous.metadata.get("cassette")
+        if offline and not cassette_path:
+            fallback = settings.cassettes_dir() / f"{previous.run_id}.json"
+            cassette_path = str(fallback) if fallback.is_file() else None
+        state = run_workflow_file(
             source,
             inputs=previous.inputs,
             dry_run=dry_run,
@@ -407,6 +507,17 @@ def replay_run(
             decision_file=decision_file,
             no_cache=no_cache,
             store=store,
+            offline=offline,
+            cassette_path=cassette_path,
+            record=False,
         )
+        state.metadata["replayed_from"] = previous.run_id
+        if offline:
+            state.metadata["replay"] = True
+        if persist:
+            store.save(state)
+        return state
     finally:
-        store.close()
+        closer = getattr(store, "close", None)
+        if callable(closer):
+            closer()

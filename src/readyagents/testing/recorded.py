@@ -22,10 +22,15 @@ class RecordedLLM:
         self.calls: list[list[Message]] = []
         self.models: list[str] = []
         self._tape: list[dict[str, Any]] = []
+        self._cassette_doc = None
         if self.cassette.is_file():
             loaded = json.loads(self.cassette.read_text(encoding="utf-8"))
             if isinstance(loaded, list):
                 self._tape = [row for row in loaded if isinstance(row, dict)]
+            elif isinstance(loaded, dict):
+                from readyagents.replay.cassette import Cassette
+
+                self._cassette_doc = Cassette.load(self.cassette)
         self._index = 0
 
     def complete(
@@ -38,6 +43,13 @@ class RecordedLLM:
     ) -> CompletionResult:
         self.calls.append(messages)
         self.models.append(model)
+        if self._cassette_doc is not None:
+            return self._cassette_doc.replay_llm(
+                node_id="",
+                model=model,
+                messages=messages,
+                tools=tools if isinstance(tools, list) else None,
+            )
         if self._index < len(self._tape):
             row = self._tape[self._index]
             self._index += 1

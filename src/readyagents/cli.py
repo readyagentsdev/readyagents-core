@@ -15,7 +15,13 @@ from rich.table import Table
 
 from readyagents import __version__
 from readyagents.config import DEFAULT_MCP_TOKEN_ENV
-from readyagents.errors import ApprovalRequired, ConfigError, MCPError, ReadyAgentsError
+from readyagents.errors import (
+    ApprovalRequired,
+    CassetteMiss,
+    ConfigError,
+    MCPError,
+    ReadyAgentsError,
+)
 from readyagents.logging import configure_logging
 from readyagents.packs.loader import collect_pack_specs, discover_packs, load_local_packs
 from readyagents.scaffold import TEMPLATES, create_project
@@ -416,6 +422,12 @@ def run(
         help="Skip the local LLM response cache for this run.",
     ),
     pack: list[str] = typer.Option([], "--pack", help=_PACK_HELP),
+    record: bool = typer.Option(
+        False,
+        "--record",
+        help="Write a content-addressed cassette (prompts and completions). Opt-in.",
+        envvar="READYAGENTS_RECORD",
+    ),
 ) -> None:
     """Execute a workflow."""
     if log_level or log_format:
@@ -449,6 +461,7 @@ def run(
                 decision_file=decision_file,
                 actor=actor,
                 no_cache=no_cache,
+                record=record,
             )
     except KeyboardInterrupt:
         if as_json:
@@ -729,6 +742,11 @@ def runs_replay(
     actor: str | None = typer.Option(None, "--actor", envvar="READYAGENTS_ACTOR"),
     no_cache: bool = typer.Option(False, "--no-cache"),
     pack: list[str] = typer.Option([], "--pack", help=_PACK_HELP),
+    offline: bool = typer.Option(
+        False,
+        "--offline",
+        help="Replay from a cassette. No network, no API keys, no spend.",
+    ),
 ) -> None:
     """Start a new run using the stored workflow path and inputs."""
     persist = not no_persist
@@ -742,10 +760,157 @@ def runs_replay(
             decision_file=decision_file,
             actor=actor,
             no_cache=no_cache,
+            offline=offline,
         )
     except ReadyAgentsError as exc:
         _emit_run_exception(exc, as_json=as_json, persist=persist, command="replay")
-    _emit_run(state, as_json=as_json, command="replay")
+    extra_fields: dict[str, Any] = {}
+    if offline:
+        extra_fields["replayed_from"] = state.metadata.get("replayed_from")
+        extra_fields["determinism"] = state.metadata.get("determinism") or {}
+        extra_fields["replay"] = True
+    _emit_run(state, as_json=as_json, command="replay", extra=extra_fields)
+
+
+@runs_app.command("fork")
+def runs_fork(
+    run_id: str = typer.Argument(..., help="Parent run id (or unique prefix)."),
+    from_node: str = typer.Option(..., "--from-node", help="Node id to fork after."),
+    occurrence: int | None = typer.Option(None, "--occurrence", help="0-based occurrence."),
+    sets: list[str] = typer.Option([], "--set", help="Override input KEY=VALUE (repeatable)."),
+    offline: bool = typer.Option(False, "--offline"),
+    as_json: bool = typer.Option(False, "--json"),
+    actor: str | None = typer.Option(None, "--actor", envvar="READYAGENTS_ACTOR"),
+    pack: list[str] = typer.Option([], "--pack", help=_PACK_HELP),
+) -> None:
+    """Branch a new run from a node checkpoint. Does not mutate the parent."""
+    from readyagents.replay.fork import fork_run
+
+    try:
+        state = fork_run(
+            run_id,
+            from_node,
+            occurrence=occurrence,
+            overrides=parse_input_pairs(sets) if sets else None,
+            extra_packs=_load_extra_packs(pack),
+            actor=actor,
+            offline=offline,
+        )
+    except ReadyAgentsError as extra:
+        _emit_run_exception(extra, as_json=as_json, persist=True, command="fork")
+    _emit_run(state, as_json=as_json, command="fork")
+
+
+@runs_app.command("diff")
+def runs_diff(
+    run_a: str = typer.Argument(..., help="First run id."),
+    run_b: str = typer.Argument(..., help="Second run id."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Compare two runs. Read-only."""
+    from readyagents.config import get_settings
+    from readyagents.policy import redactor_from_settings
+    from readyagents.replay.diff import diff_runs
+    from readyagents.run_store import open_run_store
+
+    settings = get_settings()
+    store = open_run_store(settings)
+    try:
+        left = store.get(run_a, allow_prefix=True).state
+        right = store.get(run_b, allow_prefix=True).state
+        redactor = redactor_from_settings(
+            enabled=bool(settings.redact),
+            patterns=settings.redact_pattern_list(),
+            literals=settings.redact_literal_list(),
+        )
+        report = diff_runs(left, right, redactor=redactor)
+    except ReadyAgentsError as extra:
+        _fail(extra)
+        return
+    finally:
+        closer = getattr(store, "close", None)
+        if callable(closer):
+            closer()
+    if as_json:
+        _print_json(_json_envelope("diff", ok=True, **report))
+        return
+    first = report.get("first_divergence")
+    if report.get("identical"):
+        console.print("[green]identical[/green]")
+        return
+    console.print("first divergence:")
+    console.print(escape(str(first)))
+    if report.get("usage_delta"):
+        console.print(f"usage delta: {report['usage_delta']}")
+
+
+@runs_app.command("freeze")
+def runs_freeze(
+    run_id: str = typer.Argument(..., help="Run id (or unique prefix)."),
+    out: Path = typer.Option(..., "--out", help="Directory to write the fixture into."),
+    allow_unsealed: bool = typer.Option(False, "--allow-unsealed"),
+    exact: bool = typer.Option(False, "--exact", help="Pin exact output equality."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Turn a recorded run into an offline eval fixture."""
+    from readyagents.config import get_settings
+    from readyagents.policy import redactor_from_settings
+    from readyagents.replay.cassette import Cassette
+    from readyagents.replay.freeze import FREEZE_WARNING, freeze_run
+    from readyagents.replay.record import known_secret_values
+    from readyagents.run_store import open_run_store
+
+    settings = get_settings()
+    store = open_run_store(settings)
+    try:
+        state = store.get(run_id, allow_prefix=True).state
+        cassette_path = state.metadata.get("cassette")
+        if not cassette_path:
+            fallback = settings.cassettes_dir() / f"{state.run_id}.json"
+            cassette_path = str(fallback) if fallback.is_file() else None
+        if not cassette_path:
+            raise ConfigError(f"Run {state.run_id} has no cassette. Record one with --record.")
+        cassette = Cassette.load(
+            cassette_path,
+            max_entry_bytes=settings.cassette_max_entry_bytes,
+            max_bytes=settings.cassette_max_bytes,
+        )
+        redactor = redactor_from_settings(
+            enabled=True,
+            patterns=settings.redact_pattern_list(),
+            literals=settings.redact_literal_list(),
+        )
+        dest = freeze_run(
+            state,
+            cassette,
+            out_dir=out,
+            workspace=settings.workspace_path(),
+            redactor=redactor,
+            secrets=known_secret_values(settings),
+            allow_unsealed=allow_unsealed,
+            exact=exact,
+            settings=settings,
+        )
+    except ReadyAgentsError as extra:
+        _fail(extra)
+        return
+    finally:
+        closer = getattr(store, "close", None)
+        if callable(closer):
+            closer()
+    err_console.print(f"[yellow]{FREEZE_WARNING}[/yellow]")
+    if as_json:
+        _print_json(
+            _json_envelope(
+                "freeze",
+                ok=True,
+                path=str(dest),
+                run_id=state.run_id,
+                warning=FREEZE_WARNING,
+            )
+        )
+        return
+    console.print(f"[green]Wrote {dest}[/green]")
 
 
 @runs_app.command("delete")
@@ -1224,13 +1389,22 @@ def _state_from_exc(exc: BaseException) -> RunState | None:
     return state if isinstance(state, RunState) else None
 
 
-def _emit_run(state: RunState, *, as_json: bool, command: str = "run") -> None:
+def _emit_run(
+    state: RunState,
+    *,
+    as_json: bool,
+    command: str = "run",
+    extra: dict[str, Any] | None = None,
+) -> None:
     if as_json:
+        payload = dict(state.to_record())
+        if extra:
+            payload.update(extra)
         _print_json(
             _json_envelope(
                 command,
                 ok=state.status == "succeeded",
-                **state.to_record(),
+                **payload,
             )
         )
     else:
@@ -1271,6 +1445,23 @@ def _emit_run_exception(
         else:
             _print_paused(exc)
         raise typer.Exit(code=2) from exc
+
+    if isinstance(exc, CassetteMiss):
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    command,
+                    ok=False,
+                    error="CassetteMiss",
+                    message=str(exc),
+                    node_id=exc.node_id,
+                    reason=exc.reason,
+                    nearest_key=exc.nearest_key,
+                )
+            )
+        else:
+            err_console.print(f"[red]CassetteMiss[/red] {escape(str(exc))}")
+        raise typer.Exit(code=1) from exc
 
     state = _state_from_exc(exc)
     run_id = getattr(exc, "run_id", None) or (state.run_id if state is not None else None)

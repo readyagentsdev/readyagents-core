@@ -35,8 +35,11 @@ For a run, the engine keeps:
 - `inputs` — merged defaults + `--input`
 - `node_outputs` — raw output keyed by node id
 - `output_keys` — optional aliases (`output_key: brief`)
-- `metadata` — source path, dry-run flag, workspace, `allow_http`
+- `metadata` — source path, dry-run flag, workspace, `allow_http`, lineage (`forked_from`, `replayed_from`)
 - `errors` — if the run failed
+- `record_version` — `1` on newly written records; 0.9-era files without the field still load
+
+Opt-in `--record` writes a cassette of LLM and tool calls. See [time-machine.md](time-machine.md).
 
 Templates see a merged namespace: inputs, metadata, node ids, and output keys. `{{topic}}` and `{{plan}}` both work if those names exist.
 

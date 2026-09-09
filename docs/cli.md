@@ -98,6 +98,7 @@ readyagents run examples/research_brief.yaml --no-persist
 | `--actor NAME` | Actor id for RBAC hooks (`READYAGENTS_ACTOR`) |
 | `--no-cache` | Skip the local LLM response cache |
 | `--pack PATH` | Load a local pack `.py` (repeatable). Confined to the workspace. Env: `READYAGENTS_PACK` |
+| `--record` | Write a cassette under `$READYAGENTS_HOME/cassettes/` (opt-in; also `READYAGENTS_RECORD=1`) |
 
 Exit code `1` on validation or execution errors, including a missing workflow file (`ConfigError`). Exit code `2` is reserved for an **approval** node pausing for a decision. The CLI prints `ErrorClass: message` rather than a full traceback. Logs include `run=<id>` and `node=<id>`.
 
@@ -140,6 +141,28 @@ Show status, pending node (if paused), **pending prompt** (HITL), **node timelin
 ## `readyagents runs replay RUN_ID`
 
 Start a **new** run with the stored workflow path and inputs (not a resume).
+`--offline` replays a cassette: no network, no API keys. `--json` adds a
+`determinism` object (`sealed`, `recomputed`, `unsealable`, `misses`). Approval
+pause is still exit 2.
+
+## `readyagents runs fork RUN_ID --from-node NODE`
+
+Mint a new run from the state after `NODE`. `--occurrence N` is required when
+that node ran more than once. `--set KEY=VALUE` overrides **inputs only** — it
+cannot satisfy an approval. The parent run record and audit file are not
+rewritten.
+
+## `readyagents runs diff RUN_A RUN_B`
+
+Read-only. First divergent node, bounded redacted output diff, usage delta.
+
+## `readyagents runs freeze RUN_ID --out DIR`
+
+Write `cassette.json`, `case.yaml`, and `README.md`. Conservative assertions
+by default; `--exact` pins full outputs. Refuses unsealable nodes unless
+`--allow-unsealed`. Warns that the fixture contains recorded model content.
+
+See [time-machine.md](time-machine.md).
 
 ## `readyagents runs delete RUN_ID`
 
@@ -238,7 +261,7 @@ readyagents mcp serve --transport streamable-http --host 127.0.0.1 --port 8765
 
 If `--auth token` and the env var is empty, the process generates at least 256 bits of entropy and prints the token once to stderr. It is never persisted or logged.
 
-`streamable-http` mounts official MCP Streamable HTTP at `/mcp` with `server/discover` and `io.modelcontextprotocol/tasks`. `/runs` remains a deprecated alias of the same durable run record (removal no earlier than v0.12). Stopping the command stops both the listener and the in-process executor; work does not survive process death. A keyless tasks transcript is `examples/mcp_tasks_client.py`. The deprecated `/runs` client is `examples/mcp_http_client.py`.
+`streamable-http` mounts official MCP Streamable HTTP at `/mcp` with `server/discover` and `io.modelcontextprotocol/tasks`. `/runs` remains a deprecated alias of the same durable run record (removal no earlier than v1.2). Stopping the command stops both the listener and the in-process executor; work does not survive process death. A keyless tasks transcript is `examples/mcp_tasks_client.py`. The deprecated `/runs` client is `examples/mcp_http_client.py`.
 
 ## `readyagents mcp probe`
 

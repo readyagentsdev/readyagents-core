@@ -26,6 +26,23 @@ We will acknowledge the report and work on a fix before any disclosure.
 - `calc` is a restricted arithmetic evaluator, not Python `eval`
 - API keys live in the environment / local env files and must never be committed
 
+## Cassettes contain prompts and completions
+
+`readyagents run --record` writes a cassette under `$READYAGENTS_HOME/cassettes/`. That
+file holds **full prompts and full completions** (and recorded tool results). It is the
+most sensitive artifact Core writes.
+
+- Recording is opt-in (`--record` / `READYAGENTS_RECORD=1`).
+- The configured redactor runs before any cassette write. A pre-write scan blocks
+  entries that contain known secret values and marks that node unsealable.
+- `runs freeze` re-verifies redaction. It warns in the terminal and in the generated
+  README that the fixture must be reviewed before commit.
+- Cassettes are untrusted input: schema-validated, version-checked, size-bounded, never
+  used to select a code path. A replay is labelled as a replay on the new run record.
+- `--out` and cassette paths go through `resolve_within`. `--set` on fork cannot inject
+  an approval or bypass the authorizer.
+- Offline replay never falls through to a live provider call.
+
 ## Optional MCP HTTP door
 
 v0.10 Streamable HTTP is an explicit foreground command (`readyagents mcp serve --transport streamable-http`). It is not started on install or import.
