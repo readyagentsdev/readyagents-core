@@ -272,15 +272,21 @@ def test_extra_keys_policy_fails_closed(tmp_path: Path, tmp_settings) -> None:
         run_workflow_file(wf, settings=tmp_settings, persist=False, policy=policy)
 
 
-def test_unreadable_policy_fails_closed(tmp_path: Path, tmp_settings) -> None:
+def test_unreadable_policy_fails_closed(
+    tmp_path: Path, tmp_settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
     wf = _calc_wf(tmp_path / "w.yaml")
     policy = _write(tmp_path / "p.yaml", "version: 1\ndefault: allow\n")
-    policy.chmod(0o000)
-    try:
-        with pytest.raises(PolicyError):
-            run_workflow_file(wf, settings=tmp_settings, persist=False, policy=policy)
-    finally:
-        policy.chmod(0o644)
+    original = Path.read_text
+
+    def blocked(self: Path, *args: object, **kwargs: object) -> str:
+        if Path(self).name == "p.yaml":
+            raise PermissionError("denied")
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", blocked)
+    with pytest.raises(PolicyError, match="unreadable"):
+        run_workflow_file(wf, settings=tmp_settings, persist=False, policy=policy)
 
 
 # --- 5. MCP rug-pull ---
