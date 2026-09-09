@@ -57,7 +57,11 @@ retry:
 
 Failures raise typed errors (`NodeError`, `LLMError`, `MCPError`, `ApprovalRequired`, …) instead of a bare stack dump in the CLI.
 
-Run records are written after each node. The default backend is JSON files under `$READYAGENTS_HOME/runs/`; optional local SQLite is `READYAGENTS_RUN_STORE=sqlite` ([run-stores.md](run-stores.md)). Resume a paused or failed run with `readyagents resume <run_id>` or inject a decision with `readyagents decide`. Inspect with `readyagents runs list` and `readyagents runs show <run_id>`. Structured logs include `run=<id>` and `node=<id>` (JSON format adds `run` / `node` keys). Agent usage is stored per node and rolled up on the run. An append-only audit log lives under `$READYAGENTS_HOME/audit/`.
+Run records are written after each node. The default backend is JSON files under `$READYAGENTS_HOME/runs/`; optional local SQLite is `READYAGENTS_RUN_STORE=sqlite` ([run-stores.md](run-stores.md)). Resume a paused or failed run with `readyagents resume <run_id>` or inject a decision with `readyagents decide`. Inspect with `readyagents runs list` and `readyagents runs show <run_id>`. Structured logs include `run=<id>` and `node=<id>` (JSON format adds `run` / `node` keys). Agent usage is stored per node and rolled up on the run.
+
+An append-only, hash-chained audit log lives under `$READYAGENTS_HOME/audit/`. `readyagents audit verify` walks the chain (tamper-*evident*, **not** tamper-proof). `readyagents evidence RUN_ID` writes a local evidence pack of the run, decisions, audit slice, and routing graph — evidence, **not** legal compliance or certification. `readyagents graph PATH` prints declared Mermaid routing and executes nothing. `runs gc` deletes run records (not audit JSONL) and respects `READYAGENTS_RETENTION_DAYS` unless `--override-retention`; that window is local hygiene, not a legal archive. See [compliance.md](compliance.md).
+
+Packs may register observers. Events fire after a durable persist and cannot change the run. The optional OpenTelemetry pack is content-free and off unless `READYAGENTS_OTEL=1`; import starts no collector. See [observability.md](observability.md).
 
 ## Extension: packs
 

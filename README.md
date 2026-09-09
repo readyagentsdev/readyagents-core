@@ -49,7 +49,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
-- Secrets / RBAC / PII-redaction hooks and an append-only audit trail
+- Secrets / RBAC / PII-redaction hooks and an append-only, hash-chained audit trail; `readyagents evidence` writes a local pack of a run — evidence, not legal compliance or certification ([compliance](docs/compliance.md))
 - Pydantic `output_schema` on agent nodes; opt-in local LLM cache
 - `readyagents.testing` helpers, recorded LLM mocks, and a tiny eval harness
 
@@ -88,13 +88,16 @@ flowchart LR
 | `readyagents resume RUN_ID [--approve NODE] [--reject NODE] [--decision-file FILE] [--policy PATH]` | Resume a paused or failed run |
 | `readyagents policy check PATH` | Validate a firewall policy file (fail closed) |
 | `readyagents policy explain PATH [--policy PATH]` | Show which tools each node may call and why |
+| `readyagents evidence RUN_ID [--out DIR]` | Local evidence pack (not a compliance certificate) |
+| `readyagents audit verify [--file PATH]` | Walk the hash-chained audit trail |
+| `readyagents graph PATH` | Deterministic Mermaid routing (executes nothing) |
 | `readyagents decide RUN_ID [--file FILE \| --node ID --decision approve]` | Inject an external approval decision and resume |
 | `readyagents runs list` | List persisted runs |
 | `readyagents runs show RUN_ID` | Node timeline + stored state (`inspect` is an alias) |
 | `readyagents runs report RUN_ID` | Local HTML summary of a run |
 | `readyagents runs replay RUN_ID` | New run from stored inputs |
 | `readyagents runs delete RUN_ID --yes` | Delete one local run record |
-| `readyagents runs gc --yes` | Prune succeeded/failed/cancelled runs (paused kept) |
+| `readyagents runs gc --yes` | Prune succeeded/failed/cancelled runs (paused kept; in-window records refused unless `--override-retention`) |
 | `readyagents mcp serve` | Stdio MCP server (builtin tools); `--json` prints protocol versions |
 | `readyagents mcp probe URL` | Read-only `server/discover` diagnostic (never calls a tool) |
 | `readyagents packs [--pack PATH]` | List installed / local packs |
@@ -139,6 +142,8 @@ flowchart LR
 - [Continuous pack](docs/continuous-pack.md) (optional, separate distribution)
 - [Platform support](docs/platform-support.md)
 - [CLI](docs/cli.md)
+- [Compliance evidence](docs/compliance.md) (Articles 12–14 mapping; not certification)
+- [Observability](docs/observability.md)
 - [Changelog](CHANGELOG.md)
 - [Release notes 0.8.0](RELEASE_NOTES.md)
 
@@ -154,6 +159,7 @@ pip install "readyagentsdev[all]"
 ```
 
 From a clone, the same extras are `pip install -e ".[openai]"` (and `anthropic` / `mcp` / `all`).
+The optional `[otel]` extra is **not** included in `[all]`; it starts no collector (see [observability.md](docs/observability.md)).
 
 Then `cp .env.example .env` and paste your own keys. Core workflows that only use builtin tools do **not** need extras, keys, or Node.js.
 

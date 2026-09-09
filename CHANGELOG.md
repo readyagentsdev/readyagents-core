@@ -4,6 +4,23 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Added
+
+- **Traceability evidence.** Audit JSONL is hash-chained (`seq`, `prev_hash`,
+  `entry_hash`). Chaining is tamper-evident, not tamper-proof; copy the chain
+  anchor off-box if you need an independent check. `readyagents audit verify`
+  reports unchained ranges and the first break. `readyagents evidence RUN_ID`
+  writes a hash-manifested local pack (machine JSON, self-contained HTML,
+  decisions projection, audit slice, workflow source, Mermaid graph). The pack
+  may contain prompts and outputs. `readyagents graph PATH` is deterministic
+  and injection-safe. Configurable retention (`READYAGENTS_RETENTION_DAYS`,
+  default 180) makes `runs gc` refuse in-window records unless
+  `--override-retention` (audited). That window is local hygiene, not a legal
+  archive; gc does not delete audit JSONL. Pack observer seam
+  (`register_observers`) is backward-compatible. Optional content-free `otel`
+  extra is **not** in `all`, starts no collector on import, and is off unless
+  `READYAGENTS_OTEL=1`. Docs claim evidence, never compliance or certification.
+
 ### Fixed
 
 - Agent tool-calls inherit taint from the calling prompt/system, so
