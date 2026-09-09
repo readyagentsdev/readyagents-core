@@ -293,7 +293,8 @@ def test_concurrent_clicks_one_resume(tmp_settings) -> None:
     import time
 
     for _ in range(200):
-        if store.get(run_id).state.status != "paused":
+        status = store.get(run_id).state.status
+        if status in {"succeeded", "failed", "cancelled"}:
             break
         time.sleep(0.05)
     # Exactly one resume path executed; status is terminal succeeded.
