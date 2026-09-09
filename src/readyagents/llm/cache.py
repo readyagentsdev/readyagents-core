@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 from readyagents.llm.base import CompletionResult, Message
 from readyagents.llm.tool_calls import tool_calls_from_json, tool_calls_to_json
@@ -60,19 +58,17 @@ class LLMCache:
     def put(self, key: str, result: CompletionResult) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
         path = self.root / f"{key}.json"
-        tmp = self.root / f".{key}.{uuid4().hex}.tmp"
         payload: dict[str, Any] = {
             "text": result.text,
             "model": result.model,
             "usage": dict(result.usage or {}),
             "tool_calls": tool_calls_to_json(result.tool_calls),
         }
-        try:
-            tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-            os.replace(tmp, path)
-        finally:
-            if tmp.exists():
-                tmp.unlink(missing_ok=True)
+        from readyagents.atomic import atomic_write_text
+
+        atomic_write_text(
+            path, json.dumps(payload, ensure_ascii=False), encoding="utf-8", newline="\n"
+        )
 
 
 def _message_payload(message: Message) -> dict[str, Any]:

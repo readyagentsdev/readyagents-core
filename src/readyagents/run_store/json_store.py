@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import json
-import os
 import threading
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 from readyagents.errors import ConfigError, RunStoreConflict
 from readyagents.run_store.base import RunQuery, StoredRun
@@ -64,16 +62,14 @@ class JsonRunStore:
                 record_obj = dict(state.to_record())
             record_obj[_REV_KEY] = next_rev
             self.runs_dir.mkdir(parents=True, exist_ok=True)
-            tmp = self.runs_dir / f".{run_id}.{uuid4().hex}.json.tmp"
-            try:
-                tmp.write_text(
-                    json.dumps(record_obj, indent=2, ensure_ascii=False) + "\n",
-                    encoding="utf-8",
-                )
-                os.replace(tmp, path)
-            finally:
-                if tmp.exists():
-                    tmp.unlink(missing_ok=True)
+            from readyagents.atomic import atomic_write_text
+
+            atomic_write_text(
+                path,
+                json.dumps(record_obj, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
             return next_rev
 
     def get(self, run_id: str, *, allow_prefix: bool = True) -> StoredRun:
