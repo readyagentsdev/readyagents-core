@@ -873,7 +873,20 @@ def _run_include(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
     from readyagents.workflow.engine import run_workflow
     from readyagents.workflow.runner import load_workflow, merge_inputs
 
-    spec = load_workflow(candidate)
+    try:
+        spec = load_workflow(candidate, display_path=raw_path)
+    except WorkflowError as exc:
+        parent_source = None
+        meta = getattr(state, "metadata", None)
+        if isinstance(meta, dict):
+            parent_source = meta.get("source")
+        if parent_source:
+            from readyagents.workflow.source_map import locate_node_field, with_include_site
+
+            site = locate_node_field(parent_source, node.id, "path")
+            problems = with_include_site(list(getattr(exc, "problems", []) or []), site)
+            raise WorkflowError(str(exc), problems=problems) from exc
+        raise
     nested_in = interpolate_value(node.call_inputs, state.mapping())
     if nested_in is None:
         nested_in = {}

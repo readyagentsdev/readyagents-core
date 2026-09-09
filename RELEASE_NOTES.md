@@ -1,3 +1,12 @@
+# Unreleased
+
+Writing a ReadyAgents workflow no longer means writing YAML blind. `readyagents schema` produces a JSON
+Schema generated from the same models the engine validates against, new scaffolds point your editor at
+a local copy (the hosted `$id` URL is an identifier and 404s today), and you get completion and enum
+hints for every node type as you type. When validation does fail, it now tells you the line and column
+and shows you the offending line with a caret under it — inside nested branches and included files too.
+No new runtime dependency, no network access, and nothing about the workflow format changed.
+
 # ReadyAgents Core 0.10.1
 
 **Security follow-up to 0.10.0. MCP header checks, probe bearer, actor isolation.**

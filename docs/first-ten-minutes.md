@@ -49,7 +49,9 @@ readyagents new my-flow
 readyagents run my-flow/workflow.yaml
 ```
 
-`pipeline` is keyless. Add an `agent` node only after you install an extra from this checkout (`pip install -e ".[openai]"` or `".[anthropic]"`) and put your own key in `.env`.
+`pipeline` is keyless. The scaffold writes `workflow.schema.json` next to `workflow.yaml` and a `yaml-language-server` modeline so VS Code (YAML extension), Neovim, or JetBrains can complete `type`, `retry`, and node fields. Offline: `readyagents schema --output .readyagents/workflow.schema.json`. See [authoring.md](authoring.md).
+
+Add an `agent` node only after you install an extra from this checkout (`pip install -e ".[openai]"` or `".[anthropic]"`) and put your own key in `.env`.
 
 ## Next
 

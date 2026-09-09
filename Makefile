@@ -1,4 +1,4 @@
-.PHONY: test lint run-example fmt install smoke ci
+.PHONY: test lint run-example fmt install smoke ci schema-check
 
 install:
 	python -m pip install -e ".[dev]"
@@ -46,4 +46,7 @@ smoke:
 	  readyagents resume $$rid --approve gate
 	@rm -rf .readyagents-smoke
 
-ci: lint test smoke
+schema-check:
+	readyagents schema --check schemas/workflow-v1.json
+
+ci: lint schema-check test smoke

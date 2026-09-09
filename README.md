@@ -77,8 +77,9 @@ flowchart LR
 | Command | Purpose |
 | --- | --- |
 | `readyagents init` | Write `.env` from `.env.example` if missing |
-| `readyagents new [name] [--template basic\|approval\|research\|pipeline\|review\|foreach\|agent-tools\|gated]` | Scaffold workflow + README + `.env.example` |
-| `readyagents validate PATH` | Schema-validate a workflow |
+| `readyagents new [name] [--template basic\|approval\|research\|pipeline\|review\|foreach\|agent-tools\|gated]` | Scaffold workflow + README + `.env.example` + local JSON Schema |
+| `readyagents validate PATH` | Schema-validate a workflow (source-located errors on failure) |
+| `readyagents schema` | Print/write/check the generated workflow JSON Schema |
 | `readyagents eval PATH` | Score a keyless fixture suite (exit 0/1) |
 | `readyagents run PATH [--input KEY=VALUE] [--dry-run] [--approve NODE] [--reject NODE] [--decision-file FILE] [--actor NAME] [--pack PATH]` | Execute |
 | `readyagents resume RUN_ID [--approve NODE] [--reject NODE] [--decision-file FILE]` | Resume a paused or failed run |
@@ -124,6 +125,7 @@ flowchart LR
 - [Concepts](docs/concepts.md)
 - [Configuration (BYOK)](docs/configuration.md)
 - [Workflows](docs/workflows.md)
+- [Authoring (JSON Schema, editors, located errors)](docs/authoring.md)
 - [MCP](docs/mcp.md)
 - [Packs](docs/packs.md)
 - [Continuous pack](docs/continuous-pack.md) (optional, separate distribution)

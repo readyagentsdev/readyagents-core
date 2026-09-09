@@ -21,6 +21,7 @@ from readyagents.packs.loader import collect_pack_specs, discover_packs, load_lo
 from readyagents.scaffold import TEMPLATES, create_project
 from readyagents.testing.eval import load_eval_suite, run_eval
 from readyagents.workflow.runner import (
+    confine_under,
     load_workflow,
     replay_run,
     resume_run,
@@ -188,6 +189,7 @@ def validate(
                     ok=False,
                     error=type(exc).__name__,
                     message=str(exc),
+                    **_problems_fields(exc),
                 )
             )
             raise typer.Exit(code=1) from exc
@@ -222,6 +224,62 @@ def validate(
         table.add_row(node.id, str(node.type), _node_routing(node))
     console.print(table)
     console.print(f"[green]OK[/green] — {len(workflow.nodes)} node(s), start={workflow.start}")
+
+
+@app.command("schema")
+def schema_cmd(
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Write the schema UTF-8 file. Refuses overwrite without --force.",
+    ),
+    force: bool = typer.Option(False, "--force", help="Overwrite --output if it exists."),
+    as_json: bool = typer.Option(False, "--json", help="Print the standard JSON envelope."),
+    check: Path | None = typer.Option(
+        None,
+        "--check",
+        help="Exit 0 if PATH matches the generated schema byte-for-byte.",
+    ),
+) -> None:
+    """Emit the workflow JSON Schema (no network, no workflow execution)."""
+    from readyagents.workflow.jsonschema import workflow_json_schema, workflow_json_schema_text
+
+    try:
+        text = workflow_json_schema_text()
+        schema = workflow_json_schema()
+        if check is not None and output is not None:
+            raise ConfigError("Use --check or --output, not both.")
+        if check is not None:
+            _check_schema_file(check, text)
+            if as_json:
+                _print_json(_json_envelope("schema", ok=True, check=str(check), match=True))
+            else:
+                console.print(f"[green]schema matches[/green] {check}")
+            return
+        if output is not None:
+            _write_schema_file(output, text, force=force)
+            if as_json:
+                _print_json(_json_envelope("schema", ok=True, path=str(output), schema=schema))
+            else:
+                console.print(f"[green]Wrote {output}[/green]")
+            return
+        if as_json:
+            _print_json(_json_envelope("schema", ok=True, schema=schema))
+            return
+        typer.echo(text, nl=False)
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "schema",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
 
 
 @app.command("eval")
@@ -1205,12 +1263,20 @@ def _emit_run_exception(
         }
         if state is not None:
             payload["run"] = state.to_record()
+        payload.update(_problems_fields(exc))
         _print_json(_json_envelope(command, ok=False, **payload))
         raise typer.Exit(code=1) from exc
 
     if state is not None:
         _print_run(state)
         err_console.print(f"[red]{type(exc).__name__}:[/red] {exc}")
+        problems = getattr(exc, "problems", None)
+        if problems:
+            from readyagents.workflow.source_map import render_located_problems
+
+            located = render_located_problems(list(problems))
+            if located:
+                err_console.print(located, markup=False)
         console.print(f"run_id: {state.run_id}  status: {state.status}")
         if persist:
             cmd = f"readyagents resume {state.run_id}"
@@ -1268,8 +1334,61 @@ def _preview(value: object, limit: int = 160) -> str:
     return text
 
 
+def _problems_fields(exc: BaseException) -> dict[str, Any]:
+    problems = getattr(exc, "problems", None)
+    if not problems:
+        return {}
+    from readyagents.workflow.source_map import problem_to_json
+
+    return {"problems": [problem_to_json(item) for item in problems]}
+
+
+def _write_schema_file(dest: Path, text: str, *, force: bool) -> Path:
+    from readyagents.config import get_settings
+
+    if dest.exists() and dest.is_dir():
+        raise ConfigError(f"Refusing to write schema to directory: {dest}")
+    root = get_settings().workspace_path()
+    resolved = confine_under(dest, root, what="schema output")
+    if resolved.is_dir():
+        raise ConfigError(f"Refusing to write schema to directory: {dest}")
+    if (resolved.exists() or dest.is_symlink()) and not force:
+        raise ConfigError(f"Refusing to overwrite existing file: {dest}")
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    resolved.write_text(text, encoding="utf-8")
+    return resolved
+
+
+def _check_schema_file(path: Path, generated: str) -> None:
+    if path.is_dir():
+        raise ConfigError(f"schema --check path is a directory: {path}")
+    if not path.is_file():
+        raise ConfigError(f"schema file not found: {path}")
+    existing = path.read_text(encoding="utf-8")
+    if existing == generated:
+        return
+    import difflib
+
+    diff = difflib.unified_diff(
+        existing.splitlines(),
+        generated.splitlines(),
+        fromfile=str(path),
+        tofile="generated",
+        lineterm="",
+    )
+    preview = "\n".join(list(diff)[:80])
+    raise ConfigError(f"schema drift: {path} does not match generated output\n{preview}")
+
+
 def _fail(exc: BaseException) -> NoReturn:
     err_console.print(f"[red]{type(exc).__name__}:[/red] {exc}")
+    problems = getattr(exc, "problems", None)
+    if problems:
+        from readyagents.workflow.source_map import render_located_problems
+
+        located = render_located_problems(list(problems))
+        if located:
+            err_console.print(located, markup=False)
     raise typer.Exit(code=1) from exc
 
 
