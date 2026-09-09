@@ -4,6 +4,19 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Added
+
+- **Agent firewall.** Optional `readyagents.policy.yaml` (or `--policy` /
+  `READYAGENTS_POLICY`) is evaluated at the single tool-dispatch seam. Actions
+  are allow, gate, or deny. Gate reuses the existing signed approval pause.
+  Malformed or referenced-missing policy fails closed. Without a policy file,
+  behaviour is unchanged.
+- Additive provenance (`trusted` / `untrusted`) on run records, injection
+  heuristics that route to policy and never rewrite content, MCP tool
+  description pinning, egress host allowlists, and a pre-send scan that
+  refuses known secrets in model requests.
+- `readyagents policy check` and `readyagents policy explain`.
+
 ## 1.1.0 — 2026-09-09
 
 ### Added

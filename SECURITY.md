@@ -18,6 +18,15 @@ Include:
 
 We will acknowledge the report and work on a fix before any disclosure.
 
+## Agent firewall (defence in depth)
+
+Prompt injection is not solved. With a policy file, the engine taint-tracks
+untrusted tool/HTTP/file/MCP/model values, enforces allow/gate/deny at the
+single dispatch seam, pins MCP tool descriptions, and refuses known secrets in
+model requests. Gates reuse the existing signed approval path. See
+[docs/security-model.md](docs/security-model.md) and [docs/policy.md](docs/policy.md).
+Without a policy file the 1.0 behaviour is unchanged.
+
 ## Scope notes
 
 - `read_file` / `write_file` / `list_dir` are sandboxed by a single helper (`resolve_within`): both sides are fully resolved (symlinks, junctions, macOS `/tmp` → `/private/tmp`), then compared with `Path.is_relative_to` plus case-aware equality from a **runtime probe** of the root filesystem (not `sys.platform`). Windows reserved names, alternate data streams, trailing dots/spaces, UNC/`\\?\` (unless the root is one), drive-relative `C:file.txt`, and 8.3 names that resolve outside are refused. Writes are atomic (temp file in the destination dir, restrictive mode on the temp **before** `os.replace`).

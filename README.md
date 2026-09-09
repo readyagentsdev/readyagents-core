@@ -42,6 +42,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Persist after every node and **resume** a paused or failed run from the last successful node
 - Inspect past runs: `readyagents runs list` / `show` / `replay` / `report` (local HTML)
 - Record, replay offline, fork, diff, and freeze a run into an eval fixture ([time machine](docs/time-machine.md))
+- Optional agent firewall: taint, tool policy, MCP pinning ([security model](docs/security-model.md), [policy](docs/policy.md)) — defence in depth, not a solution to prompt injection
 - Scaffold a starter: `readyagents new my-flow` (`basic`, `approval`, `research`, `pipeline`, `review`, `foreach`, `agent-tools`, `gated`)
 - Builtin tools with **zero extra servers**: `now`, `calc`, `json_get`, `list_dir`, `read_file`, `write_file`, optional `http_get`
 - Optional [MCP](https://modelcontextprotocol.io) client and server (`readyagents mcp serve`, `readyagents mcp probe`) with official tasks and MRTR approvals
@@ -83,8 +84,10 @@ flowchart LR
 | `readyagents validate PATH` | Schema-validate a workflow (source-located errors on failure) |
 | `readyagents schema` | Print/write/check the generated workflow JSON Schema |
 | `readyagents eval PATH` | Score a keyless fixture suite (exit 0/1) |
-| `readyagents run PATH [--input KEY=VALUE] [--dry-run] [--approve NODE] [--reject NODE] [--decision-file FILE] [--actor NAME] [--pack PATH]` | Execute |
-| `readyagents resume RUN_ID [--approve NODE] [--reject NODE] [--decision-file FILE]` | Resume a paused or failed run |
+| `readyagents run PATH [--input KEY=VALUE] [--dry-run] [--approve NODE] [--reject NODE] [--decision-file FILE] [--actor NAME] [--pack PATH] [--policy PATH]` | Execute |
+| `readyagents resume RUN_ID [--approve NODE] [--reject NODE] [--decision-file FILE] [--policy PATH]` | Resume a paused or failed run |
+| `readyagents policy check PATH` | Validate a firewall policy file (fail closed) |
+| `readyagents policy explain PATH [--policy PATH]` | Show which tools each node may call and why |
 | `readyagents decide RUN_ID [--file FILE \| --node ID --decision approve]` | Inject an external approval decision and resume |
 | `readyagents runs list` | List persisted runs |
 | `readyagents runs show RUN_ID` | Node timeline + stored state (`inspect` is an alias) |
@@ -114,6 +117,8 @@ flowchart LR
 | `examples/code_review.yaml` | `read_file` + review (needs a key) |
 | `examples/agent_tools.yaml` | Agent `tools: [calc]` (needs a key; `--dry-run` is keyless) |
 | `examples/foreach_calc.yaml` | Sequential foreach + `calc` (no keys) |
+| `examples/policy_gated.yaml` | Policy gate on tainted `write_file` (no keys) |
+| `examples/readyagents.policy.yaml` | Starter firewall policy |
 | `examples/json_mutate.yaml` | `json_set` / `json_merge` (no keys) |
 | `examples/list_dir.yaml` | Builtin `list_dir` (no keys, no MCP, no Node) |
 | `examples/eval/pass.yaml` | Keyless `readyagents eval` fixture suite |

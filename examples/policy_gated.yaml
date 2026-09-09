@@ -1,0 +1,27 @@
+name: policy_gated
+version: "1"
+description: >
+  Keyless demo of a policy gate. `now` taints state; write_file with that
+  content is gated by examples/readyagents.policy.yaml. Approve to finish.
+  Run:  readyagents run examples/policy_gated.yaml --policy examples/readyagents.policy.yaml
+  Resume: readyagents resume RUN_ID --approve write --policy examples/readyagents.policy.yaml
+
+start: stamp
+nodes:
+  - id: stamp
+    type: tool
+    tool: now
+    output_key: ts
+    next: write
+  - id: write
+    type: tool
+    tool: write_file
+    arguments:
+      path: out.txt
+      content: "{{ts}}"
+    output_key: wrote
+    next: done
+  - id: done
+    type: transform
+    template: "policy_gated ok: {{wrote}}"
+    output_key: summary
