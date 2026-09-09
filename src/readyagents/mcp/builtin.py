@@ -515,7 +515,7 @@ def _resolve_public_ips(host: str, *, kind: str = "http_get") -> list[str]:
     try:
         ip = ipaddress.ip_address(name)
     except ValueError:
-        ip = None
+        ip = _decimal_ipv4(name)
     if ip is not None:
         if _ip_is_blocked(ip):
             raise ToolError(not_allowed)
@@ -543,6 +543,19 @@ def _resolve_public_ips(host: str, *, kind: str = "http_get") -> list[str]:
     if not ips:
         raise ToolError(f"{kind}: could not resolve host '{host}'")
     return ips
+
+
+def _decimal_ipv4(name: str) -> ipaddress.IPv4Address | None:
+    """Windows getaddrinfo often will not resolve 2130706433; still treat as IPv4."""
+    if not name.isdigit():
+        return None
+    try:
+        value = int(name)
+    except ValueError:
+        return None
+    if value < 0 or value > 0xFFFFFFFF:
+        return None
+    return ipaddress.IPv4Address(value)
 
 
 def _ip_is_blocked(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:

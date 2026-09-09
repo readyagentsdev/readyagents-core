@@ -77,7 +77,7 @@ def test_core_src_has_no_always_on_or_control_plane() -> None:
     hits: list[str] = []
     for path in root.rglob("*.py"):
         text = path.read_text(encoding="utf-8")
-        rel = str(path.relative_to(ROOT))
+        rel = path.relative_to(ROOT).as_posix()
         for token in _BANNED_RUNTIME:
             if token in text and (rel, token) not in _ALLOWED_RUNTIME:
                 hits.append(f"{rel}: {token}")

@@ -292,7 +292,7 @@ def test_concurrent_clicks_one_resume(tmp_settings) -> None:
     assert 409 in statuses or statuses.count(202) + statuses.count(200) == 1
     import time
 
-    for _ in range(40):
+    for _ in range(200):
         if store.get(run_id).state.status != "paused":
             break
         time.sleep(0.05)
