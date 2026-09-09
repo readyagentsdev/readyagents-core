@@ -93,8 +93,10 @@ def write_evidence_pack(
     }
     hashes: dict[str, str] = {}
     for name, text in files.items():
-        (dest / name).write_text(text, encoding="utf-8")
-        hashes[name] = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        payload = text.encode("utf-8")
+        path = dest / name
+        path.write_bytes(payload)
+        hashes[name] = hashlib.sha256(path.read_bytes()).hexdigest()
     chain_anchor = None
     audit_path = Path(audit_dir) / f"{state.run_id}.jsonl"
     if audit_path.is_file():
@@ -119,12 +121,13 @@ def write_evidence_pack(
         "warning": "This pack may contain recorded model prompts and outputs.",
     }
     manifest_text = json.dumps(manifest, indent=2, ensure_ascii=False, sort_keys=True) + "\n"
-    (dest / "manifest.json").write_text(manifest_text, encoding="utf-8")
+    manifest_path = dest / "manifest.json"
+    manifest_path.write_bytes(manifest_text.encode("utf-8"))
     if sign_secret:
         from readyagents.decisions.signing import sign_body
 
-        sig = sign_body(sign_secret, manifest_text.encode("utf-8"))
-        (dest / "manifest.json.sig").write_text(sig + "\n", encoding="utf-8")
+        sig = sign_body(sign_secret, manifest_path.read_bytes())
+        (dest / "manifest.json.sig").write_bytes((sig + "\n").encode("utf-8"))
     return dest
 
 

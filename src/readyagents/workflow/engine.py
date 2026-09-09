@@ -109,6 +109,7 @@ def run_workflow(
                 run_id=state.run_id,
                 node_id=node.id,
             )
+            _raise_if_cancelled(ctx, state)
             _observe(
                 ctx,
                 "node.started",
@@ -116,7 +117,6 @@ def run_workflow(
                 node_id=node.id,
                 node_type=str(node.type),
             )
-            _raise_if_cancelled(ctx, state)
             try:
                 _execute_with_policy(node, state, ctx)
             except CancellationRequested:
@@ -329,28 +329,31 @@ def _observe(
     usage: dict[str, int] | None = None,
     duration_ms: int | None = None,
 ) -> None:
-    if getattr(ctx, "include_depth", 0):
-        return
-    observers = getattr(ctx, "observers", None)
-    if not observers:
-        return
-    from readyagents.observability import emit_event, make_event
+    try:
+        if getattr(ctx, "include_depth", 0):
+            return
+        observers = getattr(ctx, "observers", None)
+        if not observers:
+            return
+        from readyagents.observability import emit_event, make_event
 
-    emit_event(
-        observers,
-        make_event(
-            name,
-            run_id=state.run_id,
-            workflow=state.workflow_name,
-            node_id=node_id,
-            node_type=node_type,
-            status=status,
-            duration_ms=duration_ms,
-            usage=usage,
-            attributes={"model": ctx.default_model} if ctx.default_model else None,
-        ),
-        redactor=ctx.redactor,
-    )
+        emit_event(
+            observers,
+            make_event(
+                name,
+                run_id=state.run_id,
+                workflow=state.workflow_name,
+                node_id=node_id,
+                node_type=node_type,
+                status=status,
+                duration_ms=duration_ms,
+                usage=usage,
+                attributes={"model": ctx.default_model} if ctx.default_model else None,
+            ),
+            redactor=ctx.redactor,
+        )
+    except Exception:  # noqa: BLE001
+        return
 
 
 def _duration_ms(started: str, finished: str) -> int | None:
