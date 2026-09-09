@@ -7,17 +7,15 @@ import http.client
 import ipaddress
 import json
 import operator
-import os
 import socket
 import ssl
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import ParseResult, urljoin, urlparse
-from uuid import uuid4
 
 from readyagents import __version__
-from readyagents.errors import ToolError
+from readyagents.errors import AtomicWriteError, ToolError
 from readyagents.tools import FunctionTool, Tool
 
 _BINOPS: dict[type, Any] = {
@@ -587,9 +585,13 @@ def tool_list_dir(
         if not hidden and child.name.startswith("."):
             continue
         try:
-            resolved_child = child.resolve()
-            if not resolved_child.is_relative_to(workspace):
-                continue
+            from readyagents.errors import PathError
+            from readyagents.paths import resolve_within
+
+            resolved_child = resolve_within(child, workspace, what="list_dir entry")
+        except PathError:
+            continue
+        try:
             is_dir = resolved_child.is_dir()
             is_file = resolved_child.is_file()
             size = resolved_child.stat().st_size if is_file else 0
@@ -604,18 +606,14 @@ def tool_list_dir(
 
 def _sandbox_dir(path: str, workspace: Path) -> Path:
     """Resolve a directory path inside workspace (workspace root is allowed)."""
-    workspace = Path(workspace).resolve()
+    from readyagents.errors import PathError
+    from readyagents.paths import resolve_within
+
     text = str(path).strip() or "."
-    if "\x00" in text:
-        raise ToolError("Path contains invalid characters")
-    if text == "..":
-        raise ToolError("Path must stay inside the workspace")
-    candidate = Path(text)
-    if not candidate.is_absolute():
-        candidate = workspace / candidate
-    resolved = candidate.resolve()
-    if not resolved.is_relative_to(workspace):
-        raise ToolError(f"Path '{path}' is outside the workspace")
+    try:
+        resolved = resolve_within(text, workspace, what="Path")
+    except PathError as extra:
+        raise ToolError(str(extra)) from extra
     if not resolved.is_dir():
         raise ToolError(f"list_dir: not a directory: {path}")
     return resolved
@@ -645,30 +643,26 @@ def tool_write_file(path: str, content: str, *, workspace: Path) -> str:
     if size > _MAX_FILE_BYTES:
         raise ToolError(f"write_file: content too large ({size} bytes, max {_MAX_FILE_BYTES})")
     try:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        tmp = target.parent / f".{target.name}.{uuid4().hex}.tmp"
-        try:
-            tmp.write_text(payload, encoding="utf-8")
-            os.replace(tmp, target)
-        finally:
-            if tmp.exists():
-                tmp.unlink(missing_ok=True)
-    except OSError as exc:
+        from readyagents.atomic import atomic_write_text
+
+        atomic_write_text(target, payload, encoding="utf-8", newline="\n")
+    except (OSError, AtomicWriteError) as exc:
         raise ToolError(f"write_file: could not write {path}: {exc}") from exc
     return str(target)
 
 
 def _sandbox_path(path: str, workspace: Path) -> Path:
-    workspace = Path(workspace).resolve()
+    from readyagents.errors import PathError
+    from readyagents.paths import resolve_within
+
     text = str(path).strip()
     if not text or text in {".", ".."}:
         raise ToolError("Path must be a file inside the workspace")
-    if "\x00" in text:
-        raise ToolError("Path contains invalid characters")
-    candidate = Path(text)
-    if not candidate.is_absolute():
-        candidate = workspace / candidate
-    resolved = candidate.resolve()
-    if not resolved.is_relative_to(workspace) or resolved == workspace:
+    try:
+        resolved = resolve_within(text, workspace, what="Path")
+    except PathError as extra:
+        raise ToolError(str(extra)) from extra
+    root = Path(workspace).expanduser().resolve()
+    if resolved == root:
         raise ToolError(f"Path '{path}' is outside the workspace")
     return resolved

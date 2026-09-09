@@ -107,19 +107,13 @@ def collect_pack_specs(flags: Sequence[str] | None = None, *, env: str | None = 
 
 def confine_pack_path(raw: str | Path, root: Path) -> Path:
     """Resolve ``raw`` and refuse anything outside ``root`` (symlink-aware)."""
-    root = Path(root).resolve()
-    text = str(raw).strip()
-    if not text or "\x00" in text:
-        raise ConfigError(f"Pack path must be a Python file under {root}")
-    candidate = Path(text)
-    if not candidate.is_absolute():
-        candidate = root / candidate
-    resolved = candidate.resolve()
-    if not resolved.is_relative_to(root):
-        raise ConfigError(
-            f"Pack path is outside the workspace: {raw} "
-            f"(resolved to {resolved}, must stay under {root})"
-        )
+    from readyagents.errors import PathError
+    from readyagents.paths import resolve_within
+
+    try:
+        resolved = resolve_within(raw, root, what="Pack path")
+    except PathError as extra:
+        raise ConfigError(str(extra)) from extra
     if not resolved.is_file():
         raise ConfigError(f"Pack file not found: {raw}")
     if resolved.suffix.lower() != ".py":

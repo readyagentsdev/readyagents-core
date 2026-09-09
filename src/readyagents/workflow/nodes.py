@@ -940,21 +940,13 @@ def _run_include(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
 
 def _confine_include_path(raw_path: str, workflow_dir: Path, node_id: str) -> Path:
     """Resolve an include path and refuse anything outside the parent workflow dir."""
-    root = Path(workflow_dir).resolve()
-    text = str(raw_path).strip()
-    if not text or "\x00" in text:
-        raise NodeError(node_id, "include nodes require a path under the parent workflow directory")
-    candidate = Path(text)
-    if not candidate.is_absolute():
-        candidate = root / candidate
-    resolved = candidate.resolve()
-    if not resolved.is_relative_to(root):
-        raise NodeError(
-            node_id,
-            f"included workflow is outside the parent workflow directory: {raw_path} "
-            f"(resolved to {resolved}, must stay under {root})",
-        )
-    return resolved
+    from readyagents.errors import PathError
+    from readyagents.paths import resolve_within
+
+    try:
+        return resolve_within(raw_path, workflow_dir, what="included workflow")
+    except PathError as extra:
+        raise NodeError(node_id, str(extra)) from extra
 
 
 def evaluate_condition(expr: str, mapping: Mapping[str, Any]) -> bool:

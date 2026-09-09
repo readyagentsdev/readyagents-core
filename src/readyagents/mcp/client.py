@@ -53,13 +53,29 @@ def mcp_available() -> bool:
 
 def _resolve_mcp_cwd(spec: MCPServerSpec, workspace: Path) -> Path:
     """Use the run workspace, or confine an explicit cwd under it, before spawn."""
-    root = Path(workspace).resolve()
+    from readyagents.paths import resolve_within
+
     raw = (spec.cwd or "").strip()
     if not raw:
-        return root
-    from readyagents.workflow.runner import confine_under
+        return resolve_within(".", workspace, what="MCP cwd")
+    return resolve_within(raw, workspace, what="MCP cwd")
 
-    return confine_under(raw, root, what="MCP cwd")
+
+_SHELL_SHIMS = frozenset({".cmd", ".bat", ".ps1", ".command"})
+_SHELL_EXES = frozenset(
+    {"cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe", "command.com"}
+)
+
+
+def _reject_shell_stdio_command(command: str) -> None:
+    """Fail closed: do not spawn cmd/bat/ps1 shims (quoting would change)."""
+    name = Path(command).name.lower()
+    suffix = Path(command).suffix.lower()
+    if suffix in _SHELL_SHIMS or name in _SHELL_EXES:
+        raise MCPError(
+            "MCP stdio command cannot be a Windows shell shim "
+            f"({command!r}); use a real executable without shell interpretation"
+        )
 
 
 def _schema_from_mcp_tool(item: Any) -> dict[str, Any]:
@@ -190,6 +206,7 @@ class MCPClient:
         tools: dict[str, Tool] = {}
         try:
             for name, spec in self._servers.items():
+                _reject_shell_stdio_command(spec.command)
                 params = StdioServerParameters(
                     command=spec.command,
                     args=spec.args,
