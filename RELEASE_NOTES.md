@@ -1,3 +1,33 @@
+# ReadyAgents Core 1.3.0
+
+**Traceability evidence: hash-chained audit, evidence packs, retention, observers.**
+
+Audit JSONL is hash-chained (`seq`, `prev_hash`, `entry_hash`) — tamper-evident,
+not tamper-proof. `readyagents audit verify` reports unchained ranges and the
+first break. `readyagents evidence RUN_ID` writes a hash-manifested local pack
+(machine JSON, self-contained HTML, decisions projection, audit slice, workflow
+source, Mermaid graph); the pack may contain prompts and outputs.
+`readyagents graph PATH` is deterministic and injection-safe. Configurable
+retention (`READYAGENTS_RETENTION_DAYS`, default 180) makes `runs gc` refuse
+in-window records unless `--override-retention` (audited). Pack observer seam
+(`register_observers`) is backward-compatible. Optional content-free `otel`
+extra is not in `all`, starts no collector on import, and is off unless
+`READYAGENTS_OTEL=1`. Docs claim evidence, never compliance or certification.
+
+Packs are waitlisted, not for sale.
+
+## Try it
+
+```bash
+pip install readyagentsdev==1.3.0
+readyagents run examples/calc_pipeline.yaml
+readyagents audit verify
+readyagents evidence RUN_ID
+readyagents graph examples/graph_complex.yaml
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
 # ReadyAgents Core 1.2.1
 
 **Firewall skeptic fixes for taint, policy, and MCP pins.**

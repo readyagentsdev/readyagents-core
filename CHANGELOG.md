@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 1.3.0 — 2026-09-10
+
 ### Added
 
 - **Traceability evidence.** Audit JSONL is hash-chained (`seq`, `prev_hash`,
