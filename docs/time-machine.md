@@ -12,9 +12,12 @@ Recording is **opt-in**. A cassette holds full prompts and completions.
 ```bash
 readyagents run examples/calc_pipeline.yaml --record --json
 readyagents runs replay RUN_ID --offline --json
-readyagents runs freeze RUN_ID --out /tmp/frozen-calc --allow-unsealed
-readyagents eval /tmp/frozen-calc/case.yaml
+readyagents runs freeze RUN_ID --out frozen-calc
+readyagents eval frozen-calc/case.yaml
 ```
+
+`--out` must stay under the workspace (usually the current directory). An absolute
+path such as `/tmp/frozen-calc` is refused.
 
 `calc_pipeline` has no LLM. The cassette still exists so `--offline` has a
 file to load; `calc` nodes are **recomputed**. `now` is sealed only when

@@ -4,6 +4,11 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Security
+
+- `runs diff` always applies default secret redaction and strips ANSI/control
+  sequences, even when `READYAGENTS_REDACT` is unset.
+
 ## 1.0.0 — 2026-09-09
 
 ### Added

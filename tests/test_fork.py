@@ -34,9 +34,22 @@ def test_fork_composed_gate_state(tmp_path: Path, tmp_settings, examples_dir: Pa
     assert child.metadata["forked_at_node"] == "nested"
     assert "nested" in child.node_outputs
     assert child.node_outputs["nested"] == parent.node_outputs["nested"]
-    parent_bytes = (tmp_settings.runs_dir() / f"{parent.run_id}.json").read_bytes()
-    reconstruct_after(parent, "fan", workflow=spec)
-    assert (tmp_settings.runs_dir() / f"{parent.run_id}.json").read_bytes() == parent_bytes
+    parent_path = tmp_settings.runs_dir() / f"{parent.run_id}.json"
+    audit_path = tmp_settings.audit_dir() / f"{parent.run_id}.jsonl"
+    parent_bytes = parent_path.read_bytes()
+    audit_bytes = audit_path.read_bytes() if audit_path.is_file() else b""
+    from readyagents.replay.fork import fork_run
+
+    fork_run(
+        parent.run_id,
+        "nested",
+        settings=tmp_settings,
+        persist=True,
+        decisions={"gate": "approve"},
+    )
+    assert parent_path.read_bytes() == parent_bytes
+    assert audit_path.is_file()
+    assert audit_path.read_bytes() == audit_bytes
 
 
 def test_fork_foreach_occurrence(tmp_path: Path, tmp_settings, examples_dir: Path) -> None:

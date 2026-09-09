@@ -131,3 +131,51 @@ def test_tampered_cassette_is_still_labelled_replay(tmp_path: Path, tmp_settings
 def test_contains_secret_helper() -> None:
     assert contains_secret("bearer sk-abcdefghijk", ["sk-abcdefghijk"])
     assert not contains_secret("hello", ["sk-abcdefghijk"])
+
+
+def test_diff_strips_secrets_and_ansi(tmp_path: Path, tmp_settings, monkeypatch) -> None:
+    from typer.testing import CliRunner
+
+    from readyagents.cli import app
+    from readyagents.config import clear_settings_cache
+    from readyagents.policy import Redactor
+    from readyagents.replay.diff import diff_runs
+    from readyagents.workflow.state import NodeResult, RunState
+
+    secret = "sk-abcdefghijklmnop"
+    ansi = "\x1b[31m"
+    left = RunState.start("diff-sec", {})
+    left.results.append(
+        NodeResult(node_id="t", type="transform", status="ok", output=f"leak {ansi}{secret}")
+    )
+    right = RunState.start("diff-sec", {})
+    right.results.append(NodeResult(node_id="t", type="transform", status="ok", output="clean"))
+    report = diff_runs(left, right, redactor=Redactor())
+    blob = str(report)
+    assert secret not in blob
+    assert "\x1b" not in blob
+    assert ansi not in blob
+
+    a = tmp_path / "a.yaml"
+    b = tmp_path / "b.yaml"
+    a.write_text(
+        "name: da\nnodes:\n  - id: t\n    type: transform\n"
+        f"    template: 'leak {secret}'\n    output_key: summary\n",
+        encoding="utf-8",
+    )
+    b.write_text(
+        "name: db\nnodes:\n  - id: t\n    type: transform\n"
+        "    template: 'other'\n    output_key: summary\n",
+        encoding="utf-8",
+    )
+    ra = run_workflow_file(a, settings=tmp_settings, persist=True)
+    rb = run_workflow_file(b, settings=tmp_settings, persist=True)
+    monkeypatch.setenv("READYAGENTS_HOME", str(tmp_settings.home_path()))
+    monkeypatch.setenv("READYAGENTS_WORKSPACE", str(tmp_path))
+    monkeypatch.delenv("READYAGENTS_REDACT", raising=False)
+    clear_settings_cache()
+    cli = CliRunner().invoke(app, ["runs", "diff", ra.run_id, rb.run_id, "--json"])
+    assert cli.exit_code == 0, cli.stdout + cli.stderr
+    out = cli.stdout + cli.stderr
+    assert secret not in out
+    assert "\x1b[" not in out

@@ -809,7 +809,7 @@ def runs_diff(
 ) -> None:
     """Compare two runs. Read-only."""
     from readyagents.config import get_settings
-    from readyagents.policy import redactor_from_settings
+    from readyagents.policy import Redactor
     from readyagents.replay.diff import diff_runs
     from readyagents.run_store import open_run_store
 
@@ -818,8 +818,9 @@ def runs_diff(
     try:
         left = store.get(run_a, allow_prefix=True).state
         right = store.get(run_b, allow_prefix=True).state
-        redactor = redactor_from_settings(
-            enabled=bool(settings.redact),
+        # Diff output is a terminal/CI artifact: always apply default secret
+        # patterns, not only when READYAGENTS_REDACT is on.
+        redactor = Redactor(
             patterns=settings.redact_pattern_list(),
             literals=settings.redact_literal_list(),
         )
