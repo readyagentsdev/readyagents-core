@@ -98,6 +98,7 @@ class ExecutionContext:
         pin_digests: dict[str, str] | None = None,
         mcp_descriptions: dict[str, str] | None = None,
         pin_home: Path | None = None,
+        observers: list[Any] | None = None,
     ) -> None:
         self.workflow = workflow
         self.tools = tools
@@ -131,6 +132,7 @@ class ExecutionContext:
         self.pin_digests = dict(pin_digests or {})
         self.mcp_descriptions = dict(mcp_descriptions or {})
         self.pin_home = Path(pin_home) if pin_home else None
+        self.observers = list(observers or [])
         self.last_tool_rounds: list[dict[str, Any]] = []
         self._persist_lock = threading.RLock()
         self._in_flight = 0
@@ -203,6 +205,7 @@ class ExecutionContext:
             pin_digests=self.pin_digests,
             mcp_descriptions=self.mcp_descriptions,
             pin_home=self.pin_home,
+            observers=self.observers,
         )
 
 

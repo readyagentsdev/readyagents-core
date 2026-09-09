@@ -218,6 +218,10 @@ class NodeSpec(BaseModel):
         description="Maximum items this foreach will process (1–100).",
     )
     body: NodeSpec | None = Field(default=None, description="Node executed once per item.")
+    rationale_key: str | None = Field(
+        default=None,
+        description="Optional output field that is the human-readable justification.",
+    )
 
     @field_validator("id")
     @classmethod

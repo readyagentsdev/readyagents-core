@@ -21,6 +21,7 @@ from readyagents.notify import post_json
 from readyagents.packs.loader import (
     collect_pack_authorizers,
     collect_pack_nodes,
+    collect_pack_observers,
     collect_pack_seals,
     collect_pack_secrets,
     collect_pack_tools,
@@ -344,6 +345,7 @@ def run_workflow_file(
         pin_digests=pin_digests,
         mcp_descriptions=mcp_descriptions,
         pin_home=settings.home_path(),
+        observers=collect_pack_observers(packs),
     )
     metadata = {
         "source": str(source_path),
@@ -396,6 +398,11 @@ def run_workflow_file(
         )
         raise
     finally:
+        from readyagents.observability import shutdown_observers
+
+        ctx_obj = locals().get("ctx")
+        if ctx_obj is not None:
+            shutdown_observers(getattr(ctx_obj, "observers", None), redactor=redactor)
         if mcp is not None:
             mcp.close()
         if owned_store and store is not None:

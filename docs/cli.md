@@ -82,6 +82,46 @@ Show which tools each node may call and why. `--policy PATH` optional
 (resolution is `--policy`, `READYAGENTS_POLICY`, then `readyagents.policy.yaml`
 beside the workflow).
 
+## `readyagents evidence RUN_ID`
+
+Write a local evidence pack for a persisted run. This is **evidence**, not
+legal compliance or certification. The pack may contain prompts and outputs.
+`--out DIR` defaults to `evidence-<run_id>` and is confined to the workspace.
+`--sign` writes a detached HMAC of `manifest.json` using
+`READYAGENTS_DECISION_SECRET`. Overwrite requires `--force`. Copy
+`manifest.json`'s `chain_anchor` off-box if you need an independent check.
+
+```bash
+readyagents evidence RUN_ID --out evidence-dir
+readyagents evidence RUN_ID --out evidence-dir --force --json
+readyagents evidence RUN_ID --sign
+```
+
+## `readyagents audit verify`
+
+Walk one audit JSONL (`--file`) or every file under `$READYAGENTS_HOME/audit`.
+Exit 0 if there is no break. Unchained pre-chain lines are reported, not
+failed. A mutation or truncated line exits 1 and names the first break.
+Hash chaining is tamper-*evident*, **not** tamper-proof.
+
+```bash
+readyagents audit verify
+readyagents audit verify --file .readyagents/audit/RUN_ID.jsonl --json
+```
+
+## `readyagents graph PATH`
+
+Deterministic Mermaid of a workflow's declared routing. Executes nothing: no
+run, no provider, no include expansion, no pack import. Labels are sanitized
+(`<>`, URLs, `click` are stripped). `--direction LR` (default) or `TD`.
+`--output` / `--out` writes a file confined to the workspace. This is a
+routing picture, not an execution trace.
+
+```bash
+readyagents graph examples/graph_complex.yaml
+readyagents graph examples/fanout_gate.yaml --direction TD --json
+```
+
 ## `readyagents run PATH`
 
 ```bash
@@ -214,11 +254,12 @@ Exit `0` only when the selected policy succeeds. Exit `1` on config/schema/confl
 
 ## `readyagents runs gc`
 
-Delete succeeded/failed/cancelled run files. **Paused** runs are kept unless `--include-paused`. Requires `--yes`. `--keep N` leaves the newest N runs.
+Delete succeeded/failed/cancelled **run records**. **Paused** runs are kept unless `--include-paused`. Requires `--yes`. `--keep N` leaves the newest N matching runs. Records younger than `READYAGENTS_RETENTION_DAYS` (default 180) are refused unless `--override-retention` (that override is audited). This is a local hygiene window, **not** a legal retention obligation. `gc` does **not** delete `$READYAGENTS_HOME/audit/*.jsonl`. Operators who need a statutory archive must copy evidence off-box themselves.
 
 ```bash
 readyagents runs gc --yes
 readyagents runs gc --yes --status succeeded --keep 20
+readyagents runs gc --yes --override-retention
 ```
 
 Ctrl-C during a persisted run stores status `cancelled` (not leftover `running`).

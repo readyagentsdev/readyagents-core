@@ -35,6 +35,21 @@ Without a policy file the 1.0 behaviour is unchanged.
 - `calc` is a restricted arithmetic evaluator, not Python `eval`
 - API keys live in the environment / local env files and must never be committed
 
+## Audit hash chaining is tamper-evident, not tamper-proof
+
+Each new audit JSONL line carries `seq`, `prev_hash`, and `entry_hash`.
+`readyagents audit verify` detects a mutated or truncated line. Pre-chain
+files are reported as unchained, not failed. A local attacker who can
+rewrite the whole file can rewrite the chain. Copy the chain anchor off-box
+if you need an independent check. ReadyAgents does not encrypt the audit
+trail or run records at rest.
+
+## Evidence packs contain prompts and outputs
+
+`readyagents evidence RUN_ID` writes a local pack that may include recorded
+model prompts, inputs, and outputs. Redaction runs at pack time. Treat the
+directory as sensitive. The pack is evidence, not a certificate.
+
 ## Cassettes contain prompts and completions
 
 `readyagents run --record` writes a cassette under `$READYAGENTS_HOME/cassettes/`. That
@@ -89,6 +104,14 @@ On POSIX, new run files and cache entries are created with owner-only modes (`0o
 Trust boundary is the local host. A privileged local process can read these files. For a consistent SQLite backup, copy the database together with `-wal` and `-shm`, or checkpoint first. Network filesystems are unsupported for SQLite (locking is not guaranteed).
 
 JSON-to-SQLite migration never deletes the JSON sources. The append-only audit trail under `$READYAGENTS_HOME/audit/` is a separate JSONL log and is not imported into the run store.
+
+ReadyAgents does **not** provide encryption at rest.
+
+## Audit chain and evidence packs
+
+Hash chaining (`seq`, `prev_hash`, `entry_hash`) on `$READYAGENTS_HOME/audit/<run_id>.jsonl` is tamper-*evident*, **not** tamper-proof. A process that can rewrite the whole file can rewrite the chain. Rotation writes a `chain_anchor` carrying the previous file's final hash. Copy that anchor **off-box** if you need an independent check; a chain that lives only next to the file it attests is not an independent witness.
+
+`readyagents evidence` writes a local pack (`run.json`, `audit.jsonl`, `decisions.json`, workflow, graph, HTML). Evidence packs **contain prompts and outputs** (redaction runs at pack time; treat the directory as sensitive). They are not a certificate and they are not encrypted. See [docs/compliance.md](docs/compliance.md).
 
 ## Secrets in issues and PRs
 

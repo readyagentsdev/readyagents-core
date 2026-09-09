@@ -231,6 +231,19 @@
                 "description": "Agent or approval prompt. Templates allowed.",
                 "title": "Prompt"
               },
+              "rationale_key": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional output field that is the human-readable justification.",
+                "title": "Rationale Key"
+              },
               "system": {
                 "anyOf": [
                   {
@@ -391,6 +404,19 @@
                 "description": "Parse the transform result as JSON.",
                 "title": "Parse Json",
                 "type": "boolean"
+              },
+              "rationale_key": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional output field that is the human-readable justification.",
+                "title": "Rationale Key"
               },
               "source": {
                 "anyOf": [

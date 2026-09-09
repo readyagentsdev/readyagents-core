@@ -1,0 +1,45 @@
+name: graph_complex
+description: Routing shapes for documentation graphs. Keyless.
+start: seed
+nodes:
+  - id: seed
+    type: transform
+    template: "[1,2]"
+    parse_json: true
+    output_key: items
+    next: mapped
+  - id: mapped
+    type: foreach
+    items: items
+    output_key: outs
+    next: check
+    body:
+      id: inner
+      type: transform
+      template: "v={{item}}"
+  - id: check
+    type: condition
+    when: "true"
+    then: fan
+    else: done
+  - id: fan
+    type: parallel
+    output_key: parts
+    next: gate
+    branches:
+      - id: left
+        type: tool
+        tool: calc
+        arguments: {expression: "1+1"}
+      - id: right
+        type: tool
+        tool: now
+  - id: gate
+    type: approval
+    prompt: "ok?"
+    then: done
+    else: done
+  - id: done
+    type: transform
+    template: "done"
+    output_key: summary
