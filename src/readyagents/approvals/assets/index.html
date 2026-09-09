@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReadyAgents approvals</title>
+  <link rel="stylesheet" href="/approvals/assets/style.css">
+  <script src="/approvals/assets/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <h1>Pending approvals</h1>
+    <p>
+      This is a local foreground UI, not a hosted dashboard.
+      Closing the process stops it.
+    </p>
+    <p id="status" role="status" aria-live="polite"></p>
+    <section id="empty" hidden>
+      <p>No pending approvals.</p>
+    </section>
+    <ul id="runs"></ul>
+  </main>
+  <noscript>
+    <p>JavaScript is required to list and decide pending approvals in this local UI.</p>
+  </noscript>
+</body>
+</html>

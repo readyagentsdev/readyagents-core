@@ -58,6 +58,11 @@ Documentation = "https://github.com/readyagentsdev/readyagents-core/tree/main/do
 [tool.hatch.build.targets.wheel]
 packages = ["src/readyagents"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"src/readyagents/approvals/assets/index.html" = "readyagents/approvals/assets/index.html"
+"src/readyagents/approvals/assets/app.js" = "readyagents/approvals/assets/app.js"
+"src/readyagents/approvals/assets/style.css" = "readyagents/approvals/assets/style.css"
+
 [tool.hatch.build.targets.sdist]
 include = [
     "/src",

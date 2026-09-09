@@ -30,6 +30,7 @@ from readyagents.tools import ToolRegistry, default_registry
 from readyagents.workflow.cancellation import CancellationToken
 from readyagents.workflow.engine import run_workflow
 from readyagents.workflow.nodes import ExecutionContext
+from readyagents.workflow.pause import build_pause_event
 from readyagents.workflow.schema import WorkflowSpec, validate_required_inputs
 from readyagents.workflow.state import RunState, load_decision_file, load_run, persist_run
 
@@ -113,6 +114,7 @@ def run_workflow_file(
     run_id: str | None = None,
     initial_state: RunState | None = None,
     cancellation: CancellationToken | None = None,
+    store: Any | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     workflow = load_workflow(path)
@@ -194,8 +196,21 @@ def run_workflow_file(
     if persist:
         auditor = make_auditor(audit_dir_for(settings.home_path()), redactor=redactor)
 
+    owned_store = False
+    if persist and store is None:
+        try:
+            from readyagents.run_store import open_run_store
+
+            store = open_run_store(settings)
+            owned_store = True
+        except ImportError:
+            store = None
+
     def _save(state: RunState) -> None:
-        persist_run(state, runs_dir, redactor=redactor)
+        if store is not None:
+            store.save(state, redactor=redactor)
+        else:
+            persist_run(state, runs_dir, redactor=redactor)
 
     budget = workflow.budget
     if budget and budget.max_tokens is not None:
@@ -227,16 +242,7 @@ def run_workflow_file(
         if on_pause is not None:
             on_pause(exc, state)
         if pause_url:
-            payload = {
-                "event": "approval_required",
-                "run_id": state.run_id,
-                "node_id": getattr(exc, "node_id", state.pending_node),
-                "prompt": getattr(exc, "prompt", ""),
-                "resume": (
-                    f"readyagents resume {state.run_id} "
-                    f"--approve {getattr(exc, 'node_id', state.pending_node)}"
-                ),
-            }
+            payload = build_pause_event(exc, state)
             try:
                 post_json(pause_url, payload)
             except Exception as notify_exc:  # noqa: BLE001
@@ -286,6 +292,10 @@ def run_workflow_file(
     finally:
         if mcp is not None:
             mcp.close()
+        if owned_store and store is not None:
+            closer = getattr(store, "close", None)
+            if callable(closer):
+                closer()
     return state
 
 
@@ -308,9 +318,14 @@ def resume_run(
     on_pause: Any | None = None,
     no_cache: bool = False,
     cancellation: CancellationToken | None = None,
+    store: Any | None = None,
 ) -> RunState:
     settings = settings or get_settings()
-    state = load_run(settings.runs_dir(), run_id)
+    if store is not None:
+        loaded = store.get(run_id, allow_prefix=True)
+        state = loaded.state
+    else:
+        state = load_run(settings.runs_dir(), run_id)
     source = path or state.metadata.get("source")
     if not source:
         raise ConfigError(f"Run {state.run_id} has no stored workflow path. Pass --workflow PATH.")
@@ -332,6 +347,7 @@ def resume_run(
         on_pause=on_pause,
         no_cache=no_cache,
         cancellation=cancellation,
+        store=store,
     )
 
 

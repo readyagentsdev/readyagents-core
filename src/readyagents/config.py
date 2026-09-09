@@ -150,6 +150,20 @@ class Settings(BaseSettings):
         ge=1,
         validation_alias=AliasChoices("READYAGENTS_MCP_MAX_PENDING_RUNS"),
     )
+    run_store: str = Field(
+        default="json",
+        validation_alias=AliasChoices("READYAGENTS_RUN_STORE"),
+    )
+    run_db: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices("READYAGENTS_RUN_DB"),
+    )
+    sqlite_busy_timeout_ms: int = Field(
+        default=5000,
+        ge=1,
+        le=60000,
+        validation_alias=AliasChoices("READYAGENTS_SQLITE_BUSY_TIMEOUT_MS"),
+    )
 
     def fallback_model_list(self) -> list[str]:
         if not self.fallback_models:
@@ -195,6 +209,14 @@ class Settings(BaseSettings):
             return MAX_PENDING_RUNS_HARD
         return value
 
+    @field_validator("run_store", mode="after")
+    @classmethod
+    def _validate_run_store(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"json", "sqlite"}:
+            raise ValueError(f"Invalid run_store '{value}'. Expected json or sqlite.")
+        return normalized
+
     def workspace_path(self) -> Path:
         return (self.workspace or Path.cwd()).expanduser().resolve()
 
@@ -206,6 +228,17 @@ class Settings(BaseSettings):
 
     def runs_dir(self) -> Path:
         return self.home_path() / "runs"
+
+    def run_db_path(self) -> Path:
+        if self.run_db is None:
+            return self.home_path() / "runs.sqlite3"
+        path = self.run_db.expanduser()
+        if not path.is_absolute():
+            path = self.home_path() / path
+        return path.resolve()
+
+    def sqlite_busy_timeout(self) -> float:
+        return self.sqlite_busy_timeout_ms / 1000
 
     def api_key_for(self, provider: str) -> str | None:
         provider = provider.lower()

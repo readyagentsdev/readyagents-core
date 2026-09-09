@@ -81,6 +81,7 @@ def compose_http_app(
     bind_host: str,
     bind_port: int,
     max_body_bytes: int = MAX_HTTP_BODY_BYTES,
+    approval_app: Any = None,
 ) -> Any:
     """SDK Streamable HTTP app plus /runs routes, wrapped in pure ASGI middleware."""
     bind_host = assert_loopback_host(bind_host)
@@ -93,7 +94,11 @@ def compose_http_app(
     router = getattr(mcp_app, "router", None)
     routes = getattr(router, "routes", None)
     if routes is not None:
-        routes[0:0] = _run_routes(coordinator)
+        extra = _run_routes(coordinator)
+        if approval_app is not None:
+            extra[0:0] = _approval_mount_routes(approval_app)
+        routes[0:0] = extra
+    skip_prefixes = ("/approvals",) if approval_app is not None else ()
     # Do not wrap in a second Starlette: StreamableHTTPSessionManager.run() is once-only.
     return CacheControlMiddleware(
         AuthMiddleware(
@@ -103,6 +108,7 @@ def compose_http_app(
                 bind_port=int(bind_port),
             ),
             token=secret,
+            skip_prefixes=skip_prefixes,
         )
     )
 
@@ -117,6 +123,7 @@ def serve_streamable_http(
     max_pending_runs: int,
     allow_http: bool | None = None,
     workspace: Path | None = None,
+    approval_ui: bool = False,
 ) -> None:
     """Foreground loopback Streamable HTTP server. Blocking. Not started on import."""
     coordinator: Any = None
@@ -147,6 +154,25 @@ def serve_streamable_http(
             max_concurrent_runs=max_concurrent_runs,
             max_pending_runs=max_pending_runs,
         )
+        approval_app = None
+        if approval_ui:
+            from readyagents.approvals.app import compose_approval_app
+            from readyagents.approvals.tokens import TokenService
+
+            ui_tokens = TokenService()
+            approval_app = compose_approval_app(
+                tokens=ui_tokens,
+                coordinator=coordinator,
+                bind_host=host,
+                bind_port=int(port),
+                settings=settings,
+            )
+            bootstrap = ui_tokens.issue_bootstrap()
+            print(
+                "Approval UI bootstrap URL (stderr only; single-use):",
+                file=sys.stderr,
+            )
+            print(f"http://{host}:{int(port)}/approvals?token={bootstrap}", file=sys.stderr)
         app = compose_http_app(
             server=server,
             coordinator=coordinator,
@@ -154,6 +180,7 @@ def serve_streamable_http(
             bind_host=host,
             bind_port=int(port),
             max_body_bytes=MAX_HTTP_BODY_BYTES,
+            approval_app=approval_app,
         )
         try:
             import uvicorn
@@ -164,6 +191,47 @@ def serve_streamable_http(
         shutdown = getattr(coordinator, "shutdown", None) if coordinator is not None else None
         if callable(shutdown):
             shutdown()
+
+
+def _approval_mount_routes(approval_app: Any) -> list[Any]:
+    try:
+        from starlette.routing import Route
+    except ImportError:
+        return []
+
+    async def _dispatch(request: Any) -> Any:
+        from starlette.responses import Response
+
+        header_items = list(request.headers.items())
+        body = await request.body()
+        query = dict(request.query_params)
+        response = approval_app.handle(
+            request.method,
+            request.url.path,
+            query=query,
+            headers=header_items,
+            body=body,
+        )
+        headers = {k: v for k, v in response.headers}
+        return Response(response.body, status_code=response.status, headers=headers)
+
+    paths = [
+        "/approvals",
+        "/approvals/",
+        "/approvals/api/runs",
+        "/approvals/assets/app.js",
+        "/approvals/assets/style.css",
+        "/approvals/assets/index.html",
+    ]
+    routes = [Route(path, endpoint=_dispatch, methods=["GET", "POST", "HEAD"]) for path in paths]
+    routes.append(
+        Route(
+            "/approvals/api/runs/{run_id}/decide",
+            endpoint=_dispatch,
+            methods=["GET", "POST"],
+        )
+    )
+    return routes
 
 
 def _run_routes(coordinator: Any) -> list[Any]:
@@ -514,12 +582,23 @@ class HostOriginMiddleware:
 class AuthMiddleware:
     """Require Authorization: Bearer when a token is configured."""
 
-    def __init__(self, app: Any, *, token: str | None) -> None:
+    def __init__(
+        self,
+        app: Any,
+        *,
+        token: str | None,
+        skip_prefixes: tuple[str, ...] = (),
+    ) -> None:
         self.app = app
         self.token = token
+        self.skip_prefixes = skip_prefixes
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         if scope["type"] != "http" or self.token is None:
+            await self.app(scope, receive, send)
+            return
+        path = str(scope.get("path") or "")
+        if any(path == prefix or path.startswith(prefix + "/") for prefix in self.skip_prefixes):
             await self.app(scope, receive, send)
             return
         request_id = _ensure_request_id(scope)

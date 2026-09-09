@@ -127,3 +127,11 @@ class HttpRequestError(MCPError):
     def __init__(self, message: str, *, status_code: int = 400) -> None:
         self.status_code = status_code
         super().__init__(message)
+
+
+class RunStoreError(ReadyAgentsError):
+    """Run persistence backend failure."""
+
+
+class RunStoreConflict(RunStoreError):
+    """Optimistic concurrency failure (revision mismatch or missing row)."""
