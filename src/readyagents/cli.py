@@ -53,10 +53,14 @@ approvals_app = typer.Typer(
     no_args_is_help=True,
 )
 policy_app = typer.Typer(help="Validate and explain firewall policy files.", no_args_is_help=True)
+audit_app = typer.Typer(
+    help="Inspect the append-only hash-chained audit trail.", no_args_is_help=True
+)
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(runs_app, name="runs")
 app.add_typer(approvals_app, name="approvals")
 app.add_typer(policy_app, name="policy")
+app.add_typer(audit_app, name="audit")
 
 console = Console()
 err_console = Console(stderr=True)
@@ -1073,8 +1077,14 @@ def runs_gc_cmd(
         help="Also delete paused runs (off by default).",
     ),
     yes: bool = typer.Option(False, "--yes", "-y", help="Do not prompt."),
+    override_retention: bool = typer.Option(
+        False,
+        "--override-retention",
+        help="Delete records inside the retention window. This override is audited.",
+    ),
 ) -> None:
     """Delete old succeeded/failed/cancelled runs. Paused runs are kept unless forced."""
+    from readyagents.audit import audit_dir_for, make_auditor
     from readyagents.config import get_settings
     from readyagents.run_store import open_run_store
 
@@ -1085,12 +1095,25 @@ def runs_gc_cmd(
     store = open_run_store(settings)
     try:
         try:
-            deleted = store.gc(statuses=status, include_paused=include_paused, keep=keep)
+            deleted = store.gc(
+                statuses=status,
+                include_paused=include_paused,
+                keep=keep,
+                min_age_seconds=None if override_retention else settings.retention_seconds(),
+                override_retention=override_retention,
+            )
         except ReadyAgentsError as extra:
             _fail(extra)
             return
     finally:
         store.close()
+    if override_retention:
+        make_auditor(audit_dir_for(settings.home_path()))(
+            "gc_override",
+            run_id="gc",
+            deleted=len(deleted),
+            actor=settings.actor,
+        )
     console.print(f"[green]Deleted {len(deleted)} run(s)[/green]")
     for rid in deleted:
         console.print(f"  {rid}")
@@ -1398,6 +1421,188 @@ def policy_explain(
     for row in rows:
         table.add_row(row["node"], row["tool"], row["action"], row["rule"], row["reason"])
     console.print(table)
+
+
+@audit_app.command("verify")
+def audit_verify_cmd(
+    file: Path | None = typer.Option(None, "--file", help="One JSONL audit file."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Walk the hash chain. Exit 0 if no break; unchained ranges are reported, not failed."""
+    from readyagents.audit import verify_audit_dir, verify_audit_file
+    from readyagents.config import get_settings
+
+    try:
+        if file is not None:
+            reports = [verify_audit_file(file)]
+        else:
+            reports = verify_audit_dir(get_settings().audit_dir())
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "audit verify",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    ok = all(item.ok for item in reports)
+    payload = {
+        "files": [item.as_dict() for item in reports],
+        "total": sum(item.total for item in reports),
+        "chained": sum(item.chained for item in reports),
+        "unchained": sum(item.unchained for item in reports),
+        "first_break": next(
+            (item.first_break for item in reports if item.first_break is not None), None
+        ),
+        "first_break_reason": next(
+            (item.first_break_reason for item in reports if item.first_break_reason), None
+        ),
+    }
+    if as_json:
+        if file is not None and reports:
+            body = reports[0].as_dict()
+            _print_json(_json_envelope("audit verify", **body))
+        else:
+            _print_json(_json_envelope("audit verify", ok=ok, **payload))
+    else:
+        status = "ok" if ok else "BREAK"
+        console.print(
+            f"audit verify {status}: files={len(reports)} chained={payload['chained']} "
+            f"unchained={payload['unchained']}"
+        )
+        if payload["first_break_reason"]:
+            err_console.print(f"[red]{payload['first_break_reason']}[/red]")
+    if not ok:
+        raise typer.Exit(code=1)
+
+
+@app.command("evidence")
+def evidence_cmd(
+    run_id: str = typer.Argument(..., help="Run id (or unique prefix)."),
+    out: Path | None = typer.Option(None, "--out", help="Output directory."),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing pack."),
+    sign: bool = typer.Option(False, "--sign", help="Detached HMAC of manifest.json."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Write a local evidence pack. Evidence, not compliance or certification."""
+    from readyagents.compliance.evidence import write_evidence_pack
+    from readyagents.config import get_settings
+    from readyagents.policy import Redactor
+    from readyagents.run_store import open_run_store
+
+    settings = get_settings()
+    store = open_run_store(settings)
+    try:
+        try:
+            state = store.get(run_id, allow_prefix=True).state
+        except ReadyAgentsError as extra:
+            if as_json:
+                _print_json(
+                    _json_envelope(
+                        "evidence",
+                        ok=False,
+                        error=type(extra).__name__,
+                        message=str(extra),
+                    )
+                )
+                raise typer.Exit(code=1) from extra
+            _fail(extra)
+            return
+    finally:
+        store.close()
+    dest = out or Path(f"evidence-{state.run_id}")
+    try:
+        resolved = confine_under(dest, settings.workspace_path(), what="evidence pack")
+        source = state.metadata.get("source")
+        workflow = None
+        workflow_text = ""
+        if source:
+            src_path = Path(str(source))
+            if src_path.is_file():
+                workflow_text = src_path.read_text(encoding="utf-8")
+                workflow = load_workflow(src_path)
+        redactor = Redactor(
+            patterns=settings.redact_pattern_list(),
+            literals=settings.redact_literal_list(),
+        )
+        secret = settings.decision_secret if sign else None
+        if sign and not secret:
+            raise ConfigError("READYAGENTS_DECISION_SECRET is required for --sign")
+        pack = write_evidence_pack(
+            resolved,
+            state=state,
+            workflow=workflow,
+            workflow_text=workflow_text,
+            audit_dir=settings.audit_dir(),
+            redactor=redactor,
+            force=force,
+            sign_secret=secret,
+        )
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "evidence",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    err_console.print(
+        "[yellow]Warning:[/yellow] evidence packs may contain recorded model prompts and outputs."
+    )
+    if as_json:
+        _print_json(_json_envelope("evidence", ok=True, run_id=state.run_id, path=str(pack)))
+        return
+    console.print(f"Wrote evidence pack {pack}")
+
+
+@app.command("graph")
+def graph_cmd(
+    path: Path = _WORKFLOW_ARG,
+    direction: str = typer.Option("LR", "--direction", help="LR or TD."),
+    output: Path | None = typer.Option(None, "--output", "--out", help="Write Mermaid to a file."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Deterministic Mermaid routing diagram. Executes nothing."""
+    from readyagents.compliance.graph import render_mermaid
+    from readyagents.config import get_settings
+
+    try:
+        spec = load_workflow(path)
+        mermaid = render_mermaid(spec, direction=direction)
+        if output is not None:
+            dest = confine_under(output, get_settings().workspace_path(), what="graph output")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(mermaid, encoding="utf-8")
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "graph",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        payload: dict[str, Any] = {"mermaid": mermaid, "workflow": spec.name}
+        if output is not None:
+            payload["path"] = str(output)
+        _print_json(_json_envelope("graph", ok=True, **payload))
+        return
+    console.print(mermaid, end="")
 
 
 def _show_run(run_id: str, *, as_json: bool = False) -> None:
