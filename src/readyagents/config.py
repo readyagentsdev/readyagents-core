@@ -164,6 +164,14 @@ class Settings(BaseSettings):
         le=60000,
         validation_alias=AliasChoices("READYAGENTS_SQLITE_BUSY_TIMEOUT_MS"),
     )
+    mcp_protocol_max: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("READYAGENTS_MCP_PROTOCOL_MAX"),
+    )
+    decision_secret: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("READYAGENTS_DECISION_SECRET"),
+    )
 
     def fallback_model_list(self) -> list[str]:
         if not self.fallback_models:
@@ -186,7 +194,14 @@ class Settings(BaseSettings):
     def audit_dir(self) -> Path:
         return self.home_path() / "audit"
 
-    @field_validator("openai_api_key", "anthropic_api_key", "openai_compat_api_key", mode="before")
+    @field_validator(
+        "openai_api_key",
+        "anthropic_api_key",
+        "openai_compat_api_key",
+        "decision_secret",
+        "mcp_protocol_max",
+        mode="before",
+    )
     @classmethod
     def _empty_to_none(cls, value: Any) -> Any:
         if value is None:

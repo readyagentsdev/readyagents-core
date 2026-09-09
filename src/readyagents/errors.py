@@ -129,6 +129,36 @@ class HttpRequestError(MCPError):
         super().__init__(message)
 
 
+class UnsupportedProtocolVersionError(MCPError):
+    """JSON-RPC ``-32022``: requested MCP protocol version is not honoured."""
+
+    code = -32022
+
+    def __init__(self, requested: str, supported: tuple[str, ...] | list[str]) -> None:
+        self.requested = requested
+        self.supported = tuple(supported)
+        super().__init__("Unsupported protocol version")
+
+
+class HeaderMismatchError(MCPError):
+    """JSON-RPC ``-32020``: ``Mcp-Method`` / ``Mcp-Name`` disagree with the body."""
+
+    code = -32020
+
+    def __init__(self, message: str = "MCP header does not match the JSON-RPC body") -> None:
+        super().__init__(message)
+
+
+class TaskStateError(MCPError):
+    """JSON-RPC ``-32023``: ``tasks/update`` is not valid in the current task state."""
+
+    code = -32023
+
+    def __init__(self, message: str, *, run_id: str | None = None) -> None:
+        super().__init__(message)
+        self.run_id = run_id
+
+
 class RunStoreError(ReadyAgentsError):
     """Run persistence backend failure."""
 
