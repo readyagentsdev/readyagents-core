@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.request
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
+from readyagents.config import DEFAULT_MCP_TOKEN_ENV
 from readyagents.errors import MCPError
 from readyagents.mcp.protocol import (
     LATEST_PROTOCOL_VERSION,
@@ -17,11 +19,21 @@ from readyagents.mcp.protocol import (
 )
 
 
-def probe_server(url: str, *, timeout: float = 10.0) -> dict[str, Any]:
+def probe_server(
+    url: str,
+    *,
+    timeout: float = 10.0,
+    token: str | None = None,
+    token_env: str | None = None,
+) -> dict[str, Any]:
     target = _mcp_url(url)
     parsed = urlparse(target)
     if parsed.scheme not in {"http", "https"}:
         raise MCPError("mcp probe only supports http(s) URLs")
+    bearer = (token or "").strip()
+    if not bearer:
+        env_name = (token_env or DEFAULT_MCP_TOKEN_ENV).strip() or DEFAULT_MCP_TOKEN_ENV
+        bearer = (os.environ.get(env_name) or "").strip()
     discover_body = {
         "jsonrpc": "2.0",
         "id": "probe-discover",
@@ -39,6 +51,8 @@ def probe_server(url: str, *, timeout: float = 10.0) -> dict[str, Any]:
         "Mcp-Method": "server/discover",
         "Mcp-Protocol-Version": LATEST_PROTOCOL_VERSION,
     }
+    if bearer:
+        headers["Authorization"] = f"Bearer {bearer}"
     try:
         payload = _post_json(target, discover_body, headers=headers, timeout=timeout)
         result = payload.get("result") if isinstance(payload, dict) else None
@@ -82,6 +96,8 @@ def probe_server(url: str, *, timeout: float = 10.0) -> dict[str, Any]:
         "Content-Type": "application/json",
         "Accept": "application/json, text/event-stream",
     }
+    if bearer:
+        init_headers["Authorization"] = f"Bearer {bearer}"
     try:
         payload = _post_json(target, init_body, headers=init_headers, timeout=timeout)
     except Exception as err:  # noqa: BLE001

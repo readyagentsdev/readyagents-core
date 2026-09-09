@@ -190,7 +190,20 @@ def test_subscriptions_listen_opt_in_and_cap(tmp_path: Path) -> None:
                 },
             },
         )
-        payload = _jsonrpc(ok)
+        raw = ok.json()
+        if isinstance(raw, list):
+            result_msg = next(item for item in raw if isinstance(item, dict) and "result" in item)
+            ack = next(
+                item
+                for item in raw
+                if isinstance(item, dict)
+                and item.get("method") == "notifications/subscriptions/acknowledged"
+            )
+            payload = result_msg
+            assert ack["params"]["_meta"]["io.modelcontextprotocol/subscriptionId"]
+            assert ack["params"]["notifications"].get("toolsListChanged") is True
+        else:
+            payload = raw
         assert "result" in payload, payload
         meta = payload["result"].get("_meta") or {}
         assert meta.get("io.modelcontextprotocol/subscriptionId")
