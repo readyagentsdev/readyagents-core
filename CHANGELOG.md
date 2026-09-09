@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 1.1.0 — 2026-09-09
+
 ### Added
 
 - **Freeze/eval CI contract.** `readyagents runs freeze` writes `expect_determinism`,
@@ -14,6 +16,11 @@ All notable changes to ReadyAgents Core.
 - Packs may declare tool cassette classification via `register_tool_seals()` or
   `FunctionTool.determinism` (`recomputed` / `sealable` / `unsealable`). Unclassified
   pack and MCP tools stay unsealable. Core builtins cannot be overridden.
+
+### Fixed
+
+- Offline eval classifies unsealable tools correctly so fixtures do not silently
+  mis-score pack/MCP tool rounds.
 
 ## 1.0.0 — 2026-09-09
 

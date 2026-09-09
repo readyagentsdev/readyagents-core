@@ -1,3 +1,26 @@
+# ReadyAgents Core 1.1.0
+
+**Freeze/eval CI contract and pack tool seals.**
+
+`readyagents runs freeze` now writes determinism, node, tool, and usage ceilings into
+`case.yaml`, and `readyagents eval` scores them so a fixture fails on classification drift,
+dropped tool rounds, reordered nodes, or token ballooning — still keyless, still without an
+LLM-as-judge. Packs may declare tool cassette classification via `register_tool_seals()` or
+`FunctionTool.determinism` (`recomputed` / `sealable` / `unsealable`); unclassified pack and
+MCP tools stay unsealable, and offline eval classifies them correctly.
+
+Packs are waitlisted, not for sale.
+
+## Try it
+
+```bash
+pip install readyagentsdev==1.1.0
+readyagents runs freeze RUN_ID --out fixtures/my-case
+readyagents eval fixtures/my-case
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
 # ReadyAgents Core 1.0.0
 
 **Every run is reproducible, forkable, and promotable to a test.**
