@@ -1,3 +1,26 @@
+# ReadyAgents Core 1.2.1
+
+**Firewall skeptic fixes for taint, policy, and MCP pins.**
+
+Agent tool-calls inherit taint from the calling prompt/system so `on_tainted`
+applies when the model emits literal arguments. Foreach copies parent
+provenance and marks `item`/`index` untrusted when the items source is
+untrusted. The resolved policy path and MCP pins persist across resume/decide
+and later runs, so omitting `--policy` on resume cannot fail-open a gate.
+`nodes.<id>.require_approval`: only approve proceeds; reject is a policy deny.
+
+Packs are waitlisted, not for sale.
+
+## Try it
+
+```bash
+pip install readyagentsdev==1.2.1
+readyagents policy check examples/readyagents.policy.yaml
+readyagents run examples/policy_gated.yaml --policy examples/readyagents.policy.yaml
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
 # ReadyAgents Core 1.2.0
 
 **Optional agent firewall at the tool-dispatch seam.**
