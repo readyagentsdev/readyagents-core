@@ -9,6 +9,14 @@ from typing import Any
 from readyagents.config import MAX_HTTP_BODY_BYTES, get_settings
 from readyagents.errors import MCPError
 from readyagents.mcp.builtin import builtin_tools
+from readyagents.mcp.protocol import (
+    LIST_CACHE_SCOPE,
+    LIST_CACHE_TTL_MS,
+    TASKS_EXTENSION,
+    discover_result,
+    honoured_protocol_versions,
+    package_version,
+)
 
 
 def mcp_available() -> bool:
@@ -20,21 +28,50 @@ def mcp_available() -> bool:
         return False
 
 
-def _create_server(name: str) -> Any:
+def _create_server(name: str, **kwargs: Any) -> Any:
     try:
         from mcp.server import MCPServer
 
-        return MCPServer(name)
+        return _instantiate_server(MCPServer, name, kwargs)
     except ImportError:
         pass
     try:
         from mcp.server.fastmcp import FastMCP
 
-        return FastMCP(name)
+        return _instantiate_server(FastMCP, name, kwargs)
     except ImportError as exc:
         raise MCPError(
             "This version of the mcp package does not provide MCPServer or FastMCP."
         ) from exc
+
+
+def _instantiate_server(cls: Any, name: str, kwargs: dict[str, Any]) -> Any:
+    try:
+        signature = inspect.signature(cls.__init__)
+        params = signature.parameters
+    except (TypeError, ValueError):
+        return cls(name)
+    accepted = {key: value for key, value in kwargs.items() if key in params}
+    try:
+        return cls(name, **accepted) if accepted else cls(name)
+    except TypeError:
+        return cls(name)
+
+
+def _cache_hints() -> Any:
+    try:
+        from mcp.server.caching import CacheHint
+    except ImportError:
+        return None
+    hint = CacheHint(ttl_ms=LIST_CACHE_TTL_MS, scope=LIST_CACHE_SCOPE)
+    return {
+        "tools/list": hint,
+        "server/discover": hint,
+        "resources/list": hint,
+        "resources/read": hint,
+        "prompts/list": hint,
+        "resources/templates/list": hint,
+    }
 
 
 def construct_server(*, allow_http: bool | None = None, workspace: Path | None = None) -> Any:
@@ -46,9 +83,46 @@ def construct_server(*, allow_http: bool | None = None, workspace: Path | None =
     allow = settings.allow_http if allow_http is None else allow_http
     root = workspace or settings.workspace_path()
     tools = {t.name: t for t in builtin_tools(allow_http=allow, workspace=root)}
-    server = _create_server("readyagents")
+    extra: dict[str, Any] = {
+        "instructions": "ReadyAgents local one-shot workflow engine plus MCP toolkit.",
+        "version": package_version(),
+    }
+    hints = _cache_hints()
+    if hints is not None:
+        extra["cache_hints"] = hints
+    server = _create_server("readyagents", **extra)
     _register_server_tools(server, tools, workspace=Path(root))
+    _advertise_tasks_extension(server)
     return server
+
+
+def _advertise_tasks_extension(server: Any) -> None:
+    honoured = honoured_protocol_versions()
+    if "2026-07-28" not in honoured:
+        return
+    low = getattr(server, "_lowlevel_server", server)
+    extensions = getattr(low, "extensions", None)
+    if isinstance(extensions, dict):
+        extensions[TASKS_EXTENSION] = {}
+    add = getattr(low, "add_request_handler", None)
+    if not callable(add):
+        return
+    try:
+        import mcp_types as types
+    except ImportError:
+        return
+
+    async def on_discover(ctx: Any, params: Any) -> Any:
+        payload = discover_result(honoured)
+        try:
+            return types.DiscoverResult.model_validate(payload)
+        except Exception:  # noqa: BLE001
+            return payload
+
+    try:
+        add("server/discover", types.RequestParams, on_discover)
+    except Exception:  # noqa: BLE001
+        return
 
 
 def serve_stdio(*, allow_http: bool | None = None, workspace: Path | None = None) -> None:

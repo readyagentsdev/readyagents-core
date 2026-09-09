@@ -63,7 +63,9 @@ If the node has no explicit `model:` and the default provider has no key, the en
 | `READYAGENTS_ACTOR` | Default actor id for RBAC hooks |
 | `READYAGENTS_PAUSE_NOTIFY_URL` | Outbound POST when an approval node pauses (core does not listen for that webhook) |
 | `READYAGENTS_MCP_TOKEN` | Bearer token for optional MCP Streamable HTTP (`/mcp`) and the ReadyAgents `/runs` extension. Never pass the token as a CLI flag. If empty at HTTP startup, the process generates ≥256 bits and prints it once to stderr (never persisted or logged). |
-| `READYAGENTS_MCP_HTTP_HOST` | Bind host for `mcp serve --transport streamable-http` (default `127.0.0.1`). v0.9 rejects non-loopback. |
+| `READYAGENTS_MCP_PROTOCOL_MAX` | Optional cap on advertised MCP protocol versions (default latest honoured). |
+| `READYAGENTS_DECISION_SECRET` | Optional HMAC secret required on MCP `tasks/update`. When set, unsigned or forged MCP approvals are refused, audited, and leave the run paused. |
+| `READYAGENTS_MCP_HTTP_HOST` | Bind host for `mcp serve --transport streamable-http` (default `127.0.0.1`). Loopback only. |
 | `READYAGENTS_MCP_HTTP_PORT` | Bind port for that HTTP door (default `8765`). |
 | `READYAGENTS_MCP_MAX_CONCURRENT_RUNS` | In-process executor cap for `/runs` (default `4`). |
 | `READYAGENTS_MCP_MAX_PENDING_RUNS` | Queue cap for `/runs`; extra starts return `429` (default `32`). |

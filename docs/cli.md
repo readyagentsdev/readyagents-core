@@ -211,10 +211,20 @@ readyagents mcp serve --transport streamable-http --host 127.0.0.1 --port 8765
 | `--max-concurrent-runs` | In-process executor cap (default `4`). HTTP only. |
 | `--max-pending-runs` | Queue cap (default `32`); extra `POST /runs` return `429` without a record. HTTP only. |
 | `--approval-ui` | Mount the localhost approval UI on this HTTP process. HTTP only. |
+| `--json` | Print protocol versions, extensions, SDK pin, and `/runs` deprecation, then serve. |
 
 If `--auth token` and the env var is empty, the process generates at least 256 bits of entropy and prints the token once to stderr. It is never persisted or logged.
 
-`streamable-http` mounts official MCP Streamable HTTP at `/mcp` and the ReadyAgents `/runs` extension on the same loopback listener. `/runs` is not an MCP JSON-RPC method and is not official MCP Tasks. Stopping the command stops both the listener and the in-process executor; work does not survive process death. A keyless `/runs` client is `examples/mcp_http_client.py` (does not start the server).
+`streamable-http` mounts official MCP Streamable HTTP at `/mcp` with `server/discover` and `io.modelcontextprotocol/tasks`. `/runs` remains a deprecated alias of the same durable run record (removal no earlier than v0.12). Stopping the command stops both the listener and the in-process executor; work does not survive process death. A keyless tasks transcript is `examples/mcp_tasks_client.py`. The deprecated `/runs` client is `examples/mcp_http_client.py`.
+
+## `readyagents mcp probe`
+
+Read-only diagnostic. Calls `server/discover`, falls back to `initialize`, prints protocol versions and extensions, exits 0 on success and 1 on failure, and never calls a tool.
+
+```bash
+readyagents mcp probe http://127.0.0.1:8765/mcp
+readyagents mcp probe http://127.0.0.1:8765/mcp --json
+```
 
 ## `readyagents packs`
 

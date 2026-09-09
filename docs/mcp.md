@@ -75,16 +75,51 @@ Point your MCP host at the `readyagents` CLI command. Example Claude Desktop / h
 
 Registry `server.json` still describes that stdio package. Streamable HTTP is an explicit local command, not a hosted remote.
 
+### Protocol revisions
+
+The same server speaks `2026-07-28`, `2025-11-25`, and `2025-06-18` when the installed `mcp` extra can honour them. `server/discover` lists only revisions and extensions this process fully implements. An out-of-range `io.modelcontextprotocol/protocolVersion` is JSON-RPC `-32022` (`UnsupportedProtocolVersionError`) with the supported list — never a silent downgrade and never a bare HTTP 500.
+
+A `2026-07-28` client does not need `initialize`. Per-request `_meta` carries protocol version, client capabilities, and optional W3C `traceparent` / `tracestate` / `baggage` (shape-validated, length-capped, dropped when malformed). Core parses trace context; it does not export OpenTelemetry and gains no OTEL dependency.
+
+Every result includes `resultType`: `complete` for ordinary results, `input_required` for synchronous MRTR (not used for approval gates), and `task` for `CreateTaskResult`.
+
 ### MCP-standard vs ReadyAgents extension
 
 When Streamable HTTP is enabled, one foreground process exposes **two different** HTTP surfaces. Do not mix them up.
 
 | Surface | What it is | What it is not |
 | --- | --- | --- |
-| `/mcp` | Official Python MCP SDK **Streamable HTTP** (framing, session, protocol headers, JSON vs SSE) | Not a custom WebSocket. Not the deprecated HTTP+SSE transport from protocol `2024-11-05` reimplemented as a custom transport. |
-| `/runs` | ReadyAgents JSON **extension**: start, poll, decide, cooperative-cancel | Not an MCP JSON-RPC method. Not official MCP Tasks. |
+| `/mcp` | Official Python MCP SDK **Streamable HTTP** plus ReadyAgents JSON-RPC: `server/discover`, tools, and `io.modelcontextprotocol/tasks` | Not a custom WebSocket. Not SSE resumability / `Last-Event-ID`. |
+| `/runs` | **Deprecated** ReadyAgents JSON alias of the same durable run record (start, poll, decide, cancel) | Not a second store. Removal no earlier than v0.12. |
 
-This server does **not** advertise MCP Tasks, Multi Round-Trip Requests (MRTR), or protocol elicitation. An approval pause is out-of-band persisted HITL (`type: approval` on the run record), not an MCP elicitation.
+`taskId` **is** the 32-hex `run_id`. Prefix lookup is CLI-only and is rejected on the protocol surface. Missing and unauthorized ids return the same not-found body.
+
+### Official tasks and MRTR approvals
+
+`run_workflow` for a client that declares `io.modelcontextprotocol/tasks` returns `resultType: "task"` only after the run record is durable (`tasks/get` for that id already resolves). Short tools (`calc`, `now`, …) stay `resultType: "complete"`.
+
+Status map: running/queued → `working`, paused → `input_required`, succeeded → `completed`, failed → `failed`, cancelled → `cancelled`. `pollIntervalMs` is 1000. `ttlMs` is JSON `null`: records persist until `readyagents runs gc`, not an implied expiry.
+
+A paused approval is one `inputRequests` entry. The key is `readyagents.approval.{run_id}.{gate_id}.{occurrence}` (unique over the task lifetime, including foreach/parallel). The client answers with `tasks/update` `inputResponses`. That payload is converted into the existing decision object and travels `readyagents decide`: RBAC, optional HMAC (`READYAGENTS_DECISION_SECRET`), append-only audit, then resume. Reject is first-class (`decision: reject`). Duplicate keys with the same decision are a no-op; a conflicting second decision is a typed conflict. `tasks/update` when the task is not `input_required` is a typed error and a no-op.
+
+Worked round trip (approval_gate.yaml):
+
+```text
+tools/call run_workflow  →  resultType=task, taskId=<32-hex>
+tasks/get                →  status=input_required, inputRequests[readyagents.approval.<id>.gate.0]
+tasks/update             →  inputResponses[key]={action: accept, content: {decision: approve}}
+tasks/get                →  status=completed
+```
+
+A keyless in-process transcript is `examples/mcp_tasks_client.py`.
+
+### What is not implemented
+
+Roots, Sampling, `logging/setLevel`, OAuth authorization server, Dynamic Client Registration, Client ID Metadata Documents, SSE resumability / Last-Event-ID / redelivery, hosted recovery, and non-loopback bind. The loopback bearer token remains the only HTTP authentication. Process death still loses the in-flight executor.
+
+### SDK extras
+
+`pip install -e ".[mcp]"` keeps `mcp>=1.2,<3`. `pip install -e ".[mcp2]"` pins the 2.x line. `server/discover` and `readyagents mcp serve --json` report the installed pin and a `full` / `legacy` / `absent` tier. A 1.x pin advertises the reduced version list rather than claiming `2026-07-28`.
 
 ### `/mcp` — MCP Streamable HTTP
 
@@ -94,11 +129,13 @@ readyagents mcp serve --transport streamable-http --host 127.0.0.1 --port 8765
 
 The MCP endpoint is `http://127.0.0.1:8765/mcp`. Transport framing, session IDs, protocol-version headers, and JSON vs SSE response negotiation are handled by the installed Python MCP SDK. ReadyAgents does not claim conformance beyond that SDK.
 
-Over `/mcp`, tools are the same as stdio: `now`, `calc`, `json_get`, `json_set`, `json_merge`, `list_dir`, `read_file`, `write_file`, `http_get` (if enabled), and synchronous `run_workflow`. `run_workflow` still waits for the workflow to finish or pause and returns the run record as JSON. For a durable handle that outlives the original HTTP request, use `/runs`.
+Over `/mcp`, tools are the same as stdio: `now`, `calc`, `json_get`, `json_set`, `json_merge`, `list_dir`, `read_file`, `write_file`, `http_get` (if enabled), and `run_workflow`. On `2026-07-28` with the tasks extension declared, `run_workflow` returns a durable task handle. Otherwise it still waits and returns the run record as JSON. On Streamable HTTP POST, `2026-07-28` requests must send `Mcp-Method` (and `Mcp-Name` for `tools/call` and `tasks/*`) matching the JSON-RPC body; a mismatch is `-32020` before dispatch.
 
-v0.9 binds **loopback only**. Non-loopback hosts are rejected.
+v0.10 binds **loopback only**. Non-loopback hosts are rejected.
 
-### `/runs` — ReadyAgents JSON extension
+### `/runs` — deprecated ReadyAgents JSON alias
+
+Deprecated in 0.10.0; removal no earlier than 0.12.0. Same coordinator as `tasks/*`. Responses include additive `deprecated: true` and `successor: "tasks/*"`.
 
 Authenticated JSON API on the same foreground process. Persistence cannot be disabled. The identifier is the full opaque 32-hex `run_id` (no prefixes).
 
@@ -186,7 +223,7 @@ Authorization: Bearer <opaque-token>
 - `Host` and browser `Origin` are checked against the configured loopback listener (DNS rebinding).
 - Responses use `Cache-Control: no-store`.
 
-### Lifecycle limits (v0.9)
+### Lifecycle limits (v0.10)
 
 This is a **request-driven foreground door**. It is not a scheduler, cron, watcher, queue scanner, retry daemon, auto-start, or hosted control plane. It does not recover incomplete runs on startup.
 
@@ -219,4 +256,5 @@ python examples/mcp_http_client.py --path examples/calc_pipeline.yaml
 - `http_get` is opt-in
 - `calc` does not evaluate arbitrary Python
 - Never send provider keys in `/runs` request JSON; use env / pack secret hooks
-- Do not expose the v0.9 HTTP door to the internet
+- Do not expose the loopback HTTP door to the internet
+- MCP `tasks/update` approvals have the same authority as `readyagents decide`; unsigned (when `READYAGENTS_DECISION_SECRET` is set) or unauthorized decisions are refused, audited, and leave the run paused

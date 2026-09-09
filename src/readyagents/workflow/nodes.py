@@ -117,6 +117,13 @@ class ExecutionContext:
 
     def decision_for(self, node_id: str) -> str | None:
         value = self.decisions.get(node_id)
+        if (
+            value
+            and self.usage_state is not None
+            and isinstance(getattr(self.usage_state, "metadata", None), dict)
+            and self.usage_state.metadata.get("mcp_consume_decisions")
+        ):
+            self.decisions.pop(node_id, None)
         return value if value else None
 
     def child(

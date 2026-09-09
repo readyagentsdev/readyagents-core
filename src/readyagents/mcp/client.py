@@ -199,7 +199,7 @@ class MCPClient:
                 try:
                     read, write = await stack.enter_async_context(stdio_client(params))
                     session = await stack.enter_async_context(ClientSession(read, write))
-                    await session.initialize()
+                    await _negotiate_session(session)
                     listed = await session.list_tools()
                 except MCPError:
                     raise
@@ -250,4 +250,28 @@ class MCPClient:
             raise MCPError(f"MCP tool '{tool_name}' failed: {exc}") from exc
         if getattr(result, "isError", False) or getattr(result, "is_error", False):
             raise MCPError(f"MCP tool '{tool_name}' returned an error: {result}")
+        result_type = getattr(result, "result_type", None) or getattr(result, "resultType", None)
+        if result_type is None and isinstance(result, dict):
+            result_type = result.get("resultType")
+        if result_type == "input_required":
+            raise MCPError(
+                f"MCP tool '{tool_name}' returned input_required; "
+                "this client does not retry with inputResponses"
+            )
         return _result_text(result)
+
+
+async def _negotiate_session(session: Any) -> None:
+    """Prefer ``server/discover``; fall back to legacy ``initialize``."""
+    discover = getattr(session, "discover", None)
+    if callable(discover):
+        try:
+            await discover()
+            return
+        except Exception:  # noqa: BLE001
+            pass
+    initialize = getattr(session, "initialize", None)
+    if callable(initialize):
+        await initialize()
+        return
+    raise MCPError("MCP session provides neither server/discover nor initialize")

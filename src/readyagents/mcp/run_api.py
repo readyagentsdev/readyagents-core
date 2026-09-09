@@ -56,6 +56,15 @@ _APPROVE = "approve"
 _REJECT = "reject"
 
 
+class _OneShotDecisions(dict):
+    """MCP-originated decisions apply to one occurrence, not every later loop."""
+
+    def get(self, key, default=None):  # noqa: ANN001
+        if key in self:
+            return self.pop(key)
+        return default
+
+
 def _default_max_body() -> int:
     try:
         from readyagents.config import MAX_HTTP_BODY_BYTES
@@ -374,6 +383,7 @@ class RunCoordinator:
             thread_name_prefix="readyagents-run",
         )
         self._store = None
+        self._persist_delay_s = 0.0
         try:
             from readyagents.run_store import open_run_store
 
@@ -422,8 +432,8 @@ class RunCoordinator:
         state = self._load_exact(run_id)
         return self._record_payload(state)
 
-    def decide(self, run_id: str, payload: dict) -> dict:
-        return self._decide(run_id, payload)
+    def decide(self, run_id: str, payload: dict, *, input_request_key: str | None = None) -> dict:
+        return self._decide(run_id, payload, input_request_key=input_request_key)
 
     def cancel(self, run_id: str, payload: dict | None) -> dict:
         return self._cancel(run_id, payload)
@@ -493,11 +503,12 @@ class RunCoordinator:
         *,
         request_id: str | None = None,
         raw_len: int | None = None,
+        input_request_key: str | None = None,
     ) -> tuple[int, dict[str, str], dict[str, Any]]:
         try:
             if raw_len is not None and raw_len > self.max_body_bytes:
                 raise _http_err("request body too large", 413)
-            body = self._decide(run_id, payload)
+            body = self._decide(run_id, payload, input_request_key=input_request_key)
             if request_id:
                 body = dict(body)
                 body["request_id"] = request_id
@@ -555,6 +566,8 @@ class RunCoordinator:
         body = dict(state.to_record())
         body["ok"] = True
         body["links"] = _links(state.run_id)
+        body["deprecated"] = True
+        body["successor"] = "tasks/*"
         return body
 
     def _run_lock(self, run_id: str) -> threading.RLock:
@@ -586,6 +599,9 @@ class RunCoordinator:
             previous[2].set()
 
     def _persist(self, state: RunState) -> None:
+        delay = float(self._persist_delay_s or 0.0)
+        if delay > 0:
+            time.sleep(delay)
         if self._store is not None:
             self._store.save(state, redactor=self._redactor)
             return
@@ -722,6 +738,8 @@ class RunCoordinator:
             "run_id": run_id,
             "status": "queued",
             "links": _links(run_id),
+            "deprecated": True,
+            "successor": "tasks/*",
         }
         if key:
             with self._lock:
@@ -816,7 +834,9 @@ class RunCoordinator:
                 self._running = max(0, self._running - 1)
                 self._active.discard(run_id)
 
-    def _decide(self, run_id: str, payload: Any) -> dict[str, Any]:
+    def _decide(
+        self, run_id: str, payload: Any, *, input_request_key: str | None = None
+    ) -> dict[str, Any]:
         if self._shutdown:
             raise ServiceUnavailable("run API is shutting down")
         self._load_exact(run_id)
@@ -842,25 +862,61 @@ class RunCoordinator:
                     f"Run {run_id} is not paused at node '{node_id}' "
                     f"(status={state.status}, pending_node={state.pending_node})"
                 )
-            with self._lock:
-                if run_id in self._in_flight_resume:
-                    raise RunConflict(f"Run {run_id} already has a resume in flight")
-                self._in_flight_resume.add(run_id)
+            if input_request_key:
+                bucket = state.metadata.get("mcp_input_responses")
+                applied = bucket.get(input_request_key) if isinstance(bucket, dict) else None
+                if applied == decision:
+                    handle = {
+                        "ok": True,
+                        "run_id": run_id,
+                        "status": state.status,
+                        "links": _links(run_id),
+                    }
+                    return handle
+                if applied is not None:
+                    raise RunConflict("conflicting input response for this input request key")
             try:
                 self._authorizer.check(actor, "resume", run_id)
                 self._authorizer.check(actor, decision, node_id)
             except Exception:
-                with self._lock:
-                    self._in_flight_resume.discard(run_id)
                 raise
+            if input_request_key:
+                meta = dict(state.metadata)
+                responses = dict(meta.get("mcp_input_responses") or {})
+                responses[input_request_key] = decision
+                meta["mcp_input_responses"] = responses
+                meta["mcp_consume_decisions"] = True
+                state.metadata = meta
+                try:
+                    self._persist(state)
+                except Exception as exc:  # noqa: BLE001
+                    from readyagents.errors import RunStoreConflict
+
+                    if isinstance(exc, RunStoreConflict):
+                        raise RunConflict(
+                            "conflicting input response for this input request key"
+                        ) from exc
+                    raise
+            with self._lock:
+                if run_id in self._in_flight_resume:
+                    raise RunConflict(f"Run {run_id} already has a resume in flight")
+                self._in_flight_resume.add(run_id)
             token = self._new_token(run_id)
             with self._lock:
                 self._active.add(run_id)
+            raw_decisions = {node_id: decision}
+            if isinstance(state.pending, dict):
+                inner = state.pending.get("node_id")
+                if isinstance(inner, str) and inner.strip() and inner.strip() != node_id:
+                    raw_decisions[inner.strip()] = decision
+            decisions: dict[str, str] = (
+                _OneShotDecisions(raw_decisions) if input_request_key else raw_decisions
+            )
             try:
                 self._executor.submit(
                     self._resume_job,
                     run_id,
-                    {node_id: decision},
+                    decisions,
                     actor,
                     token,
                 )

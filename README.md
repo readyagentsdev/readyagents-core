@@ -11,7 +11,7 @@ This repository is the free core. You keep the provider account and the bill. In
 
 ## 60-second start
 
-Requires Python 3.11+. Current version is **0.9.0**. Install with `pip install readyagentsdev`, or from this clone.
+Requires Python 3.11+. Current version is **0.10.0**. Install with `pip install readyagentsdev`, or from this clone.
 
 ```bash
 git clone https://github.com/readyagentsdev/readyagents-core.git
@@ -42,7 +42,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Inspect past runs: `readyagents runs list` / `show` / `replay` / `report` (local HTML)
 - Scaffold a starter: `readyagents new my-flow` (`basic`, `approval`, `research`, `pipeline`, `review`, `foreach`, `agent-tools`, `gated`)
 - Builtin tools with **zero extra servers**: `now`, `calc`, `json_get`, `list_dir`, `read_file`, `write_file`, optional `http_get`
-- Optional [MCP](https://modelcontextprotocol.io) client and server (`readyagents mcp serve`)
+- Optional [MCP](https://modelcontextprotocol.io) client and server (`readyagents mcp serve`, `readyagents mcp probe`) with official tasks and MRTR approvals
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -89,7 +89,8 @@ flowchart LR
 | `readyagents runs replay RUN_ID` | New run from stored inputs |
 | `readyagents runs delete RUN_ID --yes` | Delete one local run record |
 | `readyagents runs gc --yes` | Prune succeeded/failed/cancelled runs (paused kept) |
-| `readyagents mcp serve` | Stdio MCP server (builtin tools) |
+| `readyagents mcp serve` | Stdio MCP server (builtin tools); `--json` prints protocol versions |
+| `readyagents mcp probe URL` | Read-only `server/discover` diagnostic (never calls a tool) |
 | `readyagents packs [--pack PATH]` | List installed / local packs |
 | `readyagents version` | Print version |
 

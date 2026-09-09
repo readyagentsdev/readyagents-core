@@ -1,4 +1,26 @@
-# ReadyAgents Core (Unreleased)
+# ReadyAgents Core 0.10.0
+
+**MCP 2026-07-28 tasks and MRTR approvals. `/runs` deprecated. No hosted recovery.**
+
+ReadyAgents v0.10 brings the MCP surface up to the `2026-07-28` revision. The server answers
+`server/discover`, handles requests statelessly, and implements the official tasks extension on top of
+the run records it already persists — so the private `/runs` door becomes a standard one. The change
+that matters most is human approval: a paused approval gate is now an `input_required` task that any
+2026 MCP client can answer with `tasks/update`, and every such decision goes through the same signing,
+RBAC, and append-only audit as a decision made at the CLI. Older clients and the `mcp` 1.x SDK keep
+working, `/runs` keeps working with a deprecation notice (removal no earlier than v0.12), and core still
+starts nothing on its own. Process death still loses the in-flight executor.
+
+This release also includes the localhost approval UI and optional SQLite run-store that sat under
+Unreleased after 0.9.0.
+
+```bash
+pip install readyagentsdev==0.10.0
+readyagents mcp serve --json
+readyagents mcp probe http://127.0.0.1:8765/mcp
+```
+
+See [docs/mcp.md](docs/mcp.md).
 
 ReadyAgents keeps readable per-run JSON as its default and adds an opt-in local SQLite
 backend for larger run histories and concurrent clients. The backend stores the same logical run

@@ -8,7 +8,7 @@
 
 ## Install
 
-Current version is **0.9.0**. Preferred install is from PyPI:
+Current version is **0.10.0**. Preferred install is from PyPI:
 
 ```bash
 python -m venv .venv
