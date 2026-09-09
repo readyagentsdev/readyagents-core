@@ -47,6 +47,29 @@ def test_schema_identity_and_aliases() -> None:
     assert '"from"' in dumped
 
 
+def test_node_type_enum_surfaced_from_python() -> None:
+    schema = workflow_json_schema()
+    type_field = schema["$defs"]["NodeSpec"]["properties"]["type"]
+    assert "enum" not in type_field
+    any_of = type_field.get("anyOf")
+    assert isinstance(any_of, list)
+    enum_clause = next(part for part in any_of if "enum" in part)
+    string_clause = next(part for part in any_of if part.get("type") == "string")
+    assert string_clause["type"] == "string"
+    assert enum_clause["enum"] == [member.value for member in NodeType]
+    dumped = json.dumps(schema)
+    assert '"enum"' in dumped
+
+    jsonschema = pytest.importorskip("jsonschema")
+    validator = jsonschema.Draft202012Validator(schema)
+    validator.validate(
+        {
+            "name": "pack",
+            "nodes": [{"id": "custom", "type": "pack_widget", "widget": True}],
+        }
+    )
+
+
 def test_every_node_type_has_if_then() -> None:
     schema = workflow_json_schema()
     node = schema["$defs"]["NodeSpec"]

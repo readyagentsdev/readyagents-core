@@ -688,9 +688,25 @@
           "title": "Timeout Seconds"
         },
         "type": {
+          "anyOf": [
+            {
+              "enum": [
+                "agent",
+                "tool",
+                "condition",
+                "transform",
+                "approval",
+                "parallel",
+                "include",
+                "foreach"
+              ]
+            },
+            {
+              "type": "string"
+            }
+          ],
           "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach. Packs may add additional types.",
-          "title": "Type",
-          "type": "string"
+          "title": "Type"
         }
       },
       "required": [

@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from readyagents.config import clear_settings_cache
 from readyagents.errors import SourceMapBoundError, WorkflowError
 from readyagents.workflow.runner import load_workflow
 from readyagents.workflow.schema import WorkflowSpec
@@ -198,6 +199,129 @@ def test_crlf_tabs_bom_and_long_line(tmp_path: Path) -> None:
     excerpt, col = sanitize_excerpt("ok\x1b[31mRED\x1b[0m secret sk-abcdefghijklmnop", 1)
     assert "\x1b" not in excerpt
     assert "[redacted]" in excerpt or "sk-" not in excerpt
+
+
+def test_bom_caret_stays_on_value(tmp_path: Path) -> None:
+    body = (
+        "name: x\n"
+        "nodes:\n"
+        "  - id: a\n"
+        "    type: transform\n"
+        "    template: x\n"
+        "    retry: {max_attempts: 0}\n"
+    )
+    path = tmp_path / "bom.yaml"
+    path.write_bytes(b"\xef\xbb\xbf" + body.encode("utf-8"))
+    with pytest.raises(WorkflowError) as caught:
+        load_workflow(path)
+    pos = caught.value.problems[0].position
+    assert pos is not None
+    assert "max_attempts" in pos.excerpt
+    pointed = pos.excerpt[pos.column - 1] if 0 < pos.column <= len(pos.excerpt) else ""
+    assert pointed == "0" or pos.pointer.strip() == "^"
+
+
+def test_multibyte_utf8_caret_alignment(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path / "utf8.yaml",
+        "name: x\n"
+        "nodes:\n"
+        "  - id: a\n"
+        "    type: transform\n"
+        "    template: 日本語café\n"
+        "    retry: {max_attempts: 0}\n",
+    )
+    with pytest.raises(WorkflowError) as caught:
+        load_workflow(path)
+    pos = caught.value.problems[0].position
+    assert pos is not None
+    assert "max_attempts" in pos.excerpt
+    assert "\t" not in pos.excerpt
+    idx = pos.column - 1
+    assert 0 <= idx < len(pos.excerpt)
+    assert pos.pointer[idx] == "^"
+    assert pos.excerpt[idx] == "0"
+
+
+def test_did_you_mean_unknown_node_id(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path / "review.yaml",
+        "name: review\n"
+        "nodes:\n"
+        "  - id: gate\n"
+        "    type: transform\n"
+        "    template: x\n"
+        "    next: publsh\n"
+        "  - id: publish\n"
+        "    type: transform\n"
+        "    template: y\n",
+    )
+    with pytest.raises(WorkflowError) as caught:
+        load_workflow(path)
+    top = str(caught.value)
+    assert "Invalid workflow" in top
+    assert "unknown node 'publsh'" in top
+    assert "did you mean" not in top
+    joined = " ".join(item.message for item in caught.value.problems)
+    assert "did you mean 'publish'" in joined
+
+
+def test_did_you_mean_not_for_unrelated_or_free_text(tmp_path: Path) -> None:
+    unrelated = _write(
+        tmp_path / "nope.yaml",
+        "name: review\n"
+        "nodes:\n"
+        "  - id: gate\n"
+        "    type: transform\n"
+        "    template: x\n"
+        "    next: zzzzzzzz\n"
+        "  - id: publish\n"
+        "    type: transform\n"
+        "    template: y\n",
+    )
+    with pytest.raises(WorkflowError) as caught:
+        load_workflow(unrelated)
+    joined = " ".join(item.message for item in caught.value.problems)
+    assert "did you mean" not in joined
+
+    free = _write(
+        tmp_path / "prompt.yaml",
+        "name: a\nnodes:\n  - id: worker\n    type: agent\n    prompt: publsh this now\n",
+    )
+    spec_ok = True
+    try:
+        load_workflow(free)
+    except WorkflowError as exc:
+        spec_ok = False
+        joined = " ".join(item.message for item in exc.problems)
+        assert "did you mean" not in joined
+    if spec_ok:
+        # agent with a free-text prompt must not invent a node-id suggestion
+        pass
+
+
+def test_configured_literal_is_masked_in_excerpt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clear_settings_cache()
+    monkeypatch.setenv("READYAGENTS_REDACT_LITERALS", "super-secret-token")
+    clear_settings_cache()
+    path = _write(
+        tmp_path / "secret.yaml",
+        "name: x\n"
+        "nodes:\n"
+        "  - id: a\n"
+        "    type: transform\n"
+        "    template: x\n"
+        "    retry: {max_attempts: super-secret-token}\n",
+    )
+    with pytest.raises(WorkflowError) as caught:
+        load_workflow(path)
+    pos = caught.value.problems[0].position
+    assert pos is not None
+    assert "super-secret-token" not in pos.excerpt
+    assert "[redacted]" in pos.excerpt
+    clear_settings_cache()
 
 
 def test_unmappable_loc_has_no_position() -> None:
