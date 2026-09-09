@@ -25,6 +25,7 @@ from readyagents.config import (
     get_settings,
 )
 from readyagents.errors import MCPError
+from readyagents.mcp.dispatch import McpRpcSurface, ProtocolDispatchMiddleware
 from readyagents.mcp.server import construct_server, streamable_http_app
 
 _SCOPE_REQUEST_ID = "readyagents.request_id"
@@ -99,11 +100,23 @@ def compose_http_app(
             extra[0:0] = _approval_mount_routes(approval_app)
         routes[0:0] = extra
     skip_prefixes = ("/approvals",) if approval_app is not None else ()
+    settings = get_settings()
+    bound = getattr(coordinator, "settings", None) or settings
+    max_streams = 4
+    if coordinator is not None:
+        max_streams = max(1, int(getattr(coordinator, "max_concurrent_runs", 4) or 4))
+    surface = McpRpcSurface(
+        coordinator=coordinator,
+        max_streams=max_streams,
+        decision_secret=getattr(bound, "decision_secret", None),
+        default_actor=getattr(bound, "actor", None),
+    )
+    dispatched = ProtocolDispatchMiddleware(mcp_app, surface)
     # Do not wrap in a second Starlette: StreamableHTTPSessionManager.run() is once-only.
     return CacheControlMiddleware(
         AuthMiddleware(
             HostOriginMiddleware(
-                BodyLimitMiddleware(mcp_app, max_body_bytes=max_body_bytes),
+                BodyLimitMiddleware(dispatched, max_body_bytes=max_body_bytes),
                 bind_host=bind_host,
                 bind_port=int(bind_port),
             ),
