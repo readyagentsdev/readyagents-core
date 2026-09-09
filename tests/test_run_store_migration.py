@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,12 @@ from readyagents.workflow.state import RunState, persist_run
 
 runner = CliRunner()
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
+
+
+def _plain(text: str) -> str:
+    """Strip ANSI and whitespace so Rich wrapping cannot hide tokens."""
+    return re.sub(r"\s+", "", re.sub(r"\x1b\[[0-9;]*m", "", text))
+
 
 
 def _settings(tmp_path: Path) -> Settings:
@@ -215,8 +222,8 @@ def test_cli_dry_run_and_apply_json(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         run_workflow_file(EXAMPLES / "approval_gate.yaml", settings=settings, persist=True)
     dest = settings.run_db_path()
     help_result = runner.invoke(app, ["runs", "migrate", "--help"])
-    assert help_result.exit_code == 0
-    text = help_result.stdout
+    assert help_result.exit_code == 0, help_result.stdout + help_result.stderr
+    text = _plain(help_result.stdout)
     for flag in (
         "--from",
         "--to",
