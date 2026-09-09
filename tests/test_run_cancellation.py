@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -178,6 +179,11 @@ def test_cancel_during_retry_backoff(tmp_settings) -> None:
 
     def canceler() -> None:
         assert first_fail.wait(timeout=_JOIN_TIMEOUT)
+        # First attempt has failed; wait until the engine has left the node body
+        # and entered retry backoff (a cooperative safe point).
+        deadline = time.monotonic() + _JOIN_TIMEOUT
+        while ctx.node_body_in_flight() and time.monotonic() < deadline:
+            time.sleep(0.005)
         token.request(reason="during-backoff")
 
     ctx = _ctx(spec, tools, cancellation=token, on_persist=on_persist)

@@ -191,7 +191,7 @@ Returns `ok`, the existing `RunState.to_record()` fields, and additive `links`. 
 {"actor": "local-integrator", "reason": "caller timeout"}
 ```
 
-`202` with `cancel_requested` until a safe engine point, then `cancelled`. Already-terminal → `200` (idempotent). Cooperative: does not kill a blocking tool or provider call.
+`202` with `cancel_requested` until a safe engine point, then `cancelled`. Retry backoff is a safe point. Already-terminal → `200` (idempotent). Cooperative: does not kill a blocking tool or provider call.
 
 #### Error envelope
 

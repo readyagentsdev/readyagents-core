@@ -253,9 +253,9 @@ def _finalize_cancelled(
     current: str | None,
     nodes: Mapping[str, NodeSpec],
 ) -> None:
+    persist = False
     with ctx._persist_lock:
-        already = state.status == "cancelled"
-        if not already:
+        if state.status != "cancelled":
             state.pending_node = current
             state.pending = {
                 "node_id": current,
@@ -263,9 +263,13 @@ def _finalize_cancelled(
                 "error": "cancelled",
             }
             state.finish("cancelled")
-    if already:
+            persist = True
+    if not persist:
         return
-    _persist(ctx, state)
+    # Persist cancelled directly so a concurrent listener cannot rewrite it to
+    # cancel_requested (retry backoff is a safe point, not an in-flight body).
+    if ctx.on_persist is not None:
+        ctx.on_persist(state)
     if ctx.auditor is not None:
         ctx.auditor("run_finished", run_id=state.run_id, status="cancelled", actor=ctx.actor)
 
@@ -273,7 +277,12 @@ def _finalize_cancelled(
 def _persist(ctx: ExecutionContext, state: RunState) -> None:
     token = ctx.cancellation
     with ctx._persist_lock:
-        if token is not None and token.is_requested() and state.status not in _TERMINAL_STATUSES:
+        if (
+            token is not None
+            and token.is_requested()
+            and state.status not in _TERMINAL_STATUSES
+            and ctx.node_body_in_flight()
+        ):
             state.status = "cancel_requested"
     if ctx.on_persist is None:
         return

@@ -75,8 +75,8 @@ def cancellable_sleep(seconds: float, token: CancellationToken | None) -> None:
     if token is None:
         time.sleep(delay)
         return
+    token.raise_if_requested()
     if delay <= 0:
-        token.raise_if_requested()
         return
     remaining = delay
     while remaining > 0:

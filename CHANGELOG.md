@@ -12,12 +12,20 @@ All notable changes to ReadyAgents Core.
   enforceability, filesystem case sensitivity, loopback availability, and the resolved run-store backend.
 - `python scripts/smoke.py` (and `make smoke`) runs the keyless example set without a POSIX shell.
 
+### Fixed
+
+- Cooperative cancel during retry backoff finishes the run as `cancelled`. Backoff is a safe
+  engine point, not an in-flight node body, so the persist listener no longer leaves
+  `cancel_requested` as the terminal status.
+
 ### Security
 
 - Workspace containment is now enforced by a single audited helper that rejects Windows reserved names,
   alternate data streams, short-name and trailing-dot forms, and that compares resolved paths with
   runtime-probed case sensitivity, so a case-only variant cannot escape the sandbox on Windows or macOS.
 - File-permission claims are now accurate per platform and reported by `readyagents doctor`.
+- Path-containment corpus covers Windows directory junctions / reparse points, which
+  `Path.is_symlink()` does not report.
 
 ## 0.11.0 — 2026-09-09
 
