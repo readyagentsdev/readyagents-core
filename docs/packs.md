@@ -44,7 +44,7 @@ class ContinuousPack(BasePack):
 
 Packs are loaded from the `readyagents.packs` [entry point](https://packaging.python.org/en/latest/specifications/entry-points/) group.
 
-In a future `readyagents-pack-continuous` project:
+The optional Continuous pack is a **separate** Python distribution, `readyagents-pack-continuous`. It is not bundled with Core, not a Core extra, and not started by `import readyagents` or `readyagents run`. Install it from that pack's checkout, then use its own foreground command:
 
 ```toml
 [project]
@@ -55,14 +55,18 @@ continuous = "readyagents_pack_continuous:get_pack"
 ```
 
 ```python
-# readyagents_pack_continuous/__init__.py
-def get_pack():
-    return ContinuousPack()
+from readyagents_pack_continuous import get_pack
+
+pack = get_pack()  # no scheduler, watcher, thread, or listener
 ```
 
-This pack is not published.
+```bash
+readyagents-continuous serve continuous.yaml
+```
 
-The engine calls `discover_packs()` at run start and merges tools/node handlers. No change to core YAML is required except using the new tool or node type names.
+See [continuous-pack.md](continuous-pack.md) for the boundary, install, and trigger semantics.
+
+The engine calls `discover_packs()` at run start and merges tools/node handlers. No change to core YAML is required except using the new tool or node type names. Core's `readyagents.packs` entry-point group stays empty.
 
 ## Design rule
 

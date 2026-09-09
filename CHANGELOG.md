@@ -10,6 +10,12 @@ All notable changes to ReadyAgents Core.
   single-use tokens and the existing RBAC/audit/signed-decision path. It uses vanilla assets,
   starts only on command, and does not relax outbound SSRF protection.
 
+### Docs
+
+- Documented the separately installed `readyagents-pack-continuous` package for explicit
+  foreground cron, file-watch, and authenticated-webhook triggers. ReadyAgents Core itself still
+  starts no scheduler or listener and gains no mandatory dependency.
+
 ## 0.9.0 — 2026-09-09
 
 ### Added

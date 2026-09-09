@@ -11,6 +11,11 @@ readyagents approvals serve --host 127.0.0.1 --port 8766
 # open the stderr bootstrap URL once, then Approve or Reject
 ```
 
+The optional Continuous pack (`readyagents-pack-continuous`) can run configured workflows from
+cron, portable file watching, or authenticated local webhooks. It is a separate Python package
+and foreground command. Installing Core alone remains entirely one-shot. See
+[docs/continuous-pack.md](docs/continuous-pack.md).
+
 # ReadyAgents Core 0.9.0
 
 **Opt-in loopback Streamable HTTP and local task handles. Stdio unchanged. No hosted recovery.**
@@ -79,6 +84,8 @@ HITL over `/runs` reuses `examples/approval_gate.yaml` (no separate async-approv
 
 - [MCP](docs/mcp.md)
 - [CLI](docs/cli.md)
+- [Packs](docs/packs.md)
+- [Continuous pack](docs/continuous-pack.md)
 - [Configuration](docs/configuration.md)
 - [Why ReadyAgents](docs/why-readyagents.md)
 - [Security](SECURITY.md)

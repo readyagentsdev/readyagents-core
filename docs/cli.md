@@ -197,6 +197,8 @@ If `--auth token` and the env var is empty, the process generates at least 256 b
 Lists packs discovered via entry points. Empty when only core is installed. `--json` prints `{ok, packs}` (or `{ok: false, error, message}` if a pack fails to load).
 A local `.py` loads with `--pack PATH`, for example `readyagents packs --pack examples/packs/connector_pack.py`.
 
+The optional Continuous pack is a **separate** executable, `readyagents-continuous`, not a `readyagents` subcommand. See [continuous-pack.md](continuous-pack.md). Core still has no `serve`/`tick` scheduler command.
+
 ## `readyagents version`
 
 Prints the package version.

@@ -125,6 +125,7 @@ flowchart LR
 - [Workflows](docs/workflows.md)
 - [MCP](docs/mcp.md)
 - [Packs](docs/packs.md)
+- [Continuous pack](docs/continuous-pack.md) (optional, separate distribution)
 - [CLI](docs/cli.md)
 - [Changelog](CHANGELOG.md)
 - [Release notes 0.8.0](RELEASE_NOTES.md)
@@ -154,7 +155,9 @@ make smoke
 
 Always-on packs are waitlisted and not for sale.
 
-Always-on / continuous workers and schedulers. Hosted control plane. Hosted recovery and remote run stores. SSO, multi-tenant teams, billing.
+Always-on / continuous workers are not in Core. The optional `readyagents-pack-continuous` distribution (separate repository, not a Core extra) can run configured workflows from an explicit foreground command. Installing Core still starts no scheduler or listener.
+
+Hosted control plane. Hosted recovery and remote run stores. SSO, multi-tenant teams, billing.
 
 The core has persist, resume, and approval pauses for a local one-shot. It does not run always-on.
 
