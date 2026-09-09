@@ -175,3 +175,33 @@ def test_header_mismatch_rejected_before_dispatch(discover_client) -> None:
     assert resp.status_code == 400
     payload = _body(resp)
     assert payload["error"]["code"] == -32020
+
+
+def test_header_mismatch_tools_call_rejected_before_sdk(discover_client) -> None:
+    if LATEST_PROTOCOL_VERSION not in honoured_protocol_versions():
+        pytest.skip("installed SDK does not honour 2026-07-28 headers")
+    client, _tmp = discover_client
+    resp = client.post(
+        "/mcp",
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Mcp-Method": "server/discover",
+            "Mcp-Name": "calc",
+            "Mcp-Protocol-Version": LATEST_PROTOCOL_VERSION,
+        },
+        json={
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "tools/call",
+            "params": {
+                "name": "calc",
+                "arguments": {"expression": "1+1"},
+                "_meta": _meta(),
+            },
+        },
+    )
+    assert resp.status_code == 400, resp.text
+    payload = _body(resp)
+    assert payload["error"]["code"] == -32020
+    assert "4" not in json.dumps(payload.get("result") or {})

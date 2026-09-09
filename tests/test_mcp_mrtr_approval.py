@@ -409,6 +409,97 @@ def test_unauthorized_mcp_approval_refused(tmp_path, tmp_settings, examples_dir)
         coord.shutdown(timeout=2.0)
 
 
+def test_client_info_name_is_not_an_actor(mrtr_env) -> None:
+    coord, client, settings = mrtr_env
+
+    def allow(actor, action, resource) -> bool:
+        if action in {"approve", "reject", "resume"}:
+            return actor == "boss"
+        return True
+
+    coord._authorizer = CallbackAuthorizer(allow)
+    coord.settings = coord.settings.model_copy(update={"actor": None})
+    task_id = _start(client, "approval_gate.yaml")
+    paused = _wait_input_required(client, task_id)
+    key = next(iter(paused["inputRequests"]))
+    params = _params(
+        {
+            "taskId": task_id,
+            "inputResponses": {key: {"action": "accept", "content": {"decision": "approve"}}},
+        }
+    )
+    params["_meta"]["io.modelcontextprotocol/clientInfo"] = {"name": "boss", "version": "0"}
+    resp = client.post(
+        "/mcp",
+        headers=_headers("tasks/update", name=task_id),
+        json={"jsonrpc": "2.0", "id": 9, "method": "tasks/update", "params": params},
+    )
+    payload = _rpc(resp)
+    assert "error" in payload, payload
+    still = coord._load_exact(task_id)
+    assert still.status == "paused"
+    events = read_audit_events(settings.audit_dir(), task_id)
+    assert any(row.get("event") == "decision_refused" for row in events)
+
+
+def test_mcp_approval_audit_matches_cli_shape(tmp_path, tmp_settings, examples_dir) -> None:
+    from readyagents.errors import ApprovalRequired
+    from readyagents.workflow.runner import resume_run, run_workflow_file
+
+    src = examples_dir / "approval_gate.yaml"
+    wf = tmp_path / "approval_gate.yaml"
+    wf.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+    with pytest.raises(ApprovalRequired) as caught:
+        run_workflow_file(wf, settings=tmp_settings, persist=True, actor="reviewer")
+    cli_id = caught.value.run_id
+    resume_run(
+        cli_id,
+        settings=tmp_settings,
+        persist=True,
+        decisions={"gate": "approve"},
+        actor="reviewer",
+    )
+    cli_events = [
+        row
+        for row in read_audit_events(tmp_settings.audit_dir(), cli_id)
+        if row.get("event") == "decision"
+    ]
+    assert cli_events
+    cli_shape = {k: cli_events[0].get(k) for k in ("event", "node_id", "decision", "actor")}
+
+    coord = RunCoordinator(settings=tmp_settings, workspace=tmp_path)
+    try:
+        handle = coord.start_run({"path": "approval_gate.yaml", "actor": "reviewer"})
+        task_id = handle["run_id"]
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            if coord._load_exact(task_id).status == "paused":
+                break
+            time.sleep(0.05)
+        state = coord._load_exact(task_id)
+        key = current_input_request_key(state)
+        TaskService(coord).update(
+            task_id,
+            input_responses={key: {"action": "accept", "content": {"decision": "approve"}}},
+            actor="reviewer",
+        )
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            events = [
+                row
+                for row in read_audit_events(tmp_settings.audit_dir(), task_id)
+                if row.get("event") == "decision"
+            ]
+            if events:
+                mcp_shape = {k: events[0].get(k) for k in ("event", "node_id", "decision", "actor")}
+                assert mcp_shape == cli_shape
+                return
+            time.sleep(0.05)
+        raise AssertionError("MCP decision audit event never appeared")
+    finally:
+        coord.shutdown(timeout=2.0)
+
+
 def test_concurrent_updates_one_decision(mrtr_env) -> None:
     coord, client, settings = mrtr_env
     task_id = _start(client, "approval_gate.yaml")

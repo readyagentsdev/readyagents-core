@@ -145,6 +145,7 @@ class RequestContext:
             raise ValueError("_meta must be a JSON object")
 
         raw_version = data.get(META_PROTOCOL_VERSION)
+        declared_in_meta = raw_version is not None
         if raw_version is None and header_version:
             raw_version = header_version
         if raw_version is None:
@@ -159,7 +160,15 @@ class RequestContext:
         else:
             version = raw_version.strip()
             if version not in supported:
-                raise UnsupportedProtocolVersionError(version, supported)
+                if declared_in_meta:
+                    raise UnsupportedProtocolVersionError(version, supported)
+                # Handshake-era MCP-Protocol-Version headers (e.g. 2025-03-26) are
+                # not _meta negotiation; pass them through as the newest legacy
+                # revision rather than 32022, so older initialize clients keep working.
+                version = next(
+                    (item for item in supported if item != LATEST_PROTOCOL_VERSION),
+                    supported[-1] if supported else LEGACY_PROTOCOL_VERSION,
+                )
 
         caps_raw = data.get(META_CLIENT_CAPABILITIES)
         if caps_raw is None:

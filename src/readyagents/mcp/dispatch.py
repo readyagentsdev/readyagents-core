@@ -287,6 +287,32 @@ class ProtocolDispatchMiddleware:
             await self.app(scope, replay, send)
             return
         rpc_method = payload.get("method")
+        if isinstance(rpc_method, str):
+            try:
+                honoured = honoured_protocol_versions()
+                ctx = request_context_from_rpc(
+                    payload,
+                    honoured=honoured,
+                    header_version=headers.get("mcp-protocol-version"),
+                )
+                params = payload.get("params") if isinstance(payload.get("params"), Mapping) else {}
+                require_transport_headers(
+                    method=rpc_method,
+                    params=params,
+                    mcp_method=headers.get("mcp-method"),
+                    mcp_name=headers.get("mcp-name"),
+                    protocol_version=ctx.protocol_version,
+                )
+            except (
+                UnsupportedProtocolVersionError,
+                HeaderMismatchError,
+                ValueError,
+                ReadyAgentsError,
+            ) as exc:
+                body = error_from_exception(payload.get("id"), exc)
+                code = int(body.get("error", {}).get("code") or JSONRPC_INVALID_REQUEST)
+                await _send_rpc(send, http_status_for_rpc_error(code), body, [])
+                return
         intercepted = None
         if isinstance(rpc_method, str) and should_handle(rpc_method):
             intercepted = self.surface.handle(payload, headers=headers)
@@ -379,14 +405,11 @@ async def _send_rpc(
     payload: Mapping[str, Any],
     extra: list[dict[str, Any]],
 ) -> None:
-    frames = [dict(payload), *extra]
-    # HTTP JSON response: one JSON-RPC object. Notifications piggy-back is SSE-only;
-    # for JSON we include acknowledgement as a sibling under ``notifications`` when present.
-    body_obj: dict[str, Any] = dict(payload)
+    # JSON-RPC 2.0 batch when notifications (e.g. subscriptions/acknowledged) must
+    # travel on the same HTTP response as the result.
+    body_obj: Any = dict(payload)
     if extra:
-        body_obj = dict(payload)
-        # Keep the JSON-RPC result as the HTTP body; tests parse a single object.
-        _ = frames
+        body_obj = [dict(payload), *[dict(item) for item in extra]]
     raw = json.dumps(body_obj, ensure_ascii=False).encode("utf-8")
     headers = [
         (b"content-type", b"application/json; charset=utf-8"),
@@ -398,12 +421,8 @@ async def _send_rpc(
 
 
 def _actor(params: Mapping[str, Any], default: str | None) -> str | None:
+    """RBAC actor from the decision payload or the server default — never clientInfo."""
     actor = params.get("actor")
-    if isinstance(actor, str):
-        return actor
-    meta = params.get("_meta")
-    if isinstance(meta, Mapping):
-        info = meta.get("io.modelcontextprotocol/clientInfo")
-        if isinstance(info, Mapping) and isinstance(info.get("name"), str):
-            return str(info["name"])
+    if isinstance(actor, str) and actor.strip():
+        return actor.strip()
     return default

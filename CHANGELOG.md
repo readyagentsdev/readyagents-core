@@ -4,6 +4,13 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Security
+
+- Streamable HTTP `2026-07-28` POSTs validate `Mcp-Method` / `Mcp-Name` before any SDK
+  dispatch, including ordinary `tools/call`. MCP `tasks/update` no longer treats
+  `_meta` `clientInfo.name` as an RBAC actor. `readyagents mcp probe` sends the loopback
+  bearer token from `READYAGENTS_MCP_TOKEN` when set.
+
 ## 0.10.0 — 2026-09-09
 
 ### Added
