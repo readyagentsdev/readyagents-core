@@ -120,10 +120,16 @@ def _post_process(raw: dict[str, Any]) -> dict[str, Any]:
 
     type_field = properties.get("type")
     if isinstance(type_field, dict):
-        built_ins = ", ".join(nt.value for nt in NodeType)
+        values = [nt.value for nt in NodeType]
+        built_ins = ", ".join(values)
         type_field["description"] = (
             f"Node kind. Built-in values: {built_ins}. Packs may add additional types."
         )
+        # Surface source enums for editor completion without closing the field:
+        # a pack type is still a string. A top-level `enum` would red-squiggle packs.
+        type_field.pop("enum", None)
+        type_field["anyOf"] = [{"enum": values}, {"type": "string"}]
+        type_field.pop("type", None)
 
     root_props = schema.get("properties")
     if isinstance(root_props, dict) and "$schema" not in root_props:

@@ -7,6 +7,7 @@ than a wrong caret.
 
 from __future__ import annotations
 
+import difflib
 import json
 import re
 from dataclasses import dataclass, replace
@@ -18,7 +19,8 @@ from pydantic import ValidationError
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from readyagents.errors import SourceMapBoundError
-from readyagents.policy import Redactor
+from readyagents.policy import Redactor, redactor_from_settings
+from readyagents.workflow.schema import NodeType
 
 _MAX_NODES: Final = 20_000
 _MAX_DEPTH: Final = 80
@@ -28,6 +30,23 @@ _ANSI: Final = re.compile(
     r"\x1b(?:[@-Z\\-_]|\][^\x07]*(?:\x07|\x1b\\)|[\[\]()#][0-9;?]*[ -/]*[@-~])"
 )
 _KEY_ERROR_TYPES: Final = frozenset({"extra_forbidden"})
+_DID_YOU_MEAN_CUTOFF: Final = 0.75
+_UNKNOWN_NODE: Final = re.compile(r"(?:unknown node(?: id)?|start node) '(?P<id>[^']+)'")
+_FREE_TEXT_FIELDS: Final = frozenset(
+    {
+        "prompt",
+        "system",
+        "template",
+        "source",
+        "when",
+        "description",
+        "path",
+        "name",
+        "items",
+        "model",
+        "arguments",
+    }
+)
 _ALIAS_FIELDS: Final = {"else_": "else", "from_": "from", "call_inputs": "inputs"}
 _ARTIFACT_LOCS: Final = frozenset(
     {
@@ -116,7 +135,7 @@ def locate_errors(
     for err in exc.errors():
         raw_loc = tuple(err.get("loc", ()))
         loc = _translate_loc(raw_loc)
-        message = str(err.get("msg") or "invalid")
+        message = _with_suggestion(str(err.get("msg") or "invalid"), loc, index, err)
         prefer_key = str(err.get("type") or "") in _KEY_ERROR_TYPES
         pos = _resolve_position(index, loc, shown_path, prefer_key=prefer_key)
         problems.append(LocatedError(loc=loc, message=message, position=pos))
@@ -199,7 +218,20 @@ def sanitize_excerpt(line: str, column: int) -> tuple[str, int]:
 
 
 def _redact(text: str) -> str:
-    return Redactor().redact_text(text)
+    """Mask default secret patterns plus configured settings literals/patterns."""
+    try:
+        from readyagents.config import get_settings
+
+        settings = get_settings()
+        configured = redactor_from_settings(
+            enabled=True,
+            patterns=settings.redact_pattern_list(),
+            literals=settings.redact_literal_list(),
+        )
+    except Exception:  # noqa: BLE001 — excerpts must still redact if settings fail
+        configured = None
+    active = configured if configured is not None else Redactor()
+    return active.redact_text(text)
 
 
 def _cap(line: str, column: int) -> tuple[str, int]:
@@ -296,6 +328,42 @@ def _scalar_python(node: Node) -> Any:
         except ValueError:
             return raw
     return raw
+
+
+def _node_ids(index: _Index) -> list[str]:
+    found: list[str] = []
+    for loc, item in index.by_path.items():
+        if len(loc) == 3 and loc[0] == "nodes" and loc[2] == "id" and isinstance(item.scalar, str):
+            found.append(item.scalar)
+    return found
+
+
+def _close_match(value: str, candidates: list[str]) -> str | None:
+    if not value or not candidates:
+        return None
+    hits = difflib.get_close_matches(value, candidates, n=1, cutoff=_DID_YOU_MEAN_CUTOFF)
+    if hits and hits[0] != value:
+        return hits[0]
+    return None
+
+
+def _with_suggestion(message: str, loc: tuple[Any, ...], index: _Index, err: dict[str, Any]) -> str:
+    """Append a conservative did-you-mean for node ids / enums. Never for free-text."""
+    match = _UNKNOWN_NODE.search(message)
+    if match:
+        suggestion = _close_match(match.group("id"), _node_ids(index))
+        if suggestion:
+            return f"{message} (did you mean '{suggestion}'?)"
+    field = loc[-1] if loc else None
+    if field in _FREE_TEXT_FIELDS:
+        return message
+    if field == "type":
+        raw = err.get("input")
+        if isinstance(raw, str):
+            suggestion = _close_match(raw, [member.value for member in NodeType])
+            if suggestion:
+                return f"{message} (did you mean '{suggestion}'?)"
+    return message
 
 
 def _translate_loc(loc: tuple[Any, ...]) -> tuple[str | int, ...]:
