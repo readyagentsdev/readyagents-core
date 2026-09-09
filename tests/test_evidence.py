@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from readyagents.audit import append_audit_event, list_audit_files, verify_audit_file
@@ -13,9 +14,9 @@ from readyagents.cli import app
 from readyagents.compliance.evidence import write_evidence_pack
 from readyagents.config import clear_settings_cache
 from readyagents.decisions.signing import sign_body, verify_signed_body
-from readyagents.errors import ConfigError
+from readyagents.errors import ApprovalRequired, ConfigError
 from readyagents.policy import Redactor
-from readyagents.workflow.runner import load_workflow, run_workflow_file
+from readyagents.workflow.runner import load_workflow, resume_run, run_workflow_file
 
 _runner = CliRunner()
 
@@ -142,11 +143,22 @@ def test_pack_audit_chain_survives_actor_email(tmp_path: Path, tmp_settings) -> 
     actor = "jane@corp.com"
     wf = tmp_path / "w.yaml"
     wf.write_text(
-        "name: w\nnodes:\n  - id: a\n    type: transform\n    template: 'ok'\n    output_key: summary\n",
+        "name: w\nnodes:\n"
+        "  - id: gate\n    type: approval\n    prompt: go?\n    then: ok\n    else: denied\n"
+        "  - id: ok\n    type: transform\n    template: paid\n    output_key: summary\n"
+        "  - id: denied\n    type: transform\n    template: held\n    output_key: summary\n",
         encoding="utf-8",
     )
     assert tmp_settings.redact is False
-    state = run_workflow_file(wf, settings=tmp_settings, persist=True, actor=actor)
+    with pytest.raises(ApprovalRequired):
+        run_workflow_file(wf, settings=tmp_settings, persist=True, actor=actor)
+    state = resume_run(
+        list(tmp_settings.runs_dir().glob("*.json"))[0].stem,
+        settings=tmp_settings,
+        decisions={"gate": "approve"},
+        actor=actor,
+    )
+    assert state.status == "succeeded"
     dest = tmp_path / "pack"
     write_evidence_pack(
         dest,
@@ -158,6 +170,12 @@ def test_pack_audit_chain_survives_actor_email(tmp_path: Path, tmp_settings) -> 
     )
     report = verify_audit_file(dest / "audit.jsonl")
     assert report.ok, report.first_break_reason
+    rows = json.loads((dest / "decisions.json").read_text(encoding="utf-8"))
+    human = next(row for row in rows if row["node_id"] == "gate")["human"]
+    assert human is not None
+    assert human.get("decision") == "approve"
+    assert actor not in json.dumps(human)
+    assert human.get("actor") == "[redacted]"
     run_text = (dest / "run.json").read_text(encoding="utf-8")
     decisions = (dest / "decisions.json").read_text(encoding="utf-8")
     html = (dest / "evidence.html").read_text(encoding="utf-8")

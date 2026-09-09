@@ -184,4 +184,8 @@ def _maybe_redact(record: DecisionRecord, redactor: Any) -> DecisionRecord:
     record.prompt = redactor.redact(record.prompt) if record.prompt is not None else None
     record.rationale = redactor.redact(record.rationale)
     record.tool_calls = redactor.redact(record.tool_calls)
+    if record.human is not None:
+        record.human.actor = redactor.redact(record.human.actor)
+        record.human.role = redactor.redact(record.human.role)
+        record.human.timestamp = redactor.redact(record.human.timestamp)
     return record
