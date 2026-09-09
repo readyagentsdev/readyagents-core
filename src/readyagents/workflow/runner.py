@@ -386,9 +386,7 @@ def replay_run(
         previous = store.get(run_id, allow_prefix=True).state
         source = previous.metadata.get("source")
         if not source:
-            raise ConfigError(
-                f"Run {previous.run_id} has no stored workflow path. Cannot replay."
-            )
+            raise ConfigError(f"Run {previous.run_id} has no stored workflow path. Cannot replay.")
         return run_workflow_file(
             source,
             inputs=previous.inputs,

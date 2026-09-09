@@ -115,9 +115,7 @@ def resolve_database_path(path: Path | str | None, settings: Settings) -> Path:
     if dest.is_symlink():
         target = dest.resolve()
         if constrained and not _is_under(target, home):
-            raise ConfigError(
-                f"Database symlink target is outside READYAGENTS_HOME: {dest}"
-            )
+            raise ConfigError(f"Database symlink target is outside READYAGENTS_HOME: {dest}")
         dest = target
     else:
         dest = dest.resolve()
