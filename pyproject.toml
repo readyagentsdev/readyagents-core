@@ -41,6 +41,11 @@ openai = ["openai>=1.40"]
 anthropic = ["anthropic>=0.34"]
 mcp = ["mcp>=1.2,<3"]
 mcp2 = ["mcp>=2,<3"]
+otel = [
+    "opentelemetry-api>=1.20",
+    "opentelemetry-sdk>=1.20",
+    "opentelemetry-exporter-otlp-proto-http>=1.20",
+]
 all = ["openai>=1.40", "anthropic>=0.34", "mcp>=1.2,<3"]
 dev = [
     "pytest>=8.0",

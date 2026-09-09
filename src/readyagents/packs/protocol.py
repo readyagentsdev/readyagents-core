@@ -57,3 +57,7 @@ class BasePack:
     def register_tool_seals(self) -> Mapping[str, str]:
         """Optional cassette classification: recomputed / sealable / unsealable."""
         return {}
+
+    def register_observers(self) -> Sequence[Any]:
+        """Optional run observers. Default empty so old packs stay valid."""
+        return []

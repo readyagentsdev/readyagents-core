@@ -80,6 +80,12 @@ def run_workflow(
     )
     if ctx.auditor is not None:
         ctx.auditor("run_started", run_id=state.run_id, workflow=workflow.name, actor=ctx.actor)
+    _observe(
+        ctx,
+        "run.started",
+        state,
+        status=state.status,
+    )
 
     steps = 0
     try:
@@ -102,6 +108,13 @@ def run_workflow(
                 node.type,
                 run_id=state.run_id,
                 node_id=node.id,
+            )
+            _observe(
+                ctx,
+                "node.started",
+                state,
+                node_id=node.id,
+                node_type=str(node.type),
             )
             _raise_if_cancelled(ctx, state)
             try:
@@ -128,6 +141,17 @@ def run_workflow(
                     node_type=str(node.type),
                     actor=ctx.actor,
                 )
+            last = state.results[-1] if state.results else None
+            _observe(
+                ctx,
+                "node.finished",
+                state,
+                node_id=node.id,
+                node_type=str(node.type),
+                status="ok",
+                usage=dict(last.usage) if last is not None else {},
+                duration_ms=_duration_ms(last.started_at, last.finished_at) if last else None,
+            )
             current = _next_node(workflow, node, state)
         _raise_if_cancelled(ctx, state)
         state.pending_node = None
@@ -136,6 +160,7 @@ def run_workflow(
         _persist(ctx, state)
         if ctx.auditor is not None:
             ctx.auditor("run_finished", run_id=state.run_id, status="succeeded", actor=ctx.actor)
+        _observe(ctx, "run.finished", state, status="succeeded", usage=dict(state.usage))
     except KeyboardInterrupt:
         state.pending_node = current
         state.pending = {
@@ -177,6 +202,14 @@ def run_workflow(
                 actor=ctx.actor,
             )
         _notify_pause(ctx, exc, state)
+        _observe(
+            ctx,
+            "run.paused",
+            state,
+            node_id=exc.node_id,
+            node_type="approval",
+            status="paused",
+        )
         raise
     except ReadyAgentsError as exc:
         state.take_node_usage()
@@ -204,6 +237,7 @@ def run_workflow(
                 node_id=current,
                 actor=ctx.actor,
             )
+        _observe(ctx, "run.finished", state, status="failed", node_id=current)
         raise
     return state
 
@@ -281,6 +315,55 @@ def _finalize_cancelled(
         ctx.on_persist(state)
     if ctx.auditor is not None:
         ctx.auditor("run_finished", run_id=state.run_id, status="cancelled", actor=ctx.actor)
+    _observe(ctx, "run.finished", state, status="cancelled")
+
+
+def _observe(
+    ctx: ExecutionContext,
+    name: str,
+    state: RunState,
+    *,
+    node_id: str | None = None,
+    node_type: str | None = None,
+    status: str | None = None,
+    usage: dict[str, int] | None = None,
+    duration_ms: int | None = None,
+) -> None:
+    if getattr(ctx, "include_depth", 0):
+        return
+    observers = getattr(ctx, "observers", None)
+    if not observers:
+        return
+    from readyagents.observability import emit_event, make_event
+
+    emit_event(
+        observers,
+        make_event(
+            name,
+            run_id=state.run_id,
+            workflow=state.workflow_name,
+            node_id=node_id,
+            node_type=node_type,
+            status=status,
+            duration_ms=duration_ms,
+            usage=usage,
+            attributes={"model": ctx.default_model} if ctx.default_model else None,
+        ),
+        redactor=ctx.redactor,
+    )
+
+
+def _duration_ms(started: str, finished: str) -> int | None:
+    if not started or not finished:
+        return None
+    try:
+        from datetime import datetime
+
+        a = datetime.fromisoformat(started.replace("Z", "+00:00"))
+        b = datetime.fromisoformat(finished.replace("Z", "+00:00"))
+        return max(0, int((b - a).total_seconds() * 1000))
+    except ValueError:
+        return None
 
 
 def _persist(ctx: ExecutionContext, state: RunState) -> None:

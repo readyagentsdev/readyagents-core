@@ -54,6 +54,8 @@ class RunStore(Protocol):
         statuses: list[str] | None = None,
         include_paused: bool = False,
         keep: int = 0,
+        min_age_seconds: float | None = None,
+        override_retention: bool = False,
     ) -> list[str]: ...
 
     def close(self) -> None: ...

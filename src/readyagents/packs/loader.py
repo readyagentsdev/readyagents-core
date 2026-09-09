@@ -89,6 +89,17 @@ def collect_pack_authorizers(packs: list[Pack] | None = None) -> list[Any]:
     return authorizers
 
 
+def collect_pack_observers(packs: list[Pack] | None = None) -> list[Any]:
+    """Optional observers. Old packs without the method still load."""
+    observers: list[Any] = []
+    for pack in packs if packs is not None else discover_packs():
+        fn = getattr(pack, "register_observers", None)
+        if not callable(fn):
+            continue
+        observers.extend(list(fn() or []))
+    return observers
+
+
 def collect_pack_seals(
     packs: list[Pack] | None = None,
     extra_tools: ToolRegistry | Sequence[Any] | None = None,

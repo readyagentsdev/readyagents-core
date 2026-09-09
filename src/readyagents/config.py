@@ -186,6 +186,11 @@ class Settings(BaseSettings):
         ge=1024,
         validation_alias=AliasChoices("READYAGENTS_CASSETTE_MAX_BYTES"),
     )
+    retention_days: int = Field(
+        default=180,
+        ge=0,
+        validation_alias=AliasChoices("READYAGENTS_RETENTION_DAYS"),
+    )
 
     def fallback_model_list(self) -> list[str]:
         if not self.fallback_models:
@@ -210,6 +215,9 @@ class Settings(BaseSettings):
 
     def audit_dir(self) -> Path:
         return self.home_path() / "audit"
+
+    def retention_seconds(self) -> float:
+        return float(self.retention_days) * 86400.0
 
     @field_validator(
         "openai_api_key",

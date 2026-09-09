@@ -273,6 +273,8 @@ def gc_runs(
     statuses: list[str] | None = None,
     include_paused: bool = False,
     keep: int = 0,
+    min_age_seconds: float | None = None,
+    override_retention: bool = False,
 ) -> list[str]:
     """Delete local run files. Never deletes ``paused`` unless ``include_paused``."""
     wanted = {s.strip().lower() for s in (statuses or ["succeeded", "failed", "cancelled"])}
@@ -287,11 +289,30 @@ def gc_runs(
             continue
         if state.status not in wanted:
             continue
+        if in_retention_window(state, min_age_seconds) and not override_retention:
+            continue
         path = Path(runs_dir) / f"{state.run_id}.json"
         if path.is_file():
             path.unlink()
             deleted.append(state.run_id)
     return deleted
+
+
+def in_retention_window(state: RunState, min_age_seconds: float | None) -> bool:
+    """True when the record is younger than the configured retention window."""
+    if not min_age_seconds:
+        return False
+    stamp = state.finished_at or state.started_at
+    if not stamp:
+        return True
+    try:
+        dt = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    age = (datetime.now(UTC) - dt).total_seconds()
+    return age < float(min_age_seconds)
 
 
 def mark_cancelled(state: RunState) -> RunState:

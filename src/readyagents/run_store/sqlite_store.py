@@ -223,7 +223,11 @@ class SQLiteRunStore:
         statuses: list[str] | None = None,
         include_paused: bool = False,
         keep: int = 0,
+        min_age_seconds: float | None = None,
+        override_retention: bool = False,
     ) -> list[str]:
+        from readyagents.workflow.state import in_retention_window
+
         wanted = {s.strip().lower() for s in (statuses or ["succeeded", "failed", "cancelled"])}
         if include_paused:
             wanted.add("paused")
@@ -236,6 +240,8 @@ class SQLiteRunStore:
             if item.state.status == "paused" and not include_paused:
                 continue
             if item.state.status not in wanted:
+                continue
+            if in_retention_window(item.state, min_age_seconds) and not override_retention:
                 continue
             conn.execute("DELETE FROM runs WHERE run_id = ?", (item.state.run_id,))
             deleted.append(item.state.run_id)
