@@ -6,6 +6,9 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- Explicit localhost browser UI for redacted pending approvals, protected by short-lived
+  single-use tokens and the existing RBAC/audit/signed-decision path. It uses vanilla assets,
+  starts only on command, and does not relax outbound SSRF protection.
 - Opt-in authenticated MCP Streamable HTTP transport and a local asynchronous run API with
   start, poll, decide, and cooperative-cancel task handles. Stdio remains the default, and core
   still has no scheduler, recovery worker, hosted service, or mandatory HTTP dependency.

@@ -63,6 +63,10 @@ If the node has no explicit `model:` and the default provider has no key, the en
 | `READYAGENTS_ACTOR` | Default actor id for RBAC hooks |
 | `READYAGENTS_PAUSE_NOTIFY_URL` | Outbound POST when an approval node pauses (core does not listen for that webhook) |
 | `READYAGENTS_MCP_TOKEN` | Bearer token for optional MCP Streamable HTTP (`/mcp`) and the ReadyAgents `/runs` extension. Never pass the token as a CLI flag. If empty at HTTP startup, the process generates ≥256 bits and prints it once to stderr (never persisted or logged). |
+| `READYAGENTS_APPROVAL_UI_SECRET` | Optional HMAC secret for `readyagents approvals serve`. If unset, the process generates one for that lifetime. Never pass the secret as a CLI flag. Restart invalidates UI tokens. |
+| `READYAGENTS_RUN_STORE` | `json` (default) or `sqlite`. JSON files stay under `$READYAGENTS_HOME/runs/`. |
+| `READYAGENTS_RUN_DB` | SQLite file when `READYAGENTS_RUN_STORE=sqlite` (default `$READYAGENTS_HOME/runs.sqlite3`). Relative paths resolve under `READYAGENTS_HOME`. |
+| `READYAGENTS_SQLITE_BUSY_TIMEOUT_MS` | SQLite busy timeout (default 5000). |
 
 Inspect and resume those records with `readyagents runs list`, `readyagents runs show`, and `readyagents resume`. Audit events (append-only JSONL) live in `$READYAGENTS_HOME/audit/`.
 

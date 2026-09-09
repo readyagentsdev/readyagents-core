@@ -151,7 +151,10 @@ The engine **pauses** (CLI exit **2**, status `paused`, `pending_node` set) unti
 readyagents run pay.yaml --approve gate
 readyagents run pay.yaml --reject gate
 readyagents resume <run_id> --approve gate
+readyagents approvals serve   # optional localhost UI; YAML unchanged
 ```
+
+The approval YAML is unchanged. The optional page is a foreground loopback UI, not a hosted dashboard. See [browser-approval-ui.md](browser-approval-ui.md).
 
 `then` is the approve path; `else` is the reject path. `next` is used when approved if `then` is omitted.
 
