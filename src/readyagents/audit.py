@@ -48,9 +48,11 @@ def append_audit_event(
     audit_dir: Path,
     event: Mapping[str, Any],
     *,
-    rotate_bytes: int = DEFAULT_ROTATE_BYTES,
+    rotate_bytes: int | None = None,
 ) -> Path:
     """Append one JSON object as a line. Never truncates an existing file."""
+    if rotate_bytes is None:
+        rotate_bytes = DEFAULT_ROTATE_BYTES
     payload = dict(event)
     payload.setdefault("ts", utc_now())
     run_id = str(payload.get("run_id") or "unknown")
@@ -76,22 +78,31 @@ def append_audit_event(
     return path
 
 
-def read_audit_events(audit_dir: Path, run_id: str) -> list[dict[str, Any]]:
-    path = Path(audit_dir) / f"{run_id}.jsonl"
-    events = _read_file_events(path)
+def list_audit_files(audit_dir: Path | str, run_id: str) -> list[Path]:
+    """Oldest to newest: ``run_id.1.jsonl``, ``run_id.2.jsonl``, …, ``run_id.jsonl``."""
+    folder = Path(audit_dir)
+    files: list[Path] = []
     n = 1
     while True:
-        rotated = Path(audit_dir) / f"{run_id}.{n}.jsonl"
+        rotated = folder / f"{run_id}.{n}.jsonl"
         if not rotated.is_file():
             break
-        events.extend(_read_file_events(rotated))
+        files.append(rotated)
         n += 1
+    current = folder / f"{run_id}.jsonl"
+    if current.is_file():
+        files.append(current)
+    return files
+
+
+def read_audit_events(audit_dir: Path, run_id: str) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for path in list_audit_files(audit_dir, run_id):
+        events.extend(_read_file_events(path))
     return events
 
 
-def make_auditor(
-    audit_dir: Path, redactor: Any = None, *, rotate_bytes: int = DEFAULT_ROTATE_BYTES
-):
+def make_auditor(audit_dir: Path, redactor: Any = None, *, rotate_bytes: int | None = None):
     """Return ``auditor(event, **fields)`` that appends a redacted JSONL line."""
 
     def _audit(event: str, **fields: Any) -> None:

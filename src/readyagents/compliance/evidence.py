@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from readyagents import __version__
-from readyagents.audit import read_audit_events, verify_audit_file
+from readyagents.audit import list_audit_files, read_audit_events, verify_audit_file
 from readyagents.compliance.decision import project_decisions
 from readyagents.compliance.graph import render_mermaid
 from readyagents.errors import ConfigError
@@ -29,9 +29,10 @@ and counsel decision.
 
 - `run.json` — the canonical run record (inputs, per-node outputs, usage).
 - `decisions.json` — a projection of each executed node (not a second store).
-- `audit.jsonl` — the run's append-only audit slice. Hash chaining is
-  tamper-*evident*, not tamper-proof. A local attacker who can rewrite the
-  whole file can rewrite the chain.
+- `audit.jsonl` — original bytes of the run's current audit file. Rotated
+  history is packed as `audit.1.jsonl`, `audit.2.jsonl`, … (oldest first).
+  These are **not** re-redacted: mutating hashed fields would break the
+  chain. Hash chaining is tamper-*evident*, not tamper-proof.
 - `workflow.yaml` — the workflow source used for this pack, content-hashed.
 - `graph.mmd` — deterministic Mermaid routing (no execution).
 - `evidence.html` — self-contained rendering (no network fetches).
@@ -73,37 +74,40 @@ def write_evidence_pack(
     if redactor is not None:
         record = redactor.redact(record)
     audit_rows = read_audit_events(audit_dir, state.run_id)
-    if redactor is not None:
-        audit_rows = redactor.redact(audit_rows)
     decisions = [
         row.as_dict() for row in project_decisions(state, workflow, audit_rows, redactor=redactor)
     ]
     mermaid = render_mermaid(workflow) if workflow is not None else "flowchart LR\n"
     html = render_evidence_html(state, decisions)
-    files = {
-        "run.json": json.dumps(record, indent=2, ensure_ascii=False) + "\n",
-        "decisions.json": json.dumps(decisions, indent=2, ensure_ascii=False) + "\n",
-        "audit.jsonl": "".join(
-            json.dumps(row, ensure_ascii=False, default=str) + "\n" for row in audit_rows
+    files: dict[str, bytes] = {
+        "run.json": (json.dumps(record, indent=2, ensure_ascii=False) + "\n").encode("utf-8"),
+        "decisions.json": (json.dumps(decisions, indent=2, ensure_ascii=False) + "\n").encode(
+            "utf-8"
         ),
-        "workflow.yaml": workflow_text if workflow_text.endswith("\n") else workflow_text + "\n",
-        "graph.mmd": mermaid if mermaid.endswith("\n") else mermaid + "\n",
-        "evidence.html": html,
-        "README.md": PACK_README if PACK_README.endswith("\n") else PACK_README + "\n",
+        "workflow.yaml": (
+            workflow_text if workflow_text.endswith("\n") else workflow_text + "\n"
+        ).encode("utf-8"),
+        "graph.mmd": (mermaid if mermaid.endswith("\n") else mermaid + "\n").encode("utf-8"),
+        "evidence.html": html.encode("utf-8"),
+        "README.md": (PACK_README if PACK_README.endswith("\n") else PACK_README + "\n").encode(
+            "utf-8"
+        ),
     }
+    audit_paths = list_audit_files(audit_dir, state.run_id)
+    if not audit_paths:
+        files["audit.jsonl"] = b""
+    for path in audit_paths:
+        files[_pack_audit_name(path, state.run_id)] = path.read_bytes()
     hashes: dict[str, str] = {}
-    for name, text in files.items():
-        payload = text.encode("utf-8")
-        path = dest / name
-        path.write_bytes(payload)
-        hashes[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    for name, payload in files.items():
+        dest_path = dest / name
+        dest_path.write_bytes(payload)
+        hashes[name] = hashlib.sha256(dest_path.read_bytes()).hexdigest()
     chain_anchor = None
-    audit_path = Path(audit_dir) / f"{state.run_id}.jsonl"
-    if audit_path.is_file():
-        report = verify_audit_file(audit_path)
-        if audit_rows:
-            chain_anchor = audit_rows[-1].get("entry_hash")
-        _ = report
+    if audit_rows:
+        chain_anchor = audit_rows[-1].get("entry_hash")
+    if audit_paths:
+        _ = verify_audit_file(audit_paths[-1])
     manifest = {
         "tool": "readyagents",
         "version": __version__,
@@ -183,6 +187,18 @@ Self-contained — no network resources.</footer>
 </body>
 </html>
 """
+
+
+def _pack_audit_name(path: Path, run_id: str) -> str:
+    """Map ``<run_id>.jsonl`` / ``<run_id>.N.jsonl`` onto pack names."""
+    name = path.name
+    current = f"{run_id}.jsonl"
+    if name == current:
+        return "audit.jsonl"
+    prefix = f"{run_id}."
+    if name.startswith(prefix) and name.endswith(".jsonl"):
+        return "audit." + name[len(prefix) :]
+    return "audit.jsonl"
 
 
 def _preview(value: Any, limit: int = 400) -> str:

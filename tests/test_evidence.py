@@ -8,6 +8,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
+from readyagents.audit import append_audit_event, list_audit_files, verify_audit_file
 from readyagents.cli import app
 from readyagents.compliance.evidence import write_evidence_pack
 from readyagents.config import clear_settings_cache
@@ -133,6 +134,84 @@ def test_pack_time_redaction_reverified(tmp_path: Path, tmp_settings) -> None:
     assert secret not in blob
     assert "me@example.com" not in blob
     assert "[redacted]" in blob
+    report = verify_audit_file(dest / "audit.jsonl")
+    assert report.ok, report.first_break_reason
+
+
+def test_pack_audit_chain_survives_actor_email(tmp_path: Path, tmp_settings) -> None:
+    actor = "jane@corp.com"
+    wf = tmp_path / "w.yaml"
+    wf.write_text(
+        "name: w\nnodes:\n  - id: a\n    type: transform\n    template: 'ok'\n    output_key: summary\n",
+        encoding="utf-8",
+    )
+    assert tmp_settings.redact is False
+    state = run_workflow_file(wf, settings=tmp_settings, persist=True, actor=actor)
+    dest = tmp_path / "pack"
+    write_evidence_pack(
+        dest,
+        state=state,
+        workflow=load_workflow(wf),
+        workflow_text=wf.read_text(encoding="utf-8"),
+        audit_dir=tmp_settings.audit_dir(),
+        redactor=Redactor(),
+    )
+    report = verify_audit_file(dest / "audit.jsonl")
+    assert report.ok, report.first_break_reason
+    run_text = (dest / "run.json").read_text(encoding="utf-8")
+    decisions = (dest / "decisions.json").read_text(encoding="utf-8")
+    html = (dest / "evidence.html").read_text(encoding="utf-8")
+    assert actor not in run_text
+    assert actor not in decisions
+    assert actor not in html
+    original = (tmp_settings.audit_dir() / f"{state.run_id}.jsonl").read_bytes()
+    packed = (dest / "audit.jsonl").read_bytes()
+    assert packed == original
+    assert actor.encode("utf-8") in packed
+
+
+def test_pack_rotated_audit_files_chronological(tmp_path: Path, tmp_settings, monkeypatch) -> None:
+    monkeypatch.setattr("readyagents.audit.DEFAULT_ROTATE_BYTES", 80)
+    wf = tmp_path / "w.yaml"
+    wf.write_text(
+        "name: w\nnodes:\n"
+        "  - id: a\n    type: transform\n    template: 'one'\n    output_key: x\n    next: b\n"
+        "  - id: b\n    type: transform\n    template: 'two-{{x}}'\n    output_key: y\n    next: c\n"
+        "  - id: c\n    type: transform\n    template: 'three-{{y}}'\n    output_key: z\n",
+        encoding="utf-8",
+    )
+    state = run_workflow_file(wf, settings=tmp_settings, persist=True)
+    source_files = list_audit_files(tmp_settings.audit_dir(), state.run_id)
+    if len(source_files) < 2:
+        for i in range(6):
+            append_audit_event(
+                tmp_settings.audit_dir(),
+                {"run_id": state.run_id, "event": "extra", "n": i, "pad": "z" * 40},
+            )
+        source_files = list_audit_files(tmp_settings.audit_dir(), state.run_id)
+    assert len(source_files) >= 2
+    dest = tmp_path / "pack"
+    pack = write_evidence_pack(
+        dest,
+        state=state,
+        workflow=load_workflow(wf),
+        workflow_text=wf.read_text(encoding="utf-8"),
+        audit_dir=tmp_settings.audit_dir(),
+    )
+    packed_names = []
+    for path in source_files:
+        if path.name == f"{state.run_id}.jsonl":
+            name = "audit.jsonl"
+        else:
+            name = "audit." + path.name.split(".", 1)[1]
+        packed = pack / name
+        assert packed.is_file(), name
+        assert packed.read_bytes() == path.read_bytes()
+        report = verify_audit_file(packed)
+        assert report.ok, (name, report.first_break_reason)
+        packed_names.append(name)
+    assert packed_names[-1] == "audit.jsonl"
+    assert packed_names == [n for n in packed_names if n != "audit.jsonl"] + ["audit.jsonl"]
 
 
 def test_sign_verifies(tmp_path: Path, tmp_settings) -> None:

@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from readyagents.audit import (
     append_audit_event,
+    list_audit_files,
     make_auditor,
     read_audit_events,
     verify_audit_file,
@@ -100,6 +101,22 @@ def test_rotation_anchor_verifies(tmp_path: Path) -> None:
     ]
     assert any(e.get("event") == "chain_anchor" for e in events)
     assert any(e.get("prev_file") in rotated for e in events)
+
+
+def test_read_audit_events_oldest_to_newest(tmp_path: Path) -> None:
+    audit = tmp_path / "audit"
+    append_audit_event(audit, {"run_id": "r1", "event": "first"}, rotate_bytes=80)
+    append_audit_event(audit, {"run_id": "r1", "event": "second" + "x" * 40}, rotate_bytes=80)
+    append_audit_event(audit, {"run_id": "r1", "event": "third" + "y" * 40}, rotate_bytes=80)
+    paths = list_audit_files(audit, "r1")
+    assert len(paths) >= 2
+    assert paths[-1].name == "r1.jsonl"
+    assert paths[0].name.startswith("r1.")
+    events = read_audit_events(audit, "r1")
+    kinds = [e.get("event") for e in events]
+    assert kinds[0] == "first"
+    assert "chain_anchor" in kinds
+    assert kinds.index("chain_anchor") > 0
 
 
 def test_parallel_appends_stay_a_valid_chain(tmp_path: Path) -> None:
