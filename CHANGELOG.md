@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 1.0.0 — 2026-09-09
+
 ### Added
 
 - Windows and macOS are now tested in CI across Python 3.11–3.14, alongside a wheel-install verification
@@ -34,6 +36,16 @@ All notable changes to ReadyAgents Core.
 - File-permission claims are now accurate per platform and reported by `readyagents doctor`.
 - Path-containment corpus covers Windows directory junctions / reparse points, which
   `Path.is_symlink()` does not report.
+- Cassettes contain full prompts and completions; recording is opt-in and freeze re-verifies
+  redaction.
+
+### Changed
+
+- ReadyAgents Core is 1.0.0. The workflow file format, the run-record format, CLI command names
+  and exit codes, the documented `--json` envelope keys, the pack protocol, and the declared
+  Python API are covered by a published stability contract and deprecation policy.
+- The ReadyAgents `/runs` HTTP alias is not removed at 1.0; removal is restated as no earlier
+  than v1.2.
 
 ## 0.11.0 — 2026-09-09
 

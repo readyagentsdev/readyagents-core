@@ -1,7 +1,7 @@
 # ReadyAgents Core
 
 <!-- mcp-name: io.github.readyagentsdev/readyagents -->
-ReadyAgents is a free, self-hosted Apache-2.0 local one-shot agent workflow engine plus MCP toolkit: clone it, bring your own keys; always-on packs are waitlisted and not for sale.
+ReadyAgents is a free, self-hosted Apache-2.0 local one-shot agent workflow engine plus MCP toolkit: clone it, bring your own keys; always-on packs are waitlisted and not for sale. **1.0** means every run can be recorded, replayed offline, forked, diffed, and frozen into a regression test — with a written stability contract.
 
 Site: [readyagents.dev](https://readyagents.dev). Repo: [github.com/readyagentsdev/readyagents-core](https://github.com/readyagentsdev/readyagents-core).
 
@@ -11,7 +11,7 @@ This repository is the free core. You keep the provider account and the bill. In
 
 ## 60-second start
 
-Requires **Python 3.11–3.14** on Linux, macOS, or Windows. Current version is **0.11.0**. Install with `pip install readyagentsdev`, or from this clone.
+Requires **Python 3.11–3.14** on Linux, macOS, or Windows. Current version is **1.0.0**. Install with `pip install readyagentsdev`, or from this clone.
 
 ```bash
 git clone https://github.com/readyagentsdev/readyagents-core.git
@@ -41,6 +41,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Run **agent**, **tool**, **condition**, **transform**, **approval**, **parallel**, **include**, and **foreach** nodes. Agent nodes may declare a `tools:` allowlist for a bounded tool-use loop.
 - Persist after every node and **resume** a paused or failed run from the last successful node
 - Inspect past runs: `readyagents runs list` / `show` / `replay` / `report` (local HTML)
+- Record, replay offline, fork, diff, and freeze a run into an eval fixture ([time machine](docs/time-machine.md))
 - Scaffold a starter: `readyagents new my-flow` (`basic`, `approval`, `research`, `pipeline`, `review`, `foreach`, `agent-tools`, `gated`)
 - Builtin tools with **zero extra servers**: `now`, `calc`, `json_get`, `list_dir`, `read_file`, `write_file`, optional `http_get`
 - Optional [MCP](https://modelcontextprotocol.io) client and server (`readyagents mcp serve`, `readyagents mcp probe`) with official tasks and MRTR approvals

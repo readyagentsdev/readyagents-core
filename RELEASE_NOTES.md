@@ -1,11 +1,30 @@
 # Unreleased
 
-ReadyAgents makes the install instructions true on the platforms they were written for. The suite
-now runs on Windows, macOS, and Linux across Python 3.11 through 3.14, plus a job that installs the
-wheel and walks the pip-only first run on each. The workspace sandbox is a single audited helper
-that understands case-insensitive filesystems, Windows reserved names, alternate data streams, and
-reparse points — and the file-permission story is stated honestly per platform. `readyagents doctor`
-tells you what your machine actually supports.
+# ReadyAgents Core 1.0.0
+
+**Every run is reproducible, forkable, and promotable to a test.**
+
+Persistence after every node was already there. 1.0 turns it into a time machine. Record a run
+once and you can replay it exactly — offline, with no key set and nothing spent — fork it from any
+node, diff two runs to see where they parted, and freeze the whole thing into a regression test
+that `readyagents eval` runs in CI for free. Where a run cannot be made reproducible, ReadyAgents
+says so per node rather than pretending. The workflow format, the run record, the CLI contract,
+and the public Python API now come with a written stability promise and a deprecation policy.
+Still local, still one-shot, still bring your own keys.
+
+Recording is opt-in (`--record` / `READYAGENTS_RECORD=1`) because a cassette holds full prompts
+and completions.
+
+Cross-platform sandbox parity from the 0.11 line is in this cut: Linux/macOS/Windows, Python
+3.11–3.14, `readyagents doctor`, and a pip-only wheel-install job.
+
+```bash
+pip install readyagentsdev==1.0.0
+readyagents run examples/calc_pipeline.yaml --record
+readyagents runs replay RUN_ID --offline --json
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
 
 # ReadyAgents Core 0.11.0
 
