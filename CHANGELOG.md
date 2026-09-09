@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 0.12.0 — 2026-09-09
+
 ### Added
 
 - Windows and macOS are now tested in CI across Python 3.11–3.14, alongside a wheel-install verification
