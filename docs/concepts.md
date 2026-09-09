@@ -54,7 +54,7 @@ retry:
 
 Failures raise typed errors (`NodeError`, `LLMError`, `MCPError`, `ApprovalRequired`, …) instead of a bare stack dump in the CLI.
 
-Run records are written after each node. Resume a paused or failed run with `readyagents resume <run_id>` or inject a decision with `readyagents decide`. Inspect with `readyagents runs list` and `readyagents runs show <run_id>`. Structured logs include `run=<id>` and `node=<id>` (JSON format adds `run` / `node` keys). Agent usage is stored per node and rolled up on the run. An append-only audit log lives under `$READYAGENTS_HOME/audit/`.
+Run records are written after each node. The default backend is JSON files under `$READYAGENTS_HOME/runs/`; optional local SQLite is `READYAGENTS_RUN_STORE=sqlite` ([run-stores.md](run-stores.md)). Resume a paused or failed run with `readyagents resume <run_id>` or inject a decision with `readyagents decide`. Inspect with `readyagents runs list` and `readyagents runs show <run_id>`. Structured logs include `run=<id>` and `node=<id>` (JSON format adds `run` / `node` keys). Agent usage is stored per node and rolled up on the run. An append-only audit log lives under `$READYAGENTS_HOME/audit/`.
 
 ## Extension: packs
 

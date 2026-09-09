@@ -190,7 +190,9 @@ Authorization: Bearer <opaque-token>
 
 This is a **request-driven foreground door**. It is not a scheduler, cron, watcher, queue scanner, retry daemon, auto-start, or hosted control plane. It does not recover incomplete runs on startup.
 
-Stopping the command stops the listener and the in-process executor. Work does **not** survive process death. A run JSON file may remain on disk; nothing resumes it automatically. v0.9 has no SQLite compare-and-swap store and no browser approval UI.
+Stopping the command stops the listener and the in-process executor. Work does **not** survive process death. A run record may remain on disk; nothing resumes it automatically.
+
+For concurrent local mutations (this door plus CLI `decide` or the localhost approval UI), optional SQLite is recommended (`READYAGENTS_RUN_STORE=sqlite`). JSON remains the default. SQLite is not hosted recovery and is not required. See [run-stores.md](run-stores.md).
 
 `--max-concurrent-runs` defaults to 4. `--max-pending-runs` defaults to 32.
 

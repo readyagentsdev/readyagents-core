@@ -1,5 +1,11 @@
 # ReadyAgents Core (Unreleased)
 
+ReadyAgents keeps readable per-run JSON as its default and adds an opt-in local SQLite
+backend for larger run histories and concurrent clients. The backend stores the same logical run
+record, adds indexed queries and revision conflicts, and requires no third-party database package.
+A dry-runnable `readyagents runs migrate --from json --to sqlite` copies and verifies JSON records
+without deleting the originals. SQLite is not hosted recovery; network filesystems are unsupported.
+
 Operators can explicitly start a local ReadyAgents approval page, review paused prompts, and
 approve or reject them without copying CLI commands. The page binds only to loopback, exposes a
 minimal redacted view, and protects bootstrap and decision actions with expiring one-use tokens.
@@ -10,6 +16,8 @@ readyagents run examples/browser_approval.yaml    # exit 2
 readyagents approvals serve --host 127.0.0.1 --port 8766
 # open the stderr bootstrap URL once, then Approve or Reject
 ```
+
+See [docs/run-stores.md](docs/run-stores.md) for backend selection, WAL backup files, and migration.
 
 The optional Continuous pack (`readyagents-pack-continuous`) can run configured workflows from
 cron, portable file watching, or authenticated local webhooks. It is a separate Python package

@@ -9,6 +9,9 @@ All notable changes to ReadyAgents Core.
 - Explicit localhost browser UI for redacted pending approvals, protected by short-lived
   single-use tokens and the existing RBAC/audit/signed-decision path. It uses vanilla assets,
   starts only on command, and does not relax outbound SSRF protection.
+- Optional stdlib SQLite run-store with indexed run queries, revision conflict detection, and a
+  verified non-destructive `runs migrate` command. JSON files remain the default and existing
+  persistence/CLI behavior is preserved.
 
 ### Docs
 

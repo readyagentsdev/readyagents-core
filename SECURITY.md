@@ -52,6 +52,14 @@ Do not reverse-proxy this door onto the public internet in v0.9.
 - Trust boundary is the local operator on that host. A privileged local process can still read loopback traffic.
 - Outbound `on_pause_url` still refuses loopback/private/metadata URLs; the UI does not add a loopback webhook exception.
 
+## Local run records
+
+JSON run files (`$READYAGENTS_HOME/runs/`) and the optional SQLite file (`$READYAGENTS_HOME/runs.sqlite3`, plus `-wal` / `-shm` companions) can contain prompts, outputs, and other workflow state. Restrict permissions on `READYAGENTS_HOME` to the operator account. ReadyAgents does **not** encrypt run records at rest.
+
+Trust boundary is the local host. A privileged local process can read these files. For a consistent SQLite backup, copy the database together with `-wal` and `-shm`, or checkpoint first. Network filesystems are unsupported for SQLite (locking is not guaranteed).
+
+JSON-to-SQLite migration never deletes the JSON sources. The append-only audit trail under `$READYAGENTS_HOME/audit/` is a separate JSONL log and is not imported into the run store.
+
 ## Secrets in issues and PRs
 
 Do not paste API keys, `.env`, `.env-ai`, or MCP bearer tokens into GitHub.
