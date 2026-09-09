@@ -184,9 +184,7 @@ def _usage_pins(state: RunState) -> list[str]:
     for metric in metrics:
         if metric not in state.usage:
             continue
-        lines.append(
-            f"      {metric}: " + json.dumps({"max": int(state.usage[metric])})
-        )
+        lines.append(f"      {metric}: " + json.dumps({"max": int(state.usage[metric])}))
     return lines
 
 

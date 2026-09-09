@@ -17,9 +17,7 @@ from readyagents.workflow.schema import WorkflowSpec
 from readyagents.workflow.state import RunState
 
 _DETERMINISM_BUCKETS = frozenset({"sealed", "recomputed", "unsealable", "misses"})
-_USAGE_METRICS = frozenset(
-    {"prompt_tokens", "completion_tokens", "total_tokens", "cost_micros"}
-)
+_USAGE_METRICS = frozenset({"prompt_tokens", "completion_tokens", "total_tokens", "cost_micros"})
 
 
 @dataclass
@@ -185,9 +183,7 @@ def _optional_str_mapping_field(
     return {str(k): str(v) for k, v in data.items()}
 
 
-def _optional_determinism_field(
-    raw: Mapping[str, Any], name: str
-) -> dict[str, list[str]] | None:
+def _optional_determinism_field(raw: Mapping[str, Any], name: str) -> dict[str, list[str]] | None:
     data = _optional_mapping_field(raw, "expect_determinism", name)
     if data is None:
         return None
@@ -205,9 +201,7 @@ def _optional_determinism_field(
     return out
 
 
-def _optional_str_list_field(
-    raw: Mapping[str, Any], key: str, name: str
-) -> list[str] | None:
+def _optional_str_list_field(raw: Mapping[str, Any], key: str, name: str) -> list[str] | None:
     if key not in raw or raw[key] is None:
         return None
     value = raw[key]
@@ -216,9 +210,7 @@ def _optional_str_list_field(
     return [str(item) for item in value]
 
 
-def _optional_tools_field(
-    raw: Mapping[str, Any], name: str
-) -> list[dict[str, Any]] | None:
+def _optional_tools_field(raw: Mapping[str, Any], name: str) -> list[dict[str, Any]] | None:
     if "expect_tools" not in raw or raw["expect_tools"] is None:
         return None
     value = raw["expect_tools"]
@@ -227,14 +219,10 @@ def _optional_tools_field(
     out: list[dict[str, Any]] = []
     for index, item in enumerate(value):
         if not isinstance(item, Mapping):
-            raise ConfigError(
-                f"Eval case {name!r} expect_tools[{index}] must be a mapping"
-            )
+            raise ConfigError(f"Eval case {name!r} expect_tools[{index}] must be a mapping")
         tool_name = item.get("name")
         if not isinstance(tool_name, str) or not tool_name.strip():
-            raise ConfigError(
-                f"Eval case {name!r} expect_tools[{index}] needs a name"
-            )
+            raise ConfigError(f"Eval case {name!r} expect_tools[{index}] needs a name")
         row: dict[str, Any] = {"name": tool_name.strip()}
         if "arguments" in item and item["arguments"] is not None:
             arguments = item["arguments"]
@@ -247,18 +235,14 @@ def _optional_tools_field(
     return out
 
 
-def _optional_usage_field(
-    raw: Mapping[str, Any], name: str
-) -> dict[str, dict[str, int]] | None:
+def _optional_usage_field(raw: Mapping[str, Any], name: str) -> dict[str, dict[str, int]] | None:
     data = _optional_mapping_field(raw, "expect_usage", name)
     if data is None:
         return None
     out: dict[str, dict[str, int]] = {}
     for metric, spec in data.items():
         if metric not in _USAGE_METRICS:
-            raise ConfigError(
-                f"Eval case {name!r} expect_usage has unknown metric {metric!r}"
-            )
+            raise ConfigError(f"Eval case {name!r} expect_usage has unknown metric {metric!r}")
         if not isinstance(spec, Mapping):
             raise ConfigError(
                 f"Eval case {name!r} expect_usage.{metric} must be a mapping with max"
@@ -269,9 +253,7 @@ def _optional_usage_field(
                 f"Eval case {name!r} expect_usage.{metric} has unknown keys {sorted(extra)}"
             )
         if "max" not in spec:
-            raise ConfigError(
-                f"Eval case {name!r} expect_usage.{metric} needs an integer max"
-            )
+            raise ConfigError(f"Eval case {name!r} expect_usage.{metric} needs an integer max")
         try:
             ceiling = int(spec["max"])
         except (TypeError, ValueError) as exc:
@@ -279,9 +261,7 @@ def _optional_usage_field(
                 f"Eval case {name!r} expect_usage.{metric}.max must be an integer"
             ) from exc
         if ceiling < 0:
-            raise ConfigError(
-                f"Eval case {name!r} expect_usage.{metric}.max must be >= 0"
-            )
+            raise ConfigError(f"Eval case {name!r} expect_usage.{metric}.max must be >= 0")
         out[metric] = {"max": ceiling}
     return out
 
@@ -325,9 +305,7 @@ def _score_determinism(state: RunState, case: EvalCase) -> tuple[bool, str] | No
         actual = _bucket_ids(raw, bucket)
         wanted = {str(item) for item in expected}
         if actual != wanted:
-            return False, (
-                f"determinism.{bucket} {sorted(actual)!r} != {sorted(wanted)!r}"
-            )
+            return False, (f"determinism.{bucket} {sorted(actual)!r} != {sorted(wanted)!r}")
     return None
 
 
@@ -379,8 +357,7 @@ def _score_tools(state: RunState, case: EvalCase) -> tuple[bool, str] | None:
             for key, value in dict(exp["arguments"]).items():
                 if obs_args.get(key) != value:
                     return False, (
-                        f"tool[{index}] arguments.{key} "
-                        f"{obs_args.get(key)!r} != {value!r}"
+                        f"tool[{index}] arguments.{key} {obs_args.get(key)!r} != {value!r}"
                     )
     return None
 

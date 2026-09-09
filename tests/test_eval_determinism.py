@@ -149,8 +149,7 @@ def test_load_eval_suite_rejects_bad_pins(tmp_path: Path, body: str, match: str)
     suite = tmp_path / "bad.yaml"
     suite.write_text(
         "cases:\n  - name: bad\n    workflow: {name: t, nodes: "
-        "[{id: t, type: transform, template: x, output_key: s}]}\n    "
-        + body,
+        "[{id: t, type: transform, template: x, output_key: s}]}\n    " + body,
         encoding="utf-8",
     )
     with pytest.raises(ConfigError, match=match):
@@ -175,9 +174,7 @@ def test_freeze_eval_cli_emits_and_scores_pins(tmp_path: Path, tmp_settings, mon
     assert scored.exit_code == 0, scored.stdout + scored.stderr
 
 
-def test_eval_cli_fails_when_determinism_drifts(
-    tmp_path: Path, tmp_settings, monkeypatch
-) -> None:
+def test_eval_cli_fails_when_determinism_drifts(tmp_path: Path, tmp_settings, monkeypatch) -> None:
     dest = _freeze_calc_pipeline(tmp_path, tmp_settings, monkeypatch)
     data = _load_case(dest)
     data["cases"][0]["expect_determinism"]["unsealable"] = ["stamp"]
@@ -228,9 +225,7 @@ def test_eval_cli_fails_when_tools_drift(tmp_path: Path, tmp_settings, monkeypat
     assert "tool[" in reason
 
 
-def test_eval_cli_fails_when_usage_exceeds_max(
-    tmp_path: Path, tmp_settings, monkeypatch
-) -> None:
+def test_eval_cli_fails_when_usage_exceeds_max(tmp_path: Path, tmp_settings, monkeypatch) -> None:
     _cli_env(monkeypatch, tmp_path, tmp_settings)
     workflow = tmp_path / "agent.yaml"
     workflow.write_text(
@@ -249,9 +244,7 @@ def test_eval_cli_fails_when_usage_exceeds_max(
         model="m",
         usage={"prompt_tokens": 10, "completion_tokens": 4, "total_tokens": 14},
     )
-    state = run_workflow_file(
-        workflow, settings=tmp_settings, persist=True, record=True, llm=inner
-    )
+    state = run_workflow_file(workflow, settings=tmp_settings, persist=True, record=True, llm=inner)
     frozen = _runner.invoke(app, ["runs", "freeze", state.run_id, "--out", "frozen-usage"])
     assert frozen.exit_code == 0, frozen.stdout + frozen.stderr
     dest = tmp_path / "frozen-usage"

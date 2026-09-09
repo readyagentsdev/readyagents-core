@@ -106,9 +106,7 @@ def test_invalid_seal_value_raises_at_collect() -> None:
         collect_pack_seals([InvalidSealPack()])
 
 
-def test_unclassified_pack_tool_still_needs_allow_unsealed(
-    tmp_path: Path, tmp_settings
-) -> None:
+def test_unclassified_pack_tool_still_needs_allow_unsealed(tmp_path: Path, tmp_settings) -> None:
     tools = ToolRegistry()
     tools.register(FunctionTool(name="mystery", description="x", handler=lambda: "y"))
     workflow = tmp_path / "mystery.yaml"
@@ -145,9 +143,7 @@ def test_unclassified_pack_tool_still_needs_allow_unsealed(
     assert "m" in case
 
 
-def test_declared_recomputed_pack_tool_freezes_without_flag(
-    tmp_path: Path, tmp_settings
-) -> None:
+def test_declared_recomputed_pack_tool_freezes_without_flag(tmp_path: Path, tmp_settings) -> None:
     pack = SealedHashPack()
     workflow = tmp_path / "hash.yaml"
     workflow.write_text(
@@ -183,14 +179,10 @@ def test_declared_recomputed_pack_tool_freezes_without_flag(
         tools.register(tool)
     report = run_eval(cases, tools=tools, settings=tmp_settings)
     assert report.ok, [row.reason for row in report.results]
-    assert "h" in (report.results[0].state.metadata.get("determinism") or {}).get(
-        "recomputed", []
-    )
+    assert "h" in (report.results[0].state.metadata.get("determinism") or {}).get("recomputed", [])
 
 
-def test_declared_sealable_pack_tool_records_sealed(
-    tmp_path: Path, tmp_settings
-) -> None:
+def test_declared_sealable_pack_tool_records_sealed(tmp_path: Path, tmp_settings) -> None:
     pack = SealableStampPack()
     workflow = tmp_path / "stamp.yaml"
     workflow.write_text(
@@ -225,12 +217,7 @@ def test_declared_sealable_pack_tool_records_sealed(
 def test_run_rejects_invalid_pack_seal(tmp_path: Path, tmp_settings) -> None:
     workflow = tmp_path / "ok.yaml"
     workflow.write_text(
-        "name: ok\n"
-        "nodes:\n"
-        "  - id: t\n"
-        "    type: transform\n"
-        "    template: x\n"
-        "    output_key: v\n",
+        "name: ok\nnodes:\n  - id: t\n    type: transform\n    template: x\n    output_key: v\n",
         encoding="utf-8",
     )
     with pytest.raises(ConfigError, match="Invalid tool seal"):
