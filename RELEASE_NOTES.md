@@ -1,3 +1,27 @@
+# ReadyAgents Core 1.2.0
+
+**Optional agent firewall at the tool-dispatch seam.**
+
+An optional `readyagents.policy.yaml` (or `--policy` / `READYAGENTS_POLICY`) is
+evaluated at the single tool-dispatch seam. Actions are allow, gate, or deny;
+gate reuses the existing signed approval pause; malformed or missing referenced
+policy fails closed. Without a policy file, behaviour is unchanged. Additive
+provenance, injection heuristics that never rewrite content, MCP tool description
+pinning, egress host allowlists, and a pre-send secret scan round it out, plus
+`readyagents policy check` and `readyagents policy explain`.
+
+Packs are waitlisted, not for sale.
+
+## Try it
+
+```bash
+pip install readyagentsdev==1.2.0
+readyagents policy check examples/readyagents.policy.yaml
+readyagents run examples/policy_gated.yaml --policy examples/readyagents.policy.yaml
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
 # ReadyAgents Core 1.1.0
 
 **Freeze/eval CI contract and pack tool seals.**
