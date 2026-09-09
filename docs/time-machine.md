@@ -20,8 +20,9 @@ readyagents eval frozen-calc/case.yaml
 path such as `/tmp/frozen-calc` is refused.
 
 `calc_pipeline` has no LLM. The cassette still exists so `--offline` has a
-file to load; `calc` nodes are **recomputed**. `now` is sealed only when
-recorded.
+file to load. Pure builtins (`calc`, `json_get`, `json_set`, `json_merge`) are
+**recomputed**. `now` is **sealed** when recorded. Freeze does not need
+`--allow-unsealed` for this example.
 
 ## Verbs
 

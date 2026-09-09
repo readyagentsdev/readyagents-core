@@ -4,6 +4,12 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Fixed
+
+- Pure JSON builtins (`json_get`, `json_set`, `json_merge`) are recomputed on
+  offline replay, so the keyless `calc_pipeline` freeze example does not need
+  `--allow-unsealed`.
+
 ### Security
 
 - `runs diff` always applies default secret redaction and strips ANSI/control

@@ -22,7 +22,7 @@ DEFAULT_MAX_CASSETTE_BYTES = 10_485_760
 _LLM = "llm"
 _TOOL = "tool"
 
-DETERMINISTIC_TOOLS = frozenset({"calc"})
+DETERMINISTIC_TOOLS = frozenset({"calc", "json_get", "json_set", "json_merge"})
 SEALABLE_TOOLS = frozenset({"now", "http_get", "read_file", "list_dir"})
 
 
@@ -208,7 +208,6 @@ class Cassette:
             self.blocked_nodes.add(node_id)
             self.report.note(node_id, "unsealable")
         else:
-            sealed = klass in {"sealable", "recomputed"}
             entry = {
                 "kind": _TOOL,
                 "node_id": node_id,
@@ -217,10 +216,12 @@ class Cassette:
                 "name": name,
                 "arguments": dict(arguments or {}),
                 "result": result,
-                "sealed": sealed,
+                "sealed": klass == "sealable",
             }
-            if sealed:
+            if klass == "sealable":
                 self.report.note(node_id, "sealed")
+            elif klass == "recomputed":
+                self.report.note(node_id, "recomputed")
             else:
                 self.report.note(node_id, "unsealable")
         self._put(key, entry)
