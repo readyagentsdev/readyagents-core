@@ -1,3 +1,17 @@
+# ReadyAgents Core 0.10.1
+
+**Security follow-up to 0.10.0. MCP header checks, probe bearer, actor isolation.**
+
+v0.10.0 tagged the MCP 2026-07-28 tasks/MRTR surface. v0.10.1 is the build that includes the
+post-tag security fixes: `Mcp-Method`/`Mcp-Name` are checked on every 2026 Streamable HTTP POST
+before SDK dispatch; `tasks/update` does not treat `_meta` `clientInfo.name` as an RBAC actor;
+`readyagents mcp probe` sends `READYAGENTS_MCP_TOKEN` when set. The `v0.10.0` tag remains on the
+pre-fix commit and should not be used as the current source of truth.
+
+```bash
+pip install readyagentsdev==0.10.1
+```
+
 # ReadyAgents Core 0.10.0
 
 **MCP 2026-07-28 tasks and MRTR approvals. `/runs` deprecated. No hosted recovery.**

@@ -18,7 +18,7 @@ def test_probe_cli_success(monkeypatch) -> None:
             "negotiated": "server/discover",
             "protocol_versions": ["2026-07-28", "2025-11-25", "2025-06-18"],
             "extensions": ["io.modelcontextprotocol/tasks"],
-            "server_info": {"name": "readyagents", "version": "0.10.0"},
+            "server_info": {"name": "readyagents", "version": "0.10.1"},
         }
 
     monkeypatch.setattr("readyagents.mcp.probe.probe_server", fake_probe)
