@@ -53,6 +53,7 @@ If the node has no explicit `model:` and the default provider has no key, the en
 | `READYAGENTS_LOG_FORMAT` | `text` (default) or `json` |
 | `READYAGENTS_MAX_TOKENS` | Stop further LLM calls when run `total_tokens` reaches this |
 | `READYAGENTS_MAX_COST_USD` | Same for estimated USD (`cost_micros` on the run) |
+| `READYAGENTS_PRICES` | Override path for the model price table (JSON). Unknown models stay unpriced, never silent zero. |
 | `READYAGENTS_FALLBACK_MODELS` | Comma-separated `provider:model` list tried after the primary fails |
 | `READYAGENTS_CIRCUIT_FAILURE_THRESHOLD` | Consecutive failures before skipping a model (default 3) |
 | `READYAGENTS_CIRCUIT_COOLDOWN_SECONDS` | How long a skipped model stays skipped (default 60) |

@@ -47,7 +47,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Builtin tools with **zero extra servers**: `now`, `calc`, `json_get`, `list_dir`, `read_file`, `write_file`, optional `http_get`
 - Optional [MCP](https://modelcontextprotocol.io) client and server (`readyagents mcp serve`, `readyagents mcp probe`) with official tasks and MRTR approvals
 - Extra node types and tools via Python entry points (`readyagents.packs`)
-- Per-node token/cost, budgets, model fallback, JSON logs
+- Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
 - Secrets / RBAC / PII-redaction hooks and an append-only, hash-chained audit trail; `readyagents evidence` writes a local pack of a run — evidence, not legal compliance or certification ([compliance](docs/compliance.md))
 - Pydantic `output_schema` on agent nodes; opt-in local LLM cache
@@ -84,12 +84,13 @@ flowchart LR
 | `readyagents validate PATH` | Schema-validate a workflow (source-located errors on failure) |
 | `readyagents schema` | Print/write/check the generated workflow JSON Schema |
 | `readyagents eval PATH` | Score a keyless fixture suite (exit 0/1) |
-| `readyagents run PATH [--input KEY=VALUE] [--dry-run] [--approve NODE] [--reject NODE] [--decision-file FILE] [--actor NAME] [--pack PATH] [--policy PATH]` | Execute |
+| `readyagents run PATH [--input KEY=VALUE] [--dry-run] [--approve NODE] [--reject NODE] [--decision-file FILE] [--actor NAME] [--pack PATH] [--policy PATH] [--estimate] [--max-spend USD] [--max-tokens N] [--label KEY=VALUE]` | Execute (or `--estimate` without running) |
 | `readyagents resume RUN_ID [--approve NODE] [--reject NODE] [--decision-file FILE] [--policy PATH]` | Resume a paused or failed run |
 | `readyagents policy check PATH` | Validate a firewall policy file (fail closed) |
 | `readyagents policy explain PATH [--policy PATH]` | Show which tools each node may call and why |
 | `readyagents evidence RUN_ID [--out DIR]` | Local evidence pack (not a compliance certificate) |
 | `readyagents audit verify [--file PATH]` | Walk the hash-chained audit trail |
+| `readyagents spend [--since DATE] [--by day\|workflow\|model\|actor\|label]` | Aggregate the local spend ledger |
 | `readyagents graph PATH` | Deterministic Mermaid routing (executes nothing) |
 | `readyagents decide RUN_ID [--file FILE \| --node ID --decision approve]` | Inject an external approval decision and resume |
 | `readyagents runs list` | List persisted runs |
