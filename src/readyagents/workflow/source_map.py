@@ -61,6 +61,7 @@ _ARTIFACT_LOCS: Final = frozenset(
         "NodeSpec",
         "RetrySpec",
         "BudgetSpec",
+        "RunawaySpec",
         "CircuitSpec",
         "EdgeSpec",
         "MCPServerSpec",

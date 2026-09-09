@@ -42,7 +42,8 @@ readyagents run hello.yaml --input name=Ada
 | `allow_http` | Enable builtin `http_get` |
 | `workspace` | Sandbox directory; must stay under `READYAGENTS_WORKSPACE` if set, else the workflow file's directory |
 | `default_model` | Override `READYAGENTS_DEFAULT_MODEL` for agent nodes |
-| `budget` | `{max_tokens, max_cost_usd}` — further LLM calls raise `BudgetExceeded` |
+| `budget` | `{max_tokens, max_cost_usd}` — further LLM calls raise `BudgetExceeded` (accumulated usage; unchanged) |
+| `runaway` | `{max_model_calls, max_tool_rounds, max_wall_seconds}` — optional per-run guards; raise `RunawayGuard` |
 | `fallback_models` | Model refs tried after the primary LLM fails |
 | `circuit` | `{failure_threshold, cooldown_seconds}` process-local breaker |
 | `on_pause_url` | Outbound webhook URL when an approval node pauses (same public-IP pin as `http_get`; failures do not abort the pause) |

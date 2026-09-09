@@ -83,11 +83,29 @@ class ApprovalRequired(ReadyAgentsError):
 class BudgetExceeded(ReadyAgentsError):
     """An LLM call was blocked because the run is over its token or cost budget."""
 
+    def __init__(
+        self,
+        kind: str,
+        used: int,
+        limit: int,
+        *,
+        reason: str | None = None,
+    ) -> None:
+        self.kind = kind
+        self.used = used
+        self.limit = limit
+        self.reason = reason
+        super().__init__(f"Budget exceeded: {kind} used={used} limit={limit}")
+
+
+class RunawayGuard(ReadyAgentsError):
+    """A per-run loop/call/wall-clock guard fired. Distinct from BudgetExceeded."""
+
     def __init__(self, kind: str, used: int, limit: int) -> None:
         self.kind = kind
         self.used = used
         self.limit = limit
-        super().__init__(f"Budget exceeded: {kind} used={used} limit={limit}")
+        super().__init__(f"Runaway guard: {kind} used={used} limit={limit}")
 
 
 class AuthorizationError(ReadyAgentsError):

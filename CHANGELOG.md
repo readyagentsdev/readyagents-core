@@ -6,6 +6,19 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **TokenOps.** Versioned, overridable model price table (`READYAGENTS_PRICES`).
+  Unknown models are explicitly unpriced, never a silent zero.
+  `readyagents run PATH --estimate` walks the engine's routing (no execute, no
+  network) and prints a range with assumptions. `--max-spend` / `--max-tokens`
+  are consulted before each model call; parallel branches share one meter; a
+  resumed run continues the same budget. `--label KEY=VALUE` is stored on the
+  run and in an append-only hash-chained spend ledger (`readyagents spend`).
+  Cache hits/misses/savings appear on the run record, `runs report`, and the
+  ledger. Runaway guards (`--max-model-calls`, `--max-run-tool-rounds`,
+  `--max-wall-seconds`, workflow `runaway:`) raise `RunawayGuard`, distinct
+  from `BudgetExceeded` and `CircuitOpen`. Optional `tokenizer` extra is **not**
+  in `all`. The provider invoice is authoritative. Without the new flags,
+  behaviour is unchanged. See [docs/cost.md](docs/cost.md).
 - **Traceability evidence.** Audit JSONL is hash-chained (`seq`, `prev_hash`,
   `entry_hash`). Chaining is tamper-evident, not tamper-proof; copy the chain
   anchor off-box if you need an independent check. `readyagents audit verify`

@@ -46,6 +46,7 @@ otel = [
     "opentelemetry-sdk>=1.20",
     "opentelemetry-exporter-otlp-proto-http>=1.20",
 ]
+tokenizer = ["tiktoken>=0.7"]
 all = ["openai>=1.40", "anthropic>=0.34", "mcp>=1.2,<3"]
 dev = [
     "pytest>=8.0",
@@ -76,6 +77,7 @@ packages = ["src/readyagents"]
 "src/readyagents/approvals/assets/app.js" = "readyagents/approvals/assets/app.js"
 "src/readyagents/approvals/assets/style.css" = "readyagents/approvals/assets/style.css"
 "schemas/workflow-v1.json" = "readyagents/schemas/workflow-v1.json"
+"src/readyagents/cost/prices.json" = "readyagents/cost/prices.json"
 
 [tool.hatch.build.targets.sdist]
 include = [

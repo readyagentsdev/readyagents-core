@@ -54,6 +54,7 @@ def run_doctor() -> dict[str, Any]:
         "openai": _can_import("openai"),
         "anthropic": _can_import("anthropic"),
         "mcp": _can_import("mcp"),
+        "tokenizer": _can_import("tiktoken"),
     }
     sqlite_wal = _sqlite_wal()
     if not sqlite_wal:

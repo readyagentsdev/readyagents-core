@@ -191,6 +191,10 @@ class Settings(BaseSettings):
         ge=0,
         validation_alias=AliasChoices("READYAGENTS_RETENTION_DAYS"),
     )
+    prices: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices("READYAGENTS_PRICES"),
+    )
 
     def fallback_model_list(self) -> list[str]:
         if not self.fallback_models:
@@ -215,6 +219,12 @@ class Settings(BaseSettings):
 
     def audit_dir(self) -> Path:
         return self.home_path() / "audit"
+
+    def ledger_dir(self) -> Path:
+        return self.home_path() / "ledger"
+
+    def prices_path(self) -> Path | None:
+        return self.prices.expanduser() if self.prices is not None else None
 
     def retention_seconds(self) -> float:
         return float(self.retention_days) * 86400.0

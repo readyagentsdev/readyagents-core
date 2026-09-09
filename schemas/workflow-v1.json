@@ -771,6 +771,56 @@
       },
       "title": "RetrySpec",
       "type": "object"
+    },
+    "RunawaySpec": {
+      "additionalProperties": false,
+      "description": "Optional per-run loop/call/wall-clock guards. Distinct from BudgetSpec.",
+      "properties": {
+        "max_model_calls": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Maximum LLM complete() attempts for the run.",
+          "title": "Max Model Calls"
+        },
+        "max_tool_rounds": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Maximum agent tool-call rounds across the whole run.",
+          "title": "Max Tool Rounds"
+        },
+        "max_wall_seconds": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Maximum wall-clock seconds for the run.",
+          "title": "Max Wall Seconds"
+        }
+      },
+      "title": "RunawaySpec",
+      "type": "object"
     }
   },
   "$id": "https://readyagents.dev/schema/workflow/v1.json",
@@ -926,6 +976,18 @@
       },
       "title": "Required Inputs",
       "type": "array"
+    },
+    "runaway": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RunawaySpec"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional per-run model-call, tool-round, and wall-clock guards."
     },
     "start": {
       "anyOf": [

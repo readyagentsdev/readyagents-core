@@ -14,6 +14,7 @@ from readyagents.errors import (
     CircuitOpen,
     PolicyDenied,
     ReadyAgentsError,
+    RunawayGuard,
     WorkflowError,
 )
 from readyagents.logging import get_logger, log_event
@@ -370,6 +371,15 @@ def _duration_ms(started: str, finished: str) -> int | None:
 
 
 def _persist(ctx: ExecutionContext, state: RunState) -> None:
+    meter = getattr(ctx, "spend_meter", None)
+    if meter is not None:
+        if meter.started_at is None:
+            meter.started_at = state.started_at
+        state.metadata["spend"] = meter.snapshot()
+        delta = meter.cache_usage_delta()
+        if delta:
+            for key, value in delta.items():
+                state.usage[key] = int(value)
     token = ctx.cancellation
     with ctx._persist_lock:
         if token is not None and token.is_requested() and state.status not in _TERMINAL_STATUSES:
@@ -405,7 +415,7 @@ def _execute_with_policy(node: NodeSpec, state: RunState, ctx: ExecutionContext)
     started = utc_now()
     try:
         output, attempt = execute_node_with_policy(node, state, ctx)
-    except (BudgetExceeded, AuthorizationError, CircuitOpen, PolicyDenied):
+    except (BudgetExceeded, AuthorizationError, CircuitOpen, PolicyDenied, RunawayGuard):
         state.take_node_usage()
         raise
     usage = state.take_node_usage()

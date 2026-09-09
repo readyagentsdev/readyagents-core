@@ -440,6 +440,46 @@ def run(
         help="Firewall policy file (env: READYAGENTS_POLICY).",
         envvar="READYAGENTS_POLICY",
     ),
+    estimate: bool = typer.Option(
+        False,
+        "--estimate",
+        help="Print a spend range and exit. No node execution, no network.",
+    ),
+    max_spend: float | None = typer.Option(
+        None,
+        "--max-spend",
+        help="Hard USD cap consulted before each model call.",
+    ),
+    max_tokens: int | None = typer.Option(
+        None,
+        "--max-tokens",
+        help="Hard token cap consulted before each model call.",
+    ),
+    label: list[str] = typer.Option(
+        [],
+        "--label",
+        help="Attribution label KEY=VALUE (repeatable). Stored on the run and ledger.",
+    ),
+    override_budget: bool = typer.Option(
+        False,
+        "--override-budget",
+        help="Start even when the preflight estimate exceeds a cap (audited).",
+    ),
+    max_model_calls: int | None = typer.Option(
+        None,
+        "--max-model-calls",
+        help="Runaway guard: maximum LLM complete() attempts.",
+    ),
+    max_run_tool_rounds: int | None = typer.Option(
+        None,
+        "--max-run-tool-rounds",
+        help="Runaway guard: maximum agent tool rounds across the run.",
+    ),
+    max_wall_seconds: float | None = typer.Option(
+        None,
+        "--max-wall-seconds",
+        help="Runaway guard: maximum wall-clock seconds.",
+    ),
 ) -> None:
     """Execute a workflow."""
     if log_level or log_format:
@@ -449,6 +489,12 @@ def run(
         parsed = parse_input_pairs(inputs)
         decisions = build_decisions(approve, reject)
         extra_packs = _load_extra_packs(pack)
+        from readyagents.cost.ledger import parse_labels
+
+        labels = parse_labels(label) if label else None
+        if estimate:
+            _emit_estimate(path, inputs=parsed, as_json=as_json)
+            return
         if resume:
             state = resume_run(
                 resume,
@@ -462,6 +508,13 @@ def run(
                 actor=actor,
                 no_cache=no_cache,
                 policy=policy,
+                max_spend=max_spend,
+                max_tokens_cap=max_tokens,
+                labels=labels,
+                override_budget=override_budget,
+                max_model_calls=max_model_calls,
+                max_run_tool_rounds=max_run_tool_rounds,
+                max_wall_seconds=max_wall_seconds,
             )
         else:
             state = run_workflow_file(
@@ -476,6 +529,13 @@ def run(
                 no_cache=no_cache,
                 record=record,
                 policy=policy,
+                max_spend=max_spend,
+                max_tokens_cap=max_tokens,
+                labels=labels,
+                override_budget=override_budget,
+                max_model_calls=max_model_calls,
+                max_run_tool_rounds=max_run_tool_rounds,
+                max_wall_seconds=max_wall_seconds,
             )
     except KeyboardInterrupt:
         if as_json:
@@ -529,11 +589,21 @@ def resume_cmd(
         help="Firewall policy file (env: READYAGENTS_POLICY).",
         envvar="READYAGENTS_POLICY",
     ),
+    max_spend: float | None = typer.Option(None, "--max-spend"),
+    max_tokens: int | None = typer.Option(None, "--max-tokens"),
+    label: list[str] = typer.Option([], "--label"),
+    override_budget: bool = typer.Option(False, "--override-budget"),
+    max_model_calls: int | None = typer.Option(None, "--max-model-calls"),
+    max_run_tool_rounds: int | None = typer.Option(None, "--max-run-tool-rounds"),
+    max_wall_seconds: float | None = typer.Option(None, "--max-wall-seconds"),
 ) -> None:
     """Resume a paused or failed run from the last successful node."""
     persist = not no_persist
     try:
         parsed = parse_input_pairs(inputs)
+        from readyagents.cost.ledger import parse_labels
+
+        labels = parse_labels(label) if label else None
         state = resume_run(
             run_id,
             path=workflow,
@@ -546,6 +616,13 @@ def resume_cmd(
             actor=actor,
             no_cache=no_cache,
             policy=policy,
+            max_spend=max_spend,
+            max_tokens_cap=max_tokens,
+            labels=labels,
+            override_budget=override_budget,
+            max_model_calls=max_model_calls,
+            max_run_tool_rounds=max_run_tool_rounds,
+            max_wall_seconds=max_wall_seconds,
         )
     except KeyboardInterrupt:
         if as_json:
@@ -1565,6 +1642,65 @@ def evidence_cmd(
     console.print(f"Wrote evidence pack {pack}")
 
 
+@app.command("spend")
+def spend_cmd(
+    since: str | None = typer.Option(None, "--since", help="Include entries on/after YYYY-MM-DD."),
+    by: str = typer.Option(
+        "day",
+        "--by",
+        help="Aggregate by day, workflow, model, actor, or label.",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Print JSON instead of a table."),
+) -> None:
+    """Aggregate the local spend ledger. No network."""
+    from readyagents.config import get_settings
+    from readyagents.cost.ledger import query_spend
+
+    try:
+        agg = query_spend(get_settings().ledger_dir(), since=since, by=by)
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "spend",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    payload = agg.as_dict()
+    if as_json:
+        _print_json(_json_envelope("spend", ok=True, **payload))
+        return
+    total = payload["total"]
+    if not payload["rows"]:
+        console.print("spend: no ledger entries")
+        return
+    table = Table(title=f"Spend by {payload['by']}")
+    table.add_column("key")
+    table.add_column("runs")
+    table.add_column("tokens")
+    table.add_column("cost_usd")
+    table.add_column("cache_savings_usd")
+    for row in payload["rows"]:
+        table.add_row(
+            str(row["key"]),
+            str(row["runs"]),
+            str(row["total_tokens"]),
+            f"{row['cost_usd']:.6f}",
+            f"{row['cache_savings_micros'] / 1_000_000:.6f}",
+        )
+    console.print(table)
+    console.print(
+        f"total runs={total['runs']} tokens={total['total_tokens']} "
+        f"cost_usd={total['cost_usd']:.6f} "
+        f"cache_savings_usd={total['cache_savings_micros'] / 1_000_000:.6f}"
+    )
+
+
 @app.command("graph")
 def graph_cmd(
     path: Path = _WORKFLOW_ARG,
@@ -1815,7 +1951,58 @@ def _print_usage(state: RunState) -> None:
     micros = state.usage.get("cost_micros")
     if micros:
         parts.append(f"cost_usd={micros / 1_000_000:.6f}")
+    savings = state.usage.get("cache_savings_micros")
+    if savings:
+        parts.append(f"cache_savings_usd={savings / 1_000_000:.6f}")
     console.print("usage: " + " ".join(parts))
+    spend = state.metadata.get("spend") if isinstance(state.metadata, dict) else None
+    if isinstance(spend, dict) and spend.get("unpriced"):
+        models = ", ".join(str(m) for m in spend.get("unpriced_models") or []) or "unknown"
+        console.print(f"unpriced models (not $0): {models}")
+
+
+def _emit_estimate(path: Path, *, inputs: dict[str, Any], as_json: bool) -> None:
+    from readyagents.config import get_settings
+    from readyagents.cost.estimate import estimate_workflow_file
+
+    try:
+        result = estimate_workflow_file(
+            path,
+            inputs=inputs or None,
+            default_model=get_settings().default_model,
+        )
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "run",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                    estimate=True,
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    payload = result.as_dict()
+    if as_json:
+        _print_json(_json_envelope("run", ok=True, **payload))
+        return
+    floor_usd = payload["floor_cost_usd"]
+    ceil_usd = payload["ceiling_cost_usd"]
+    floor_s = "unpriced" if floor_usd is None else f"${floor_usd:.6f}"
+    ceil_s = "unpriced" if ceil_usd is None else f"${ceil_usd:.6f}"
+    console.print(
+        f"estimate: {result.floor_tokens}–{result.ceiling_tokens} tokens  {floor_s}–{ceil_s}"
+    )
+    if result.unpriced:
+        models = ", ".join(result.unpriced_models) or "unknown"
+        console.print(f"unpriced models (not $0): {models}")
+    console.print("assumptions:")
+    for item in result.assumptions:
+        console.print(f"  - {item}")
+    raise typer.Exit(code=0)
 
 
 def _print_run(state: RunState) -> None:

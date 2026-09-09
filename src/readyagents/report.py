@@ -12,6 +12,8 @@ def render_html(state: RunState) -> str:
     rows = []
     for result in state.results:
         preview = result.error or result.output
+        cost = result.usage.get("cost_micros") if result.usage else None
+        cost_cell = "—" if cost is None else str(cost)
         rows.append(
             "<tr>"
             f"<td><code>{html.escape(result.node_id)}</code></td>"
@@ -19,9 +21,23 @@ def render_html(state: RunState) -> str:
             f"<td class='st-{html.escape(result.status)}'>{html.escape(result.status)}</td>"
             f"<td><pre>{html.escape(_preview(preview))}</pre></td>"
             f"<td>{result.attempts}</td>"
+            f"<td>{html.escape(cost_cell)}</td>"
             "</tr>"
         )
     usage = ", ".join(f"{html.escape(k)}={v}" for k, v in state.usage.items()) or "—"
+    spend = state.metadata.get("spend") if isinstance(state.metadata, dict) else None
+    cache_line = "—"
+    if isinstance(spend, dict):
+        cache_line = (
+            f"hits={spend.get('cache_hits', 0)} misses={spend.get('cache_misses', 0)} "
+            f"savings_micros={spend.get('cache_savings_micros', 0)}"
+        )
+    elif state.usage.get("cache_hits") or state.usage.get("cache_savings_micros"):
+        cache_line = (
+            f"hits={state.usage.get('cache_hits', 0)} "
+            f"misses={state.usage.get('cache_misses', 0)} "
+            f"savings_micros={state.usage.get('cache_savings_micros', 0)}"
+        )
     outputs = html.escape(_preview(state.output_keys or state.node_outputs, 4000))
     pending = html.escape(state.pending_node) if state.pending_node else "—"
     return f"""<!DOCTYPE html>
@@ -58,12 +74,13 @@ footer {{ margin-top: 2rem; color: #777; font-size: .85rem; }}
 <div class="k">finished</div><div>{html.escape(str(state.finished_at or "—"))}</div>
 <div class="k">pending_node</div><div>{pending}</div>
 <div class="k">usage</div><div>{usage}</div>
+<div class="k">cache</div><div>{html.escape(cache_line)}</div>
 </div>
 <h2>Timeline</h2>
 <table>
-<thead><tr><th>Node</th><th>Type</th><th>Status</th><th>Output</th><th>Attempts</th></tr></thead>
+<thead><tr><th>Node</th><th>Type</th><th>Status</th><th>Output</th><th>Attempts</th><th>cost_micros</th></tr></thead>
 <tbody>
-{"".join(rows) or '<tr><td colspan="5">No nodes recorded.</td></tr>'}
+{"".join(rows) or '<tr><td colspan="6">No nodes recorded.</td></tr>'}
 </tbody>
 </table>
 <h2>Outputs</h2>

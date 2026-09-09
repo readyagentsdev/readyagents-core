@@ -155,9 +155,11 @@ def test_wheel_and_sdist_contain_schema(tmp_path: Path) -> None:
     with zipfile.ZipFile(wheels[0]) as zf:
         names = zf.namelist()
         assert any(name.endswith("schemas/workflow-v1.json") for name in names), names
+        assert any(name.endswith("cost/prices.json") for name in names), names
     with tarfile.open(sdists[0], "r:gz") as tf:
         names = tf.getnames()
         assert any(name.endswith("schemas/workflow-v1.json") for name in names), names
+        assert any(name.endswith("cost/prices.json") for name in names), names
 
 
 def test_help_lists_schema() -> None:

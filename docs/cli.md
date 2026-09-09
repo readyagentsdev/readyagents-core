@@ -151,12 +151,36 @@ readyagents run examples/research_brief.yaml --no-persist
 | `--pack PATH` | Load a local pack `.py` (repeatable). Confined to the workspace. Env: `READYAGENTS_PACK` |
 | `--record` | Write a cassette under `$READYAGENTS_HOME/cassettes/` (opt-in; also `READYAGENTS_RECORD=1`) |
 | `--policy PATH` | Firewall policy file (`READYAGENTS_POLICY`). Stored on the run and reloaded on resume/decide. |
+| `--estimate` | Walk routing, print a spend range, execute nothing (no network) |
+| `--max-spend USD` | Hard run-level USD cap consulted before each model call |
+| `--max-tokens N` | Hard run-level token cap consulted before each model call |
+| `--label KEY=VALUE` | Attribution label stored on the run and spend ledger (repeatable) |
+| `--override-budget` | Start even when the estimate ceiling exceeds a cap (audited) |
+| `--max-model-calls N` | Runaway guard: maximum `complete()` attempts |
+| `--max-run-tool-rounds N` | Runaway guard: maximum agent tool rounds across the run |
+| `--max-wall-seconds N` | Runaway guard: maximum wall-clock seconds |
 
 Exit code `1` on validation or execution errors, including a missing workflow file (`ConfigError`). Exit code `2` is reserved for an **approval** node pausing for a decision. The CLI prints `ErrorClass: message` rather than a full traceback. Logs include `run=<id>` and `node=<id>`.
 
 Failed runs print the **node timeline**, `run_id`, and a `readyagents resume RUN_ID` hint (same idea as approval pauses). `--json` is an envelope with additive `ok` and `command` plus existing keys (`run_id`, `error`, `message`, `run`). Pause is exit 2 and still includes `run_id`. `resume` and `runs replay` accept `--json` too. JSON is written without Rich markup, so values like `[dry-run]` stay intact.
 
 State is persisted after **each** successful node (unless `--no-persist`).
+
+`--estimate` prints a floor–ceiling range and the assumption list. See
+[cost.md](cost.md). The provider invoice is authoritative.
+
+## `readyagents spend`
+
+Aggregate the local append-only spend ledger (`$READYAGENTS_HOME/ledger/spend.jsonl`).
+
+```bash
+readyagents spend
+readyagents spend --since 2026-09-01 --by workflow --json
+readyagents spend --by label
+```
+
+`--by` is `day` (default), `workflow`, `model`, `actor`, or `label`. Empty and
+corrupt lines are skipped (`skipped_corrupt` in `--json`). No network.
 
 ## `readyagents resume RUN_ID`
 
