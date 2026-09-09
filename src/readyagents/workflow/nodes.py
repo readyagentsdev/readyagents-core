@@ -15,6 +15,7 @@ from readyagents.errors import (
     AuthorizationError,
     BudgetExceeded,
     CancellationRequested,
+    CassetteMiss,
     CircuitOpen,
     LLMError,
     NodeError,
@@ -88,6 +89,10 @@ class ExecutionContext:
         cache_llm: bool = False,
         usage_state: RunState | None = None,
         cancellation: CancellationToken | None = None,
+        cassette: Any | None = None,
+        offline: bool = False,
+        recording: bool = False,
+        cassette_secrets: list[str] | None = None,
     ) -> None:
         self.workflow = workflow
         self.tools = tools
@@ -113,6 +118,10 @@ class ExecutionContext:
         self.cache_llm = cache_llm
         self.usage_state = usage_state
         self.cancellation = cancellation
+        self.cassette = cassette
+        self.offline = offline
+        self.recording = recording
+        self.cassette_secrets = list(cassette_secrets or [])
         self.last_tool_rounds: list[dict[str, Any]] = []
         self._persist_lock = threading.RLock()
         self._in_flight = 0
@@ -177,6 +186,10 @@ class ExecutionContext:
             cache_llm=self.cache_llm,
             usage_state=self.usage_state,
             cancellation=self.cancellation,
+            cassette=self.cassette,
+            offline=self.offline,
+            recording=self.recording,
+            cassette_secrets=self.cassette_secrets,
         )
 
 
@@ -284,8 +297,19 @@ def _invoke_agent_tool(node: NodeSpec, ctx: ExecutionContext, call: ToolCall) ->
     args = call.arguments if isinstance(call.arguments, dict) else {}
     if ctx.dry_run and name in _DRY_RUN_STUB_TOOLS:
         return f"[dry-run] {name} {args}"
-    tool = ctx.tools.get(name)
-    return tool.run(**args)
+    from readyagents.replay.record import dispatch_tool
+
+    return dispatch_tool(
+        cassette=ctx.cassette,
+        offline=ctx.offline,
+        recording=ctx.recording,
+        node_id=node.id,
+        name=name,
+        arguments=args,
+        runner=lambda: ctx.tools.get(name).run(**args),
+        redactor=ctx.redactor,
+        secrets=ctx.cassette_secrets,
+    )
 
 
 def _agent_tool_loop(
@@ -426,15 +450,43 @@ def _complete_agent(
             max_cost_micros=ctx.budget_cost_micros,
         )
         try:
-            if ctx.llm is not None:
+            if ctx.offline:
+                from readyagents.replay.offline import CassetteProvider
+
+                if ctx.cassette is None:
+                    get_provider(ref, offline=True)
+                provider = CassetteProvider(ctx.cassette, node_id=node.id)
+                model_id = model_id_for(ref)
+            elif ctx.llm is not None:
                 provider = ctx.llm
                 model_id = model_id_for(ref)
+                if ctx.recording and ctx.cassette is not None:
+                    from readyagents.replay.record import RecordingProvider
+
+                    if not isinstance(provider, RecordingProvider):
+                        provider = RecordingProvider(
+                            ctx.cassette,
+                            provider,
+                            node_id=node.id,
+                            redactor=ctx.redactor,
+                            secrets=ctx.cassette_secrets,
+                        )
             else:
                 provider, model_id = get_provider(
                     ref,
                     implicit=not explicit,
                     secrets=ctx.secrets,
                 )
+                if ctx.recording and ctx.cassette is not None:
+                    from readyagents.replay.record import RecordingProvider
+
+                    provider = RecordingProvider(
+                        ctx.cassette,
+                        provider,
+                        node_id=node.id,
+                        redactor=ctx.redactor,
+                        secrets=ctx.cassette_secrets,
+                    )
             tried.append(ref)
             result = provider.complete(messages, model=model_id, tools=tools)
         except LLMError as exc:
@@ -483,11 +535,24 @@ def _run_tool(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
         raise NodeError(node.id, "tool arguments must be a mapping")
     if ctx.dry_run and name in _DRY_RUN_STUB_TOOLS:
         return f"[dry-run] {name} {args}"
-    tool = ctx.tools.get(name)
-    return tool.run(**args)
+    from readyagents.replay.record import dispatch_tool
+
+    return dispatch_tool(
+        cassette=ctx.cassette,
+        offline=ctx.offline,
+        recording=ctx.recording,
+        node_id=node.id,
+        name=name,
+        arguments=args,
+        runner=lambda: ctx.tools.get(name).run(**args),
+        redactor=ctx.redactor,
+        secrets=ctx.cassette_secrets,
+    )
 
 
 def _run_transform(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
+    if ctx.cassette is not None:
+        ctx.cassette.report.note(node.id, "recomputed")
     ns = state.mapping()
     value: Any
     if node.template is not None:
@@ -612,6 +677,8 @@ def execute_node_with_policy(
         except CancellationRequested:
             raise
         except ApprovalRequired:
+            raise
+        except CassetteMiss:
             raise
         except (BudgetExceeded, AuthorizationError, CircuitOpen):
             raise

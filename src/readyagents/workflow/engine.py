@@ -10,6 +10,7 @@ from readyagents.errors import (
     AuthorizationError,
     BudgetExceeded,
     CancellationRequested,
+    CassetteMiss,
     CircuitOpen,
     ReadyAgentsError,
     WorkflowError,
@@ -104,6 +105,8 @@ def run_workflow(
             except CancellationRequested:
                 raise
             except ApprovalRequired:
+                raise
+            except CassetteMiss:
                 raise
             except ReadyAgentsError:
                 _raise_if_cancelled(ctx, state)

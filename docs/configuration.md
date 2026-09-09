@@ -57,6 +57,9 @@ If the node has no explicit `model:` and the default provider has no key, the en
 | `READYAGENTS_CIRCUIT_FAILURE_THRESHOLD` | Consecutive failures before skipping a model (default 3) |
 | `READYAGENTS_CIRCUIT_COOLDOWN_SECONDS` | How long a skipped model stays skipped (default 60) |
 | `READYAGENTS_LLM_CACHE` | `1` / `true` enables the local completion cache under `$READYAGENTS_HOME/cache/` |
+| `READYAGENTS_RECORD` | `1` / `true` writes a content-addressed cassette under `$READYAGENTS_HOME/cassettes/`. Opt-in: cassettes contain full prompts and completions. |
+| `READYAGENTS_CASSETTE_MAX_ENTRY_BYTES` | Per-entry cassette size cap (default 1 MiB). |
+| `READYAGENTS_CASSETTE_MAX_BYTES` | Per-cassette size cap (default 10 MiB). |
 | `READYAGENTS_REDACT` | `1` / `true` masks emails, `sk-…` keys, and configured literals in logs and persisted records |
 | `READYAGENTS_REDACT_LITERALS` | Comma-separated extra strings to mask |
 | `READYAGENTS_REDACT_PATTERNS` | Comma-separated extra regexes to mask |

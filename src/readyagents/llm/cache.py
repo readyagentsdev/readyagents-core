@@ -4,11 +4,37 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 from readyagents.llm.base import CompletionResult, Message
 from readyagents.llm.tool_calls import tool_calls_from_json, tool_calls_to_json
+
+
+def canonical_json_bytes(payload: Any) -> bytes:
+    """Stable UTF-8 JSON used by the LLM cache and the replay cassette."""
+    return json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
+
+
+def completion_key(
+    model: str,
+    messages: list[Message],
+    tools: list[dict[str, Any]] | None = None,
+) -> str:
+    """SHA-256 of the canonical completion payload. Shared with the cassette."""
+    payload = {
+        "model": model,
+        "messages": [_message_payload(m) for m in messages],
+        "tools": list(tools or []),
+    }
+    return hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def tool_call_key(name: str, arguments: Mapping[str, Any] | None = None) -> str:
+    """SHA-256 of a canonical tool name+arguments payload. Shared with the cassette."""
+    payload = {"name": name, "arguments": dict(arguments or {})}
+    return hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
 
 
 class LLMCache:
@@ -25,13 +51,7 @@ class LLMCache:
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
     ) -> str:
-        payload = {
-            "model": model,
-            "messages": [_message_payload(m) for m in messages],
-            "tools": list(tools or []),
-        }
-        blob = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
-        return hashlib.sha256(blob).hexdigest()
+        return completion_key(model, messages, tools)
 
     def get(self, key: str) -> CompletionResult | None:
         path = self.root / f"{key}.json"

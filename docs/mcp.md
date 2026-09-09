@@ -90,7 +90,7 @@ When Streamable HTTP is enabled, one foreground process exposes **two different*
 | Surface | What it is | What it is not |
 | --- | --- | --- |
 | `/mcp` | Official Python MCP SDK **Streamable HTTP** plus ReadyAgents JSON-RPC: `server/discover`, tools, and `io.modelcontextprotocol/tasks` | Not a custom WebSocket. Not SSE resumability / `Last-Event-ID`. |
-| `/runs` | **Deprecated** ReadyAgents JSON alias of the same durable run record (start, poll, decide, cancel) | Not a second store. Removal no earlier than v0.12. |
+| `/runs` | **Deprecated** ReadyAgents JSON alias of the same durable run record (start, poll, decide, cancel) | Not a second store. Removal no earlier than v1.2. |
 
 `taskId` **is** the 32-hex `run_id`. Prefix lookup is CLI-only and is rejected on the protocol surface. Missing and unauthorized ids return the same not-found body.
 
@@ -135,7 +135,7 @@ v0.10 binds **loopback only**. Non-loopback hosts are rejected.
 
 ### `/runs` — deprecated ReadyAgents JSON alias
 
-Deprecated in 0.10.0; removal no earlier than 0.12.0. Same coordinator as `tasks/*`. Responses include additive `deprecated: true` and `successor: "tasks/*"`.
+Deprecated in 0.10.0; removal no earlier than 1.2.0. Same coordinator as `tasks/*`. Responses include additive `deprecated: true` and `successor: "tasks/*"`.
 
 Authenticated JSON API on the same foreground process. Persistence cannot be disabled. The identifier is the full opaque 32-hex `run_id` (no prefixes).
 

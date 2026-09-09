@@ -172,6 +172,20 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("READYAGENTS_DECISION_SECRET"),
     )
+    record: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("READYAGENTS_RECORD"),
+    )
+    cassette_max_entry_bytes: int = Field(
+        default=1_048_576,
+        ge=1024,
+        validation_alias=AliasChoices("READYAGENTS_CASSETTE_MAX_ENTRY_BYTES"),
+    )
+    cassette_max_bytes: int = Field(
+        default=10_485_760,
+        ge=1024,
+        validation_alias=AliasChoices("READYAGENTS_CASSETTE_MAX_BYTES"),
+    )
 
     def fallback_model_list(self) -> list[str]:
         if not self.fallback_models:
@@ -190,6 +204,9 @@ class Settings(BaseSettings):
 
     def cache_dir(self) -> Path:
         return self.home_path() / "cache"
+
+    def cassettes_dir(self) -> Path:
+        return self.home_path() / "cassettes"
 
     def audit_dir(self) -> Path:
         return self.home_path() / "audit"

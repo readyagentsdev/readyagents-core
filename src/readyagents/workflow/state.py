@@ -158,6 +158,7 @@ class RunState:
 
     def to_record(self) -> dict[str, Any]:
         return {
+            "record_version": 1,
             "run_id": self.run_id,
             "workflow": self.workflow_name,
             "status": self.status,

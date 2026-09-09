@@ -132,6 +132,31 @@ class RunConflict(ReadyAgentsError):
     """Run cannot accept this mutation (wrong status, in-flight resume, idempotency mismatch)."""
 
 
+class CassetteError(ConfigError):
+    """Cassette is missing, corrupt, oversized, or cannot be written."""
+
+
+class CassetteMiss(CassetteError):
+    """Offline replay had no matching cassette entry. Never falls through to a live call."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        node_id: str | None = None,
+        reason: str | None = None,
+        nearest_key: str | None = None,
+    ) -> None:
+        self.node_id = node_id
+        self.reason = reason or message
+        self.nearest_key = nearest_key
+        super().__init__(message)
+
+
+class ForkError(WorkflowError):
+    """Fork refused: node never ran, occurrence is ambiguous, or a parallel interior."""
+
+
 class HttpAuthError(MCPError):
     """Missing or invalid HTTP bearer credentials."""
 

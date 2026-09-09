@@ -59,13 +59,20 @@ def get_provider(
     settings: Settings | None = None,
     implicit: bool = False,
     secrets: object = None,
+    offline: bool = False,
 ) -> tuple[LLMProvider, str]:
     """Return `(provider, model_id)` for a `provider:model` string.
 
     When ``implicit`` is true (agent node has no ``model:``), a missing key
     for the default provider falls back to whichever BYOK key is set.
     An explicit model ref never falls back.
+    Offline mode never constructs a client, reads a key, or imports an SDK.
     """
+    if offline:
+        raise LLMError(
+            "Offline replay cannot construct an LLM provider, read an API key, "
+            "or import an optional SDK. Record a cassette with --record."
+        )
     settings = settings or get_settings()
     ref = model_ref or settings.default_model
     provider_name, model_id = parse_model_ref(ref)
