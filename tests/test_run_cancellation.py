@@ -184,6 +184,7 @@ def test_cancel_during_retry_backoff(tmp_settings) -> None:
         deadline = time.monotonic() + _JOIN_TIMEOUT
         while ctx.node_body_in_flight() and time.monotonic() < deadline:
             time.sleep(0.005)
+        time.sleep(0.02)
         token.request(reason="during-backoff")
 
     ctx = _ctx(spec, tools, cancellation=token, on_persist=on_persist)

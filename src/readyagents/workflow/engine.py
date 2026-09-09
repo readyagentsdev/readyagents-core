@@ -372,13 +372,17 @@ def _duration_ms(started: str, finished: str) -> int | None:
 def _persist(ctx: ExecutionContext, state: RunState) -> None:
     token = ctx.cancellation
     with ctx._persist_lock:
-        if (
-            token is not None
-            and token.is_requested()
-            and state.status not in _TERMINAL_STATUSES
-            and ctx.node_body_in_flight()
-        ):
-            state.status = "cancel_requested"
+        if token is not None and token.is_requested() and state.status not in _TERMINAL_STATUSES:
+            if ctx.node_body_in_flight():
+                state.status = "cancel_requested"
+            else:
+                if not state.pending:
+                    state.pending = {
+                        "node_id": state.pending_node,
+                        "type": "?",
+                        "error": "cancelled",
+                    }
+                state.finish("cancelled")
     if ctx.on_persist is None:
         return
     ctx.on_persist(state)
