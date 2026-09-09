@@ -87,10 +87,13 @@ def resolve_source_dir(path: Path | str | None, settings: Settings) -> Path:
 
 
 def _is_under(path: Path, root: Path) -> bool:
+    from readyagents.errors import PathError
+    from readyagents.paths import resolve_within
+
     try:
-        path.resolve().relative_to(root.resolve())
+        resolve_within(path, root, what="path")
         return True
-    except ValueError:
+    except PathError:
         return False
 
 

@@ -88,7 +88,7 @@ def test_pack_path_escape_refused(tmp_path: Path, monkeypatch) -> None:
     )
     assert result.exit_code == 1
     text = result.stdout + result.stderr
-    assert "ConfigError" in text
+    assert "ConfigError" in text or "PathError" in text
     assert "outside" in text.lower()
     parent = tmp_path.parent / "escaped_pack.py"
     parent.write_text("def get_pack():\n    return None\n", encoding="utf-8")

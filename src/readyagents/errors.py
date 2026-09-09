@@ -16,6 +16,14 @@ class ConfigError(ReadyAgentsError):
     """Invalid configuration, missing settings, or unreadable files."""
 
 
+class PathError(ConfigError):
+    """Path is outside a workspace root or uses a forbidden platform form."""
+
+
+class AtomicWriteError(ConfigError):
+    """Atomic replace failed (sharing violation, leftover temp, or OS error)."""
+
+
 class WorkflowError(ReadyAgentsError):
     """Invalid workflow definition or graph execution problem."""
 

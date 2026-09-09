@@ -80,20 +80,13 @@ def _format_validation(path: Path, exc: ValidationError) -> str:
 
 def confine_under(raw: str | Path, root: Path, *, what: str) -> Path:
     """Resolve `raw` and refuse anything outside `root` (symlink-aware)."""
-    root = Path(root).resolve()
-    text = str(raw).strip()
-    if not text or "\x00" in text:
-        raise ConfigError(f"{what} must be a path under {root}")
-    candidate = Path(text)
-    if not candidate.is_absolute():
-        candidate = root / candidate
-    resolved = candidate.resolve()
-    if not resolved.is_relative_to(root):
-        raise ConfigError(
-            f"{what} is outside the workspace: {raw} "
-            f"(resolved to {resolved}, must stay under {root})"
-        )
-    return resolved
+    from readyagents.errors import PathError
+    from readyagents.paths import resolve_within
+
+    try:
+        return resolve_within(raw, root, what=what)
+    except PathError as extra:
+        raise ConfigError(str(extra)) from extra
 
 
 def merge_inputs(workflow: WorkflowSpec, overrides: Mapping[str, Any] | None) -> dict[str, Any]:

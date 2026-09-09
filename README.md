@@ -11,7 +11,7 @@ This repository is the free core. You keep the provider account and the bill. In
 
 ## 60-second start
 
-Requires Python 3.11+. Current version is **0.11.0**. Install with `pip install readyagentsdev`, or from this clone.
+Requires **Python 3.11–3.14** on Linux, macOS, or Windows. Current version is **0.11.0**. Install with `pip install readyagentsdev`, or from this clone.
 
 ```bash
 git clone https://github.com/readyagentsdev/readyagents-core.git
@@ -21,6 +21,7 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e .
 readyagents run examples/calc_pipeline.yaml
 readyagents runs list
+readyagents doctor
 ```
 
 `readyagents run examples/calc_pipeline.json` is the same graph.
@@ -93,6 +94,7 @@ flowchart LR
 | `readyagents mcp serve` | Stdio MCP server (builtin tools); `--json` prints protocol versions |
 | `readyagents mcp probe URL` | Read-only `server/discover` diagnostic (never calls a tool) |
 | `readyagents packs [--pack PATH]` | List installed / local packs |
+| `readyagents doctor` | Read-only platform / extras / permissions / loopback / run-store diagnostic |
 | `readyagents version` | Print version |
 
 ## Examples (no keys unless noted)
@@ -129,6 +131,7 @@ flowchart LR
 - [MCP](docs/mcp.md)
 - [Packs](docs/packs.md)
 - [Continuous pack](docs/continuous-pack.md) (optional, separate distribution)
+- [Platform support](docs/platform-support.md)
 - [CLI](docs/cli.md)
 - [Changelog](CHANGELOG.md)
 - [Release notes 0.8.0](RELEASE_NOTES.md)

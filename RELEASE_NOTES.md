@@ -1,3 +1,12 @@
+# Unreleased
+
+ReadyAgents makes the install instructions true on the platforms they were written for. The suite
+now runs on Windows, macOS, and Linux across Python 3.11 through 3.14, plus a job that installs the
+wheel and walks the pip-only first run on each. The workspace sandbox is a single audited helper
+that understands case-insensitive filesystems, Windows reserved names, alternate data streams, and
+reparse points — and the file-permission story is stated honestly per platform. `readyagents doctor`
+tells you what your machine actually supports.
+
 # ReadyAgents Core 0.11.0
 
 **Workflow JSON Schema, located validation errors, editor wiring.**

@@ -23,12 +23,14 @@ def test_dockerfile_and_compose_exist() -> None:
     assert "readyagents" in compose
     assert "examples/calc_pipeline.yaml" in compose
     assert "smoke:" in makefile
-    assert "approval_gate.yaml" in makefile
-    assert "fanout_gate.yaml" in makefile
-    assert "include_demo.yaml" in makefile
-    assert "--dry-run" in makefile
-    assert "resume" in makefile
-    assert "make smoke" in ci
+    assert "scripts/smoke.py" in makefile
+    smoke = (ROOT / "scripts" / "smoke.py").read_text(encoding="utf-8")
+    assert "approval_gate.yaml" in smoke
+    assert "fanout_gate.yaml" in smoke
+    assert "include_demo.yaml" in smoke
+    assert "--dry-run" in smoke
+    assert "resume" in smoke
+    assert "scripts/smoke.py" in ci
 
 
 _BANNED_RUNTIME = (
@@ -75,7 +77,7 @@ def test_core_src_has_no_always_on_or_control_plane() -> None:
     hits: list[str] = []
     for path in root.rglob("*.py"):
         text = path.read_text(encoding="utf-8")
-        rel = str(path.relative_to(ROOT))
+        rel = path.relative_to(ROOT).as_posix()
         for token in _BANNED_RUNTIME:
             if token in text and (rel, token) not in _ALLOWED_RUNTIME:
                 hits.append(f"{rel}: {token}")

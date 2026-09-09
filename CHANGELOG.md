@@ -2,6 +2,23 @@
 
 All notable changes to ReadyAgents Core.
 
+## Unreleased
+
+### Added
+
+- Windows and macOS are now tested in CI across Python 3.11–3.14, alongside a wheel-install verification
+  job that runs the pip-only first-run flow on each platform.
+- `readyagents doctor` reports platform, Python, extras, workspace writability, permission
+  enforceability, filesystem case sensitivity, loopback availability, and the resolved run-store backend.
+- `python scripts/smoke.py` (and `make smoke`) runs the keyless example set without a POSIX shell.
+
+### Security
+
+- Workspace containment is now enforced by a single audited helper that rejects Windows reserved names,
+  alternate data streams, short-name and trailing-dot forms, and that compares resolved paths with
+  runtime-probed case sensitivity, so a case-only variant cannot escape the sandbox on Windows or macOS.
+- File-permission claims are now accurate per platform and reported by `readyagents doctor`.
+
 ## 0.11.0 — 2026-09-09
 
 ### Added

@@ -407,10 +407,10 @@ def create_project(dest: Path, *, name: str, template: str = "pipeline") -> list
     body = _WORKFLOWS[kind].format(name=slug)
     if not body.startswith("# yaml-language-server:"):
         body = _SCHEMA_MODELINE + body
-    workflow.write_text(body, encoding="utf-8")
-    schema_file.write_text(workflow_json_schema_text(), encoding="utf-8")
-    readme.write_text(_READMES[kind].format(name=slug), encoding="utf-8")
-    env_example.write_text(_ENV, encoding="utf-8")
+    workflow.write_text(body, encoding="utf-8", newline="\n")
+    schema_file.write_text(workflow_json_schema_text(), encoding="utf-8", newline="\n")
+    readme.write_text(_READMES[kind].format(name=slug), encoding="utf-8", newline="\n")
+    env_example.write_text(_ENV, encoding="utf-8", newline="\n")
     return [workflow, readme, env_example, schema_file]
 
 

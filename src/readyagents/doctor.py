@@ -1,0 +1,191 @@
+"""Read-only environment diagnostic. No network, no LLM, no run record."""
+
+from __future__ import annotations
+
+import platform
+import socket
+import sqlite3
+import sys
+from importlib import metadata
+from pathlib import Path
+from typing import Any
+
+from readyagents import __version__
+from readyagents.config import get_settings
+from readyagents.paths import filesystem_case_sensitive
+from readyagents.permissions import permissions_enforceable
+
+
+def run_doctor() -> dict[str, Any]:
+    """Return the stable ``readyagents doctor --json`` envelope."""
+    settings = get_settings()
+    home = settings.home_path()
+    workspace = settings.workspace_path()
+    findings: list[dict[str, str]] = []
+
+    home_writable = _writable_dir(home)
+    if not home_writable:
+        findings.append(
+            {
+                "id": "home-unwritable",
+                "message": f"READYAGENTS_HOME is not writable: {home}",
+                "remedy": "Set READYAGENTS_HOME to a directory you can write, then retry.",
+            }
+        )
+
+    perm_ok = False
+    try:
+        home.mkdir(parents=True, exist_ok=True)
+        perm_ok = permissions_enforceable(home)
+    except OSError:
+        perm_ok = False
+    loopback = _loopback_bindable()
+    if not loopback:
+        findings.append(
+            {
+                "id": "loopback",
+                "message": "Could not bind 127.0.0.1.",
+                "remedy": "Check that another process is not blocking loopback and that "
+                "the user may bind local ports.",
+            }
+        )
+
+    extras = {
+        "openai": _can_import("openai"),
+        "anthropic": _can_import("anthropic"),
+        "mcp": _can_import("mcp"),
+    }
+    sqlite_wal = _sqlite_wal()
+    if not sqlite_wal:
+        findings.append(
+            {
+                "id": "sqlite-wal",
+                "message": "SQLite WAL mode is unavailable.",
+                "remedy": "Use the JSON run-store (READYAGENTS_RUN_STORE=json) or upgrade SQLite.",
+            }
+        )
+
+    install = _install_location()
+    payload = {
+        "ok": not findings,
+        "command": "doctor",
+        "platform": {
+            "system": platform.system(),
+            "release": platform.release(),
+            "machine": platform.machine(),
+        },
+        "python": {
+            "version": platform.python_version(),
+            "implementation": platform.python_implementation(),
+        },
+        "readyagents": {"version": __version__, "install": install},
+        "extras": extras,
+        "home": {
+            "path": str(home),
+            "writable": home_writable,
+            "permissions_enforceable": perm_ok,
+        },
+        "filesystem": {
+            "case_sensitive": filesystem_case_sensitive(workspace),
+            "workspace": str(workspace),
+        },
+        "loopback": {"bindable": loopback},
+        "run_store": {
+            "backend": settings.run_store,
+            "sqlite_wal": sqlite_wal,
+            "database": str(settings.run_db_path()),
+        },
+        "findings": findings,
+    }
+    return payload
+
+
+def format_doctor(report: dict[str, Any]) -> str:
+    lines = [
+        f"ReadyAgents {report['readyagents']['version']}  "
+        f"{report['platform']['system']} {report['platform']['release']} "
+        f"{report['platform']['machine']}",
+        f"Python {report['python']['version']} ({report['python']['implementation']})",
+        f"Install {report['readyagents']['install']}",
+        "Extras: "
+        + ", ".join(
+            f"{name}={'yes' if ok else 'no'}" for name, ok in sorted(report["extras"].items())
+        ),
+        f"HOME {report['home']['path']} writable={report['home']['writable']} "
+        f"permissions_enforceable={report['home']['permissions_enforceable']}",
+        f"Workspace {report['filesystem']['workspace']} "
+        f"case_sensitive={report['filesystem']['case_sensitive']}",
+        f"Loopback bindable={report['loopback']['bindable']}",
+        (
+            f"Run-store {report['run_store']['backend']} "
+            f"sqlite_wal={report['run_store']['sqlite_wal']}"
+        ),
+    ]
+    if report["findings"]:
+        lines.append("Findings:")
+        for item in report["findings"]:
+            lines.append(f"- {item['message']}")
+            lines.append(f"  remedy: {item['remedy']}")
+    else:
+        lines.append("No problems found.")
+    return "\n".join(lines)
+
+
+def _can_import(name: str) -> bool:
+    try:
+        __import__(name)
+        return True
+    except ImportError:
+        return False
+
+
+def _writable_dir(path: Path) -> bool:
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        probe = path / ".ra_doctor_write"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
+def _loopback_bindable() -> bool:
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.bind(("127.0.0.1", 0))
+        finally:
+            sock.close()
+        return True
+    except OSError:
+        return False
+
+
+def _sqlite_wal() -> bool:
+    import tempfile
+
+    handle = tempfile.NamedTemporaryFile(suffix=".sqlite3", delete=False)
+    handle.close()
+    path = handle.name
+    try:
+        conn = sqlite3.connect(path)
+        mode = conn.execute("PRAGMA journal_mode = WAL").fetchone()
+        conn.close()
+        return bool(mode) and str(mode[0]).lower() == "wal"
+    except sqlite3.Error:
+        return False
+    finally:
+        for suffix in ("", "-wal", "-shm"):
+            try:
+                Path(path + suffix).unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
+def _install_location() -> str:
+    try:
+        dist = metadata.distribution("readyagentsdev")
+        return str(dist.locate_file(""))
+    except Exception:  # noqa: BLE001
+        return str(Path(sys.modules["readyagents"].__file__ or "").resolve().parent)

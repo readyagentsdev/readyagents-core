@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import threading
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -240,17 +239,13 @@ def persist_run(state: RunState, runs_dir: Path, *, redactor: Any | None = None)
     """Atomically write `<run_id>.json` (temp file + os.replace)."""
     runs_dir.mkdir(parents=True, exist_ok=True)
     path = runs_dir / f"{state.run_id}.json"
-    tmp = runs_dir / f".{state.run_id}.{uuid4().hex}.json.tmp"
     record_obj: Any = state.to_record()
     if redactor is not None:
         record_obj = redactor.redact(record_obj)
     record = json.dumps(record_obj, indent=2, ensure_ascii=False) + "\n"
-    try:
-        tmp.write_text(record, encoding="utf-8")
-        os.replace(tmp, path)
-    finally:
-        if tmp.exists():
-            tmp.unlink(missing_ok=True)
+    from readyagents.atomic import atomic_write_text
+
+    atomic_write_text(path, record, encoding="utf-8", newline="\n")
     return path
 
 

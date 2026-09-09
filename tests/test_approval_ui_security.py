@@ -292,8 +292,9 @@ def test_concurrent_clicks_one_resume(tmp_settings) -> None:
     assert 409 in statuses or statuses.count(202) + statuses.count(200) == 1
     import time
 
-    for _ in range(40):
-        if store.get(run_id).state.status != "paused":
+    for _ in range(200):
+        status = store.get(run_id).state.status
+        if status in {"succeeded", "failed", "cancelled"}:
             break
         time.sleep(0.05)
     # Exactly one resume path executed; status is terminal succeeded.

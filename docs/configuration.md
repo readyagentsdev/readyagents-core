@@ -48,7 +48,7 @@ If the node has no explicit `model:` and the default provider has no key, the en
 | --- | --- |
 | `READYAGENTS_ALLOW_HTTP` | `1` / `true` enables builtin `http_get` (still blocks private/loopback/metadata URLs) |
 | `READYAGENTS_WORKSPACE` | Optional sandbox root for `read_file` / `write_file`. If unset, file tools use the workflow file's directory. |
-| `READYAGENTS_HOME` | Artifact directory (default: `.readyagents`). Run JSON lives in `$READYAGENTS_HOME/runs/` |
+| `READYAGENTS_HOME` | Artifact directory (default: `.readyagents` under the current working directory on every OS). Run JSON lives in `$READYAGENTS_HOME/runs/`. On Windows this is still a folder next to your prompt, not `%APPDATA%`. `readyagents doctor` reports writability and whether owner-only modes are enforceable there. |
 | `READYAGENTS_LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING`, `ERROR`. Log lines include `run=` and `node=` |
 | `READYAGENTS_LOG_FORMAT` | `text` (default) or `json` |
 | `READYAGENTS_MAX_TOKENS` | Stop further LLM calls when run `total_tokens` reaches this |

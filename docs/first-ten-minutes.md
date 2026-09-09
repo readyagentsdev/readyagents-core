@@ -5,11 +5,14 @@ No API keys. Current version is **0.8.0**. The package is **not on PyPI** — in
 ## 1. Prove the engine works
 
 ```bash
+readyagents doctor
 readyagents run examples/calc_pipeline.yaml
 readyagents runs list
 readyagents runs report <run_id>
 readyagents run examples/list_dir.yaml
 ```
+
+Windows: activate with `.venv\Scripts\activate` then the same commands. Attach `readyagents doctor --json` if something fails.
 
 `calc_pipeline` and `list_dir` are builtin tools only (`calc`, `now`, `json_get`, `list_dir`). The HTML report is local. Nothing is uploaded.
 
