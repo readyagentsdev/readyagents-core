@@ -24,14 +24,24 @@ _TOOL = "tool"
 
 DETERMINISTIC_TOOLS = frozenset({"calc", "json_get", "json_set", "json_merge"})
 SEALABLE_TOOLS = frozenset({"now", "http_get", "read_file", "list_dir"})
+CORE_BUILTIN_TOOLS = DETERMINISTIC_TOOLS | SEALABLE_TOOLS | frozenset({"write_file"})
+SEAL_CLASSES = frozenset({"recomputed", "sealable", "unsealable"})
 
 
-def classify_tool(name: str) -> str:
-    """Return recomputed, sealable, or unsealable for a tool name."""
+def classify_tool(name: str, *, seals: Mapping[str, str] | None = None) -> str:
+    """Return recomputed, sealable, or unsealable for a tool name.
+
+    Builtin names always win. Pack seals apply only to unclassified names.
+    """
     if name in DETERMINISTIC_TOOLS:
         return "recomputed"
     if name in SEALABLE_TOOLS:
         return "sealable"
+    if name in CORE_BUILTIN_TOOLS:
+        return "unsealable"
+    declared = (seals or {}).get(name)
+    if declared in SEAL_CLASSES:
+        return declared
     return "unsealable"
 
 
@@ -123,6 +133,7 @@ class Cassette:
         self._record: dict[str, int] = {}
         self.blocked_nodes: set[str] = set()
         self.report = DeterminismReport()
+        self.tool_seals: dict[str, str] = {}
 
     @classmethod
     def new(cls, *, run_id: str, workflow: str, **kwargs: Any) -> Cassette:
@@ -194,7 +205,7 @@ class Cassette:
         occ = self._record.get(f"{_TOOL}:{digest}", 0)
         self._record[f"{_TOOL}:{digest}"] = occ + 1
         key = entry_storage_key(_TOOL, digest, occ)
-        klass = classify_tool(name)
+        klass = classify_tool(name, seals=self.tool_seals)
         if blocked:
             entry = {
                 "kind": _TOOL,

@@ -21,6 +21,7 @@ from readyagents.notify import post_json
 from readyagents.packs.loader import (
     collect_pack_authorizers,
     collect_pack_nodes,
+    collect_pack_seals,
     collect_pack_secrets,
     collect_pack_tools,
     discover_packs,
@@ -164,6 +165,7 @@ def run_workflow_file(
     tools.merge(collect_pack_tools(packs))
     if extra_tools:
         tools.merge(extra_tools)
+    tool_seals = collect_pack_seals(packs, extra_tools=extra_tools)
 
     pack_secrets = list(collect_pack_secrets(packs))
     if secrets is not None:
@@ -275,6 +277,7 @@ def run_workflow_file(
                 max_entry_bytes=settings.cassette_max_entry_bytes,
                 max_bytes=settings.cassette_max_bytes,
             )
+        cassette.tool_seals = dict(tool_seals)
     fallback = list(workflow.fallback_models or []) + settings.fallback_model_list()
     pause_url = workflow.on_pause_url or settings.pause_notify_url
 

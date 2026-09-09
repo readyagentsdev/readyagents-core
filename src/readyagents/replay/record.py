@@ -193,7 +193,8 @@ def dispatch_tool(
     report_node_type: str | None = None,
 ) -> Any:
     """Single tool-dispatch seam used by node tools and agent tool-calls."""
-    klass = classify_tool(name)
+    seals = cassette.tool_seals if cassette is not None else None
+    klass = classify_tool(name, seals=seals)
     if offline:
         if cassette is None:
             raise CassetteError(

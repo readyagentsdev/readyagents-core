@@ -23,6 +23,7 @@ class FunctionTool:
     description: str
     handler: Callable[..., Any]
     schema: dict[str, Any] = field(default_factory=dict)
+    determinism: str | None = None
 
     def run(self, **kwargs: Any) -> Any:
         try:

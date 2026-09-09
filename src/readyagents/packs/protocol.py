@@ -53,3 +53,7 @@ class BasePack:
     def register_authorizers(self) -> Sequence[Any]:
         """Optional RBAC hooks. Default in core is allow-all."""
         return []
+
+    def register_tool_seals(self) -> Mapping[str, str]:
+        """Optional cassette classification: recomputed / sealable / unsealable."""
+        return {}

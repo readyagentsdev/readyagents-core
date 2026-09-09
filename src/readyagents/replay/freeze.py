@@ -57,6 +57,7 @@ def freeze_run(
     copied = copy_workflow_beside(source, dest, workspace=workspace)
     case_doc = _case_yaml(
         state,
+        cassette,
         source=str(copied.name if copied is not None else Path(source).name),
         exact=exact,
     )
@@ -89,7 +90,7 @@ def _reverify(entry: dict[str, Any], redactor: Any, secrets: list[str] | None) -
     return row
 
 
-def _case_yaml(state: RunState, *, source: str, exact: bool) -> str:
+def _case_yaml(state: RunState, cassette: Cassette, *, source: str, exact: bool) -> str:
     import json
 
     name = f"frozen-{state.workflow_name}"
@@ -115,8 +116,78 @@ def _case_yaml(state: RunState, *, source: str, exact: bool) -> str:
             lines.append(
                 "    expect_contains: " + json.dumps(contains, ensure_ascii=False, default=str)
             )
+    report = cassette.report.as_dict()
+    lines.append("    expect_determinism:")
+    for bucket in ("unsealable", "misses", "sealed", "recomputed"):
+        ids = sorted(_bucket_node_ids(report, bucket))
+        lines.append(f"      {bucket}: " + json.dumps(ids))
+    nodes = [row.node_id for row in state.results]
+    lines.append("    expect_nodes: " + json.dumps(nodes))
+    tools = _tool_pins(cassette)
+    if tools:
+        lines.append("    expect_tools:")
+        for item in tools:
+            lines.append("      - name: " + json.dumps(item["name"]))
+            if "arguments" in item:
+                lines.append(
+                    "        arguments: "
+                    + json.dumps(item["arguments"], ensure_ascii=False, default=str)
+                )
+    usage_lines = _usage_pins(state)
+    if usage_lines:
+        lines.append("    expect_usage:")
+        lines.extend(usage_lines)
     lines.append("")
     return "\n".join(lines)
+
+
+def _bucket_node_ids(report: dict[str, Any], bucket: str) -> list[str]:
+    value = report.get(bucket) or []
+    if not isinstance(value, list):
+        return []
+    if bucket != "misses":
+        return [str(item) for item in value if item]
+    ids: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        nid = ""
+        if isinstance(item, dict) and item.get("node_id"):
+            nid = str(item["node_id"])
+        elif isinstance(item, str) and item:
+            nid = item
+        if nid and nid not in seen:
+            seen.add(nid)
+            ids.append(nid)
+    return ids
+
+
+def _tool_pins(cassette: Cassette) -> list[dict[str, Any]]:
+    pinned: list[dict[str, Any]] = []
+    for entry in cassette.entries.values():
+        if entry.get("kind") != "tool":
+            continue
+        name = str(entry.get("name") or "")
+        if not name:
+            continue
+        row: dict[str, Any] = {"name": name}
+        if "arguments" in entry and not entry.get("redacted_blocked"):
+            row["arguments"] = dict(entry.get("arguments") or {})
+        pinned.append(row)
+    return pinned
+
+
+def _usage_pins(state: RunState) -> list[str]:
+    import json
+
+    metrics = ("prompt_tokens", "completion_tokens", "total_tokens", "cost_micros")
+    lines: list[str] = []
+    for metric in metrics:
+        if metric not in state.usage:
+            continue
+        lines.append(
+            f"      {metric}: " + json.dumps({"max": int(state.usage[metric])})
+        )
+    return lines
 
 
 def _readme(state: RunState, *, allow_unsealed: bool, unsealable: list[str]) -> str:
@@ -131,6 +202,8 @@ def _readme(state: RunState, *, allow_unsealed: bool, unsealable: list[str]) -> 
         f"Workflow: `{state.workflow_name}`\n\n"
         f"{FREEZE_WARNING}\n"
         f"{caveat}\n"
+        "This fixture pins determinism, node order, tool rounds, and usage ceilings "
+        "when those were observed. Eval fails if they drift.\n\n"
         "Run:\n\n"
         "```bash\n"
         "readyagents eval case.yaml\n"

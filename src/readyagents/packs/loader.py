@@ -14,6 +14,7 @@ from uuid import uuid4
 from readyagents.errors import ConfigError
 from readyagents.logging import get_logger
 from readyagents.packs.protocol import Pack
+from readyagents.replay.cassette import CORE_BUILTIN_TOOLS, SEAL_CLASSES
 from readyagents.tools import ToolRegistry
 
 log = get_logger("packs")
@@ -86,6 +87,63 @@ def collect_pack_authorizers(packs: list[Pack] | None = None) -> list[Any]:
             continue
         authorizers.extend(list(fn() or []))
     return authorizers
+
+
+def collect_pack_seals(
+    packs: list[Pack] | None = None,
+    extra_tools: ToolRegistry | Sequence[Any] | None = None,
+) -> dict[str, str]:
+    """Optional cassette seals. Old packs without the method still load.
+
+    Core builtin names are ignored. First declaration wins. Invalid values
+    raise ConfigError at collect time.
+    """
+    out: dict[str, str] = {}
+    for pack in packs if packs is not None else discover_packs():
+        fn = getattr(pack, "register_tool_seals", None)
+        if callable(fn):
+            mapping = fn() or {}
+            if not isinstance(mapping, dict) and not hasattr(mapping, "items"):
+                raise ConfigError(
+                    f"Pack {getattr(pack, 'name', pack)!r} register_tool_seals "
+                    "must return a mapping"
+                )
+            for raw_name, raw_klass in dict(mapping).items():
+                _record_seal(out, str(raw_name), raw_klass)
+        for tool in pack.register_tools() or []:
+            declared = getattr(tool, "determinism", None)
+            if declared:
+                _record_seal(out, str(tool.name), declared)
+    for tool in _iter_extra_tools(extra_tools):
+        declared = getattr(tool, "determinism", None)
+        if declared:
+            _record_seal(out, str(getattr(tool, "name", "")), declared)
+    return out
+
+
+def _iter_extra_tools(extra_tools: ToolRegistry | Sequence[Any] | None) -> list[Any]:
+    if extra_tools is None:
+        return []
+    if isinstance(extra_tools, ToolRegistry):
+        return list(extra_tools.as_dict().values())
+    return list(extra_tools)
+
+
+def _record_seal(out: dict[str, str], name: str, raw_klass: Any) -> None:
+    name = name.strip()
+    if not name:
+        raise ConfigError("Tool seal name must be a non-empty string")
+    klass = str(raw_klass).strip()
+    if klass not in SEAL_CLASSES:
+        raise ConfigError(
+            f"Invalid tool seal {klass!r} for {name!r}; "
+            "expected recomputed, sealable, or unsealable"
+        )
+    if name in CORE_BUILTIN_TOOLS:
+        return
+    if name in out:
+        return
+    out[name] = klass
 
 
 def collect_pack_specs(flags: Sequence[str] | None = None, *, env: str | None = None) -> list[str]:

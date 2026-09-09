@@ -1,6 +1,7 @@
 from readyagents.packs.loader import (
     collect_pack_authorizers,
     collect_pack_nodes,
+    collect_pack_seals,
     collect_pack_secrets,
     collect_pack_specs,
     collect_pack_tools,
@@ -16,6 +17,7 @@ __all__ = [
     "Pack",
     "collect_pack_authorizers",
     "collect_pack_nodes",
+    "collect_pack_seals",
     "collect_pack_secrets",
     "collect_pack_specs",
     "collect_pack_tools",
