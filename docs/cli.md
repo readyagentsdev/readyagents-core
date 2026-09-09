@@ -126,6 +126,30 @@ Delete one local run JSON file. Requires `--yes`.
 readyagents runs delete abcdef --yes
 ```
 
+## `readyagents runs migrate`
+
+Copy JSON run records into a local SQLite file. JSON sources are never deleted or modified.
+JSON remains the default backend; this command is opt-in. SQLite is a local file, not hosted recovery.
+
+```bash
+readyagents runs migrate --from json --to sqlite
+readyagents runs migrate --from json --to sqlite --dry-run --json
+readyagents runs migrate --from json --to sqlite --on-conflict skip-identical --verify
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--from json --to sqlite` | v0.9 supports this direction only |
+| `--source PATH` | JSON runs directory (default `$READYAGENTS_HOME/runs`) |
+| `--database PATH` | SQLite file (default `$READYAGENTS_HOME/runs.sqlite3`; relative paths under `READYAGENTS_HOME`) |
+| `--on-conflict` | `error` (default) or `skip-identical` (resumable; never overwrites a different record) |
+| `--skip-invalid` | Skip unreadable JSON instead of aborting |
+| `--verify` / `--no-verify` | Re-read destination and compare records (default verify) |
+| `--dry-run` | Plan/validate without writing |
+| `--json` | Envelope `{ok, command: "runs migrate", scanned, imported, skipped, conflicts, invalid, verified}` |
+
+Exit `0` only when the selected policy succeeds. Exit `1` on config/schema/conflict/invalid/verification failure. See [run-stores.md](run-stores.md).
+
 ## `readyagents runs gc`
 
 Delete succeeded/failed/cancelled run files. **Paused** runs are kept unless `--include-paused`. Requires `--yes`. `--keep N` leaves the newest N runs.

@@ -6,16 +6,19 @@ from readyagents.config import Settings, get_settings
 from readyagents.errors import ConfigError, RunStoreConflict, RunStoreError
 from readyagents.run_store.base import RunQuery, RunStore, StoredRun
 from readyagents.run_store.json_store import JsonRunStore
+from readyagents.run_store.migrate import MigrationReport, migrate_json_to_sqlite
 from readyagents.run_store.sqlite_store import SQLiteRunStore
 
 __all__ = [
     "JsonRunStore",
+    "MigrationReport",
     "RunQuery",
     "RunStore",
     "RunStoreConflict",
     "RunStoreError",
     "SQLiteRunStore",
     "StoredRun",
+    "migrate_json_to_sqlite",
     "open_run_store",
 ]
 

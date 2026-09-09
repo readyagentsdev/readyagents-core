@@ -15,7 +15,7 @@ from rich.table import Table
 
 from readyagents import __version__
 from readyagents.config import DEFAULT_MCP_TOKEN_ENV
-from readyagents.errors import ApprovalRequired, MCPError, ReadyAgentsError
+from readyagents.errors import ApprovalRequired, ConfigError, MCPError, ReadyAgentsError
 from readyagents.logging import configure_logging
 from readyagents.packs.loader import collect_pack_specs, discover_packs, load_local_packs
 from readyagents.scaffold import TEMPLATES, create_project
@@ -29,11 +29,7 @@ from readyagents.workflow.runner import (
 from readyagents.workflow.state import (
     RunState,
     build_decisions,
-    delete_run,
-    gc_runs,
-    list_runs,
     load_decision_file,
-    load_run,
     parse_input_pairs,
 )
 
@@ -554,14 +550,18 @@ def runs_list(
 ) -> None:
     """List persisted runs (newest first)."""
     from readyagents.config import get_settings
+    from readyagents.run_store import RunQuery, open_run_store
 
     settings = get_settings()
-    found = list_runs(
-        settings.runs_dir(),
-        status=status,
-        workflow=workflow,
-        limit=limit,
-    )
+    store = open_run_store(settings)
+    try:
+        found = [
+            item.state
+            for item in store.list(RunQuery(status=status, workflow=workflow, limit=limit))
+        ]
+    finally:
+        store.close()
+    location = settings.runs_dir() if settings.run_store == "json" else settings.run_db_path()
     if as_json:
         payload = [
             {
@@ -577,9 +577,9 @@ def runs_list(
         _print_json(payload)
         return
     if not found:
-        console.print(f"No runs in {settings.runs_dir()}")
+        console.print(f"No runs in {location}")
         return
-    console.print(f"Runs in {settings.runs_dir()}")
+    console.print(f"Runs in {location}")
     for state in found:
         nodes = ",".join(r.node_id for r in state.results) or "-"
         console.print(
@@ -619,9 +619,14 @@ def runs_report(
     """Write a local HTML summary of a persisted run."""
     from readyagents.config import get_settings
     from readyagents.report import write_html_report
+    from readyagents.run_store import open_run_store
 
     try:
-        state = load_run(get_settings().runs_dir(), run_id)
+        store = open_run_store(get_settings())
+        try:
+            state = store.get(run_id, allow_prefix=True).state
+        finally:
+            store.close()
         path = dest or Path(f"{state.run_id}.html")
         written = write_html_report(state, path)
     except ReadyAgentsError as exc:
@@ -670,20 +675,127 @@ def runs_delete(
     run_id: str = typer.Argument(..., help="Run id (or unique prefix)."),
     yes: bool = typer.Option(False, "--yes", "-y", help="Do not prompt."),
 ) -> None:
-    """Delete one persisted run JSON file."""
+    """Delete one persisted run."""
     from readyagents.config import get_settings
+    from readyagents.run_store import open_run_store
 
     settings = get_settings()
+    store = open_run_store(settings)
     try:
-        state = load_run(settings.runs_dir(), run_id)
-        if not yes:
-            console.print(f"Delete run {state.run_id} ({state.status})? Pass --yes to confirm.")
-            raise typer.Exit(code=1)
-        path = delete_run(settings.runs_dir(), run_id)
-    except ReadyAgentsError as extra:
-        _fail(extra)
+        try:
+            stored = store.get(run_id, allow_prefix=True)
+            if not yes:
+                console.print(
+                    f"Delete run {stored.state.run_id} ({stored.state.status})? "
+                    "Pass --yes to confirm."
+                )
+                raise typer.Exit(code=1)
+            store.delete(run_id, allow_prefix=True)
+        except ReadyAgentsError as extra:
+            _fail(extra)
+            return
+    finally:
+        store.close()
+    console.print(f"[green]Deleted[/green] {run_id}")
+
+
+@runs_app.command("migrate")
+def runs_migrate(
+    from_backend: str = typer.Option(
+        "json",
+        "--from",
+        help="Source backend. v0.9 supports json only.",
+    ),
+    to_backend: str = typer.Option(
+        "sqlite",
+        "--to",
+        help="Destination backend. v0.9 supports sqlite only.",
+    ),
+    source: Path | None = typer.Option(
+        None,
+        "--source",
+        help="JSON runs directory (default: $READYAGENTS_HOME/runs).",
+    ),
+    database: Path | None = typer.Option(
+        None,
+        "--database",
+        help="SQLite file (default: $READYAGENTS_HOME/runs.sqlite3).",
+    ),
+    on_conflict: str = typer.Option(
+        "error",
+        "--on-conflict",
+        help="error (default) or skip-identical.",
+    ),
+    skip_invalid: bool = typer.Option(
+        False,
+        "--skip-invalid",
+        help="Skip unreadable source JSON instead of aborting.",
+    ),
+    verify: bool = typer.Option(
+        True,
+        "--verify/--no-verify",
+        help="Re-read destination and compare canonical records (default: verify).",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Plan and validate without writing the destination.",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Print the migration envelope as JSON."),
+) -> None:
+    """Copy JSON run records into a local SQLite file. Never deletes source JSON."""
+    from readyagents.config import get_settings
+    from readyagents.run_store.migrate import migrate_json_to_sqlite
+
+    from_backend = (from_backend or "").strip().lower()
+    to_backend = (to_backend or "").strip().lower()
+    policy = (on_conflict or "").strip().lower()
+    try:
+        if from_backend != "json" or to_backend != "sqlite":
+            raise ConfigError("v0.9 migration supports --from json --to sqlite only.")
+        if policy not in {"error", "skip-identical"}:
+            raise ConfigError("--on-conflict must be error or skip-identical.")
+        report = migrate_json_to_sqlite(
+            source=source,
+            database=database,
+            settings=get_settings(),
+            on_conflict=policy,  # type: ignore[arg-type]
+            skip_invalid=skip_invalid,
+            verify=verify,
+            dry_run=dry_run,
+        )
+    except ReadyAgentsError as exc:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "runs migrate",
+                    ok=False,
+                    error=type(exc).__name__,
+                    message=str(exc),
+                    scanned=0,
+                    imported=0,
+                    skipped=0,
+                    conflicts=0,
+                    invalid=0,
+                    verified=False,
+                )
+            )
+            raise typer.Exit(code=1) from exc
+        _fail(exc)
         return
-    console.print(f"[green]Deleted[/green] {path}")
+    if as_json:
+        _print_json(report.as_envelope())
+    else:
+        status = "ok" if report.ok else "failed"
+        console.print(
+            f"runs migrate {status}: scanned={report.scanned} imported={report.imported} "
+            f"skipped={report.skipped} conflicts={report.conflicts} invalid={report.invalid} "
+            f"verified={report.verified} dry_run={report.dry_run}"
+        )
+        if not report.ok and report.message:
+            err_console.print(f"[red]{report.error}:[/red] {report.message}")
+    if not report.ok:
+        raise typer.Exit(code=1)
 
 
 @runs_app.command("gc")
@@ -703,21 +815,21 @@ def runs_gc_cmd(
 ) -> None:
     """Delete old succeeded/failed/cancelled runs. Paused runs are kept unless forced."""
     from readyagents.config import get_settings
+    from readyagents.run_store import open_run_store
 
     settings = get_settings()
     if not yes:
         console.print("Pass --yes to garbage-collect matching run files.")
         raise typer.Exit(code=1)
+    store = open_run_store(settings)
     try:
-        deleted = gc_runs(
-            settings.runs_dir(),
-            statuses=status,
-            include_paused=include_paused,
-            keep=keep,
-        )
-    except ReadyAgentsError as extra:
-        _fail(extra)
-        return
+        try:
+            deleted = store.gc(statuses=status, include_paused=include_paused, keep=keep)
+        except ReadyAgentsError as extra:
+            _fail(extra)
+            return
+    finally:
+        store.close()
     console.print(f"[green]Deleted {len(deleted)} run(s)[/green]")
     for rid in deleted:
         console.print(f"  {rid}")
@@ -901,23 +1013,28 @@ def mcp_serve(
 
 def _show_run(run_id: str, *, as_json: bool = False) -> None:
     from readyagents.config import get_settings
+    from readyagents.run_store import open_run_store
 
+    store = open_run_store(get_settings())
     try:
-        state = load_run(get_settings().runs_dir(), run_id)
-    except ReadyAgentsError as exc:
-        if as_json:
-            _print_json(
-                _json_envelope(
-                    "runs show",
-                    ok=False,
-                    error=type(exc).__name__,
-                    message=str(exc),
-                    run_id=run_id,
+        try:
+            state = store.get(run_id, allow_prefix=True).state
+        except ReadyAgentsError as exc:
+            if as_json:
+                _print_json(
+                    _json_envelope(
+                        "runs show",
+                        ok=False,
+                        error=type(exc).__name__,
+                        message=str(exc),
+                        run_id=run_id,
+                    )
                 )
-            )
-            raise typer.Exit(code=1) from exc
-        _fail(exc)
-        return
+                raise typer.Exit(code=1) from exc
+            _fail(exc)
+            return
+    finally:
+        store.close()
     if as_json:
         _print_json(_json_envelope("runs show", ok=True, **state.to_record()))
         return

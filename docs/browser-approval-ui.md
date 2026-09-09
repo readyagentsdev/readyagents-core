@@ -50,6 +50,8 @@ is off.
 
 Approve and Reject confirm in a native dialog, then POST to the same decide/resume
 path as `readyagents decide` (RBAC, append-only audit, persistence).
+For concurrent local mutations (this page plus CLI/HTTP decide), optional SQLite is
+recommended; JSON remains the default ([run-stores.md](run-stores.md)).
 
 ## Tokens
 
