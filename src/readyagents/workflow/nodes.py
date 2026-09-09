@@ -19,6 +19,7 @@ from readyagents.errors import (
     CircuitOpen,
     LLMError,
     NodeError,
+    PolicyDenied,
     ReadyAgentsError,
     TemplateError,
     ToolError,
@@ -93,6 +94,9 @@ class ExecutionContext:
         offline: bool = False,
         recording: bool = False,
         cassette_secrets: list[str] | None = None,
+        policy: Any | None = None,
+        pin_digests: dict[str, str] | None = None,
+        mcp_descriptions: dict[str, str] | None = None,
     ) -> None:
         self.workflow = workflow
         self.tools = tools
@@ -122,6 +126,9 @@ class ExecutionContext:
         self.offline = offline
         self.recording = recording
         self.cassette_secrets = list(cassette_secrets or [])
+        self.policy = policy
+        self.pin_digests = dict(pin_digests or {})
+        self.mcp_descriptions = dict(mcp_descriptions or {})
         self.last_tool_rounds: list[dict[str, Any]] = []
         self._persist_lock = threading.RLock()
         self._in_flight = 0
@@ -190,10 +197,33 @@ class ExecutionContext:
             offline=self.offline,
             recording=self.recording,
             cassette_secrets=self.cassette_secrets,
+            policy=self.policy,
+            pin_digests=self.pin_digests,
+            mcp_descriptions=self.mcp_descriptions,
         )
 
 
+def _maybe_node_gate(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> None:
+    policy = getattr(ctx, "policy", None)
+    if policy is None:
+        return
+    rule = (policy.nodes or {}).get(node.id)
+    if rule is None or not rule.require_approval:
+        return
+    if ctx.decision_for(node.id) is not None:
+        return
+    from readyagents.errors import ApprovalRequired
+
+    raise ApprovalRequired(
+        node.id,
+        state.run_id,
+        f"Policy requires approval before node '{node.id}' (rule nodes.{node.id}.require_approval)",
+        state=state,
+    )
+
+
 def execute_node(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
+    _maybe_node_gate(node, state, ctx)
     kind = node.type if isinstance(node.type, str) else str(node.type)
     handler = ctx.extra_handlers.get(kind)
     if handler is not None:
@@ -292,14 +322,16 @@ def _truncate_trace(value: Any, limit: int = _TRACE_LIMIT) -> str:
     return text
 
 
-def _invoke_agent_tool(node: NodeSpec, ctx: ExecutionContext, call: ToolCall) -> Any:
+def _invoke_agent_tool(
+    node: NodeSpec, state: RunState, ctx: ExecutionContext, call: ToolCall
+) -> Any:
     name = call.name
     args = call.arguments if isinstance(call.arguments, dict) else {}
     if ctx.dry_run and name in _DRY_RUN_STUB_TOOLS:
         return f"[dry-run] {name} {args}"
     from readyagents.replay.record import dispatch_tool
 
-    return dispatch_tool(
+    result = dispatch_tool(
         cassette=ctx.cassette,
         offline=ctx.offline,
         recording=ctx.recording,
@@ -309,7 +341,25 @@ def _invoke_agent_tool(node: NodeSpec, ctx: ExecutionContext, call: ToolCall) ->
         runner=lambda: ctx.tools.get(name).run(**args),
         redactor=ctx.redactor,
         secrets=ctx.cassette_secrets,
+        ctx=ctx,
+        state=state,
+        raw_arguments=args,
     )
+    return _maybe_quarantine(ctx, name, result)
+
+
+def _maybe_quarantine(ctx: ExecutionContext, name: str, result: Any) -> Any:
+    policy = getattr(ctx, "policy", None)
+    if policy is None:
+        return result
+    _rule_id, rule = policy.tool_rule(name)
+    if rule is None or not rule.quarantine:
+        return result
+    if not isinstance(result, str):
+        return result
+    from readyagents.firewall.enforce import quarantine_text
+
+    return quarantine_text(result)
 
 
 def _agent_tool_loop(
@@ -352,7 +402,7 @@ def _agent_tool_loop(
                 tool=call.name,
             )
             try:
-                output = _invoke_agent_tool(node, ctx, call)
+                output = _invoke_agent_tool(node, state, ctx, call)
             except ToolError as exc:
                 err_text = str(exc)
                 ctx.last_tool_rounds.append(
@@ -405,6 +455,9 @@ def _complete_agent(
     messages: list[Message],
     tools: list[dict[str, Any]] | None = None,
 ) -> CompletionResult:
+    from readyagents.firewall.secrets_scan import scan_messages
+
+    scan_messages(messages, ctx.cassette_secrets, node_id=node.id)
     explicit = bool(node.model)
     primary = node.model or ctx.default_model
     candidates = model_candidates(primary, node.fallback_models, ctx.fallback_models)
@@ -537,7 +590,7 @@ def _run_tool(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
         return f"[dry-run] {name} {args}"
     from readyagents.replay.record import dispatch_tool
 
-    return dispatch_tool(
+    result = dispatch_tool(
         cassette=ctx.cassette,
         offline=ctx.offline,
         recording=ctx.recording,
@@ -547,7 +600,11 @@ def _run_tool(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
         runner=lambda: ctx.tools.get(name).run(**args),
         redactor=ctx.redactor,
         secrets=ctx.cassette_secrets,
+        ctx=ctx,
+        state=state,
+        raw_arguments=node.arguments,
     )
+    return _maybe_quarantine(ctx, name, result)
 
 
 def _run_transform(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
@@ -679,6 +736,8 @@ def execute_node_with_policy(
         except ApprovalRequired:
             raise
         except CassetteMiss:
+            raise
+        except PolicyDenied:
             raise
         except (BudgetExceeded, AuthorizationError, CircuitOpen):
             raise
@@ -1015,6 +1074,12 @@ def _run_include(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
         )
     if nested.status != "succeeded":
         raise NodeError(node.id, f"included workflow '{spec.name}' {nested.status}")
+    if any(
+        isinstance(row, dict) and row.get("trust") == "untrusted"
+        for row in (nested.provenance or {}).values()
+    ):
+        flags = state.metadata.setdefault("_child_untrusted", {})
+        flags[node.id] = True
     _clear_include_child(state, node.id)
     # Nested agents already add_usage onto ctx.usage_state (the parent run).
     # Record nested totals on this include node without rolling them up again.

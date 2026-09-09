@@ -52,9 +52,11 @@ approvals_app = typer.Typer(
     help="Foreground localhost approval UI (not a hosted dashboard).",
     no_args_is_help=True,
 )
+policy_app = typer.Typer(help="Validate and explain firewall policy files.", no_args_is_help=True)
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(runs_app, name="runs")
 app.add_typer(approvals_app, name="approvals")
+app.add_typer(policy_app, name="policy")
 
 console = Console()
 err_console = Console(stderr=True)
@@ -428,6 +430,12 @@ def run(
         help="Write a content-addressed cassette (prompts and completions). Opt-in.",
         envvar="READYAGENTS_RECORD",
     ),
+    policy: Path | None = typer.Option(
+        None,
+        "--policy",
+        help="Firewall policy file (env: READYAGENTS_POLICY).",
+        envvar="READYAGENTS_POLICY",
+    ),
 ) -> None:
     """Execute a workflow."""
     if log_level or log_format:
@@ -449,6 +457,7 @@ def run(
                 decision_file=decision_file,
                 actor=actor,
                 no_cache=no_cache,
+                policy=policy,
             )
         else:
             state = run_workflow_file(
@@ -462,6 +471,7 @@ def run(
                 actor=actor,
                 no_cache=no_cache,
                 record=record,
+                policy=policy,
             )
     except KeyboardInterrupt:
         if as_json:
@@ -509,6 +519,12 @@ def resume_cmd(
     ),
     no_cache: bool = typer.Option(False, "--no-cache"),
     pack: list[str] = typer.Option([], "--pack", help=_PACK_HELP),
+    policy: Path | None = typer.Option(
+        None,
+        "--policy",
+        help="Firewall policy file (env: READYAGENTS_POLICY).",
+        envvar="READYAGENTS_POLICY",
+    ),
 ) -> None:
     """Resume a paused or failed run from the last successful node."""
     persist = not no_persist
@@ -525,6 +541,7 @@ def resume_cmd(
             decision_file=decision_file,
             actor=actor,
             no_cache=no_cache,
+            policy=policy,
         )
     except KeyboardInterrupt:
         if as_json:
@@ -1303,6 +1320,86 @@ def mcp_probe(
     console.print(f"negotiated: {report.get('negotiated')}")
 
 
+@policy_app.command("check")
+def policy_check(
+    path: Path = typer.Argument(..., help="Policy YAML file."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Validate a firewall policy file (fail closed on errors)."""
+    from readyagents.firewall.explain import check_policy
+
+    try:
+        policy = check_policy(path)
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "policy check",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(
+            _json_envelope(
+                "policy check",
+                ok=True,
+                default=policy.default,
+                source=policy.source,
+            )
+        )
+        return
+    console.print(f"ok: {policy.source} (default={policy.default})")
+
+
+@policy_app.command("explain")
+def policy_explain(
+    workflow: Path = _WORKFLOW_ARG,
+    policy: Path | None = typer.Option(None, "--policy"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Show which tools each node may call and why."""
+    from readyagents.firewall.explain import explain_workflow
+    from readyagents.firewall.policy_file import load_resolved
+
+    try:
+        spec = load_workflow(workflow)
+        loaded = load_resolved(explicit=policy, workflow_dir=workflow.parent)
+        rows = explain_workflow(spec, loaded)
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "policy explain",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(_json_envelope("policy explain", ok=True, nodes=rows))
+        return
+    if not rows:
+        console.print("No tool nodes.")
+        return
+    table = Table(title="Policy explain")
+    table.add_column("node")
+    table.add_column("tool")
+    table.add_column("action")
+    table.add_column("rule")
+    table.add_column("reason")
+    for row in rows:
+        table.add_row(row["node"], row["tool"], row["action"], row["rule"], row["reason"])
+    console.print(table)
+
+
 def _show_run(run_id: str, *, as_json: bool = False) -> None:
     from readyagents.config import get_settings
     from readyagents.run_store import open_run_store
@@ -1348,6 +1445,8 @@ def _show_run(run_id: str, *, as_json: bool = False) -> None:
         console.print(Panel(escape(_preview(state.output_keys, limit=2000)), title="Outputs"))
     if state.inputs:
         console.print(Panel(escape(_preview(state.inputs, limit=2000)), title="Inputs"))
+    if getattr(state, "provenance", None):
+        console.print(Panel(escape(_preview(state.provenance, limit=2000)), title="Provenance"))
 
 
 def _load_extra_packs(pack_flags: list[str]) -> list[Any]:
