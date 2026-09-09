@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.11–3.14 on Linux, macOS, or Windows
 - A virtualenv (recommended)
 - Optional: an OpenAI or Anthropic API key for agent nodes
 

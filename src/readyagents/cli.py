@@ -282,6 +282,26 @@ def schema_cmd(
         _fail(extra)
 
 
+@app.command("doctor")
+def doctor_cmd(
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Print the diagnostic envelope as JSON (no tables).",
+    ),
+) -> None:
+    """Report platform, extras, workspace, permissions, loopback, and run-store. Read-only."""
+    from readyagents.doctor import format_doctor, run_doctor
+
+    report = run_doctor()
+    if as_json:
+        _print_json(report)
+    else:
+        console.print(format_doctor(report), markup=False)
+    if not report.get("ok"):
+        raise typer.Exit(code=1)
+
+
 @app.command("eval")
 def eval_cmd(
     path: Path = typer.Argument(

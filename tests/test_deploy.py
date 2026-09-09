@@ -23,12 +23,14 @@ def test_dockerfile_and_compose_exist() -> None:
     assert "readyagents" in compose
     assert "examples/calc_pipeline.yaml" in compose
     assert "smoke:" in makefile
-    assert "approval_gate.yaml" in makefile
-    assert "fanout_gate.yaml" in makefile
-    assert "include_demo.yaml" in makefile
-    assert "--dry-run" in makefile
-    assert "resume" in makefile
-    assert "make smoke" in ci
+    assert "scripts/smoke.py" in makefile
+    smoke = (ROOT / "scripts" / "smoke.py").read_text(encoding="utf-8")
+    assert "approval_gate.yaml" in smoke
+    assert "fanout_gate.yaml" in smoke
+    assert "include_demo.yaml" in smoke
+    assert "--dry-run" in smoke
+    assert "resume" in smoke
+    assert "scripts/smoke.py" in ci
 
 
 _BANNED_RUNTIME = (

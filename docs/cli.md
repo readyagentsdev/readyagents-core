@@ -34,6 +34,15 @@ Templates: `basic`, `approval`, `research` (parallel + approval), `pipeline` (de
 
 Loads YAML/JSON and validates the Pydantic schema (unique node ids, dangling `next` / edges, cycles over `next` / `then` / `else` / `edges`, required fields per type, unique parallel branch ids). Does not call tools or LLMs. `--json` prints `{ok, command, name, start, nodes}` (or `{ok: false, command, error, message}` on failure). Failure `--json` also adds an additive `problems` array of `{loc, message, file, line, column}` when positions are known. The table shows `then:` / `else:` routing, not only `next`. Human output still starts with `Invalid workflow PATH:` and, when a position is known, a caret excerpt of the offending line.
 
+## `readyagents doctor`
+
+Read-only diagnostic: platform, Python, ReadyAgents version and install location, optional extras, `READYAGENTS_HOME` writability, whether restrictive permissions are enforceable, filesystem case sensitivity, loopback bind, SQLite WAL, and the resolved run-store backend. No network, no LLM, no run record. Exit 0 if nothing is broken, 1 if a check failed. Attach `--json` output to an I-ran-this issue.
+
+```bash
+readyagents doctor
+readyagents doctor --json
+```
+
 ## `readyagents schema`
 
 Print the workflow JSON Schema 2020-12 document generated from the Pydantic models (file-format aliases `else` / `from` / `inputs`). No network, no workflow execution.

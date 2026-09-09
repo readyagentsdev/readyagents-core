@@ -20,7 +20,7 @@ We will acknowledge the report and work on a fix before any disclosure.
 
 ## Scope notes
 
-- `read_file` / `write_file` / `list_dir` are intentionally sandboxed to a workspace directory (symlinks and `..` cannot escape; writes are atomic)
+- `read_file` / `write_file` / `list_dir` are sandboxed by a single helper (`resolve_within`): both sides are fully resolved (symlinks, junctions, macOS `/tmp` → `/private/tmp`), then compared with `Path.is_relative_to` plus case-aware equality from a **runtime probe** of the root filesystem (not `sys.platform`). Windows reserved names, alternate data streams, trailing dots/spaces, UNC/`\\?\` (unless the root is one), drive-relative `C:file.txt`, and 8.3 names that resolve outside are refused. Writes are atomic (temp file in the destination dir, restrictive mode on the temp **before** `os.replace`).
 - `type: include` paths must stay under the parent workflow directory
 - `http_get` is disabled unless explicitly opted in, and even then refuses loopback, private, link-local, and metadata hosts (including after redirects)
 - `calc` is a restricted arithmetic evaluator, not Python `eval`
@@ -56,7 +56,9 @@ Do not reverse-proxy this door onto the public internet.
 
 ## Local run records
 
-JSON run files (`$READYAGENTS_HOME/runs/`) and the optional SQLite file (`$READYAGENTS_HOME/runs.sqlite3`, plus `-wal` / `-shm` companions) can contain prompts, outputs, and other workflow state. Restrict permissions on `READYAGENTS_HOME` to the operator account. ReadyAgents does **not** encrypt run records at rest.
+JSON run files (`$READYAGENTS_HOME/runs/`) and the optional SQLite file (`$READYAGENTS_HOME/runs.sqlite3`, plus `-wal` / `-shm` companions) can contain prompts, outputs, and other workflow state. ReadyAgents does **not** encrypt run records at rest.
+
+On POSIX, new run files and cache entries are created with owner-only modes (`0o600` files, `0o700` dirs) when the filesystem honours `chmod`. **On Windows those modes are not enforceable** through the standard library (`chmod` is effectively a no-op; no ACL dependency is installed). `readyagents doctor` reports `permissions_enforceable`. Do not rely on file modes alone to hide API keys or PII on Windows.
 
 Trust boundary is the local host. A privileged local process can read these files. For a consistent SQLite backup, copy the database together with `-wal` and `-shm`, or checkpoint first. Network filesystems are unsupported for SQLite (locking is not guaranteed).
 
