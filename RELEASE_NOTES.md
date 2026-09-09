@@ -1,5 +1,3 @@
-# Unreleased
-
 # ReadyAgents Core 1.0.0
 
 **Every run is reproducible, forkable, and promotable to a test.**
@@ -8,7 +6,7 @@ Persistence after every node was already there. 1.0 turns it into a time machine
 once and you can replay it exactly — offline, with no key set and nothing spent — fork it from any
 node, diff two runs to see where they parted, and freeze the whole thing into a regression test
 that `readyagents eval` runs in CI for free. Where a run cannot be made reproducible, ReadyAgents
-says so per node rather than pretending. The workflow format, the run record, the CLI contract,
+says so per node rather than pretending. Pure JSON builtins recompute on offline replay so the keyless freeze example does not need `--allow-unsealed`. The workflow format, the run record, the CLI contract,
 and the public Python API now come with a written stability promise and a deprecation policy.
 Still local, still one-shot, still bring your own keys.
 

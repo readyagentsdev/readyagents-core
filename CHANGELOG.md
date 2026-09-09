@@ -4,17 +4,6 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
-### Fixed
-
-- Pure JSON builtins (`json_get`, `json_set`, `json_merge`) are recomputed on
-  offline replay, so the keyless `calc_pipeline` freeze example does not need
-  `--allow-unsealed`.
-
-### Security
-
-- `runs diff` always applies default secret redaction and strips ANSI/control
-  sequences, even when `READYAGENTS_REDACT` is unset.
-
 ## 1.0.0 — 2026-09-09
 
 ### Added
@@ -40,6 +29,17 @@ All notable changes to ReadyAgents Core.
   Python API are covered by a published stability contract and deprecation policy.
 - The ReadyAgents `/runs` HTTP alias is not removed at 1.0; removal is restated as no earlier
   than v1.2.
+
+### Fixed
+
+- Pure JSON builtins (`json_get`, `json_set`, `json_merge`) are recomputed on
+  offline replay, so the keyless `calc_pipeline` freeze example does not need
+  `--allow-unsealed`.
+
+### Security
+
+- `runs diff` always applies default secret redaction and strips ANSI/control
+  sequences, even when `READYAGENTS_REDACT` is unset.
 
 ## 0.12.0 — 2026-09-09
 
