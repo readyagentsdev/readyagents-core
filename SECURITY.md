@@ -28,7 +28,7 @@ We will acknowledge the report and work on a fix before any disclosure.
 
 ## Optional MCP HTTP door
 
-v0.9 Streamable HTTP is an explicit foreground command (`readyagents mcp serve --transport streamable-http`). It is not started on install or import.
+v0.10 Streamable HTTP is an explicit foreground command (`readyagents mcp serve --transport streamable-http`). It is not started on install or import.
 
 - Bind is loopback-only (`127.0.0.1`). Non-loopback binds are rejected.
 - With `--auth token` (default), all `/mcp` and `/runs` requests require `Authorization: Bearer`. Token bytes are compared in constant time. Missing or wrong tokens return `401` with `WWW-Authenticate: Bearer`.
@@ -38,7 +38,9 @@ v0.9 Streamable HTTP is an explicit foreground command (`readyagents mcp serve -
 - Workspace confinement (`confine_under`), SSRF public-IP pinning, secrets/RBAC/PII hooks, append-only audit, and signed decisions still apply. Provider keys are never accepted in request JSON.
 - Cooperative cancel does not kill a blocking tool or provider call. Status stays `cancel_requested` until a safe engine point.
 
-Do not reverse-proxy this door onto the public internet in v0.9.
+MCP `tasks/update` approvals have the **same authority** as `readyagents decide` and the localhost approval UI. They travel the existing RBAC authorizer, optional HMAC (`READYAGENTS_DECISION_SECRET`), and append-only audit path. An unsigned (when a decision secret is configured) or unauthorized MCP approval is refused, audited, and leaves the run paused. Do not treat a 2026 MCP client as a weaker door.
+
+Do not reverse-proxy this door onto the public internet.
 
 ## Localhost approval UI
 

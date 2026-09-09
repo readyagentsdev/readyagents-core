@@ -4,7 +4,7 @@ MCP connectivity is not durable orchestration.
 
 This page records two public reports about gaps between MCP wiring and durable
 workflow execution, plus one design note about how modern MCP asks a question. It
-states plainly what ReadyAgents 0.9.0 does and does not do. Each verdict is about
+states plainly what ReadyAgents 0.10.0 does and does not do. Each verdict is about
 our own software only.
 
 ## LangGraph MCP surface: MCP-exposed runs remain stateless
@@ -19,7 +19,7 @@ Quote LangSmith docs:
 
 > The current LangGraph MCP implementation does not support sessions. Each `/mcp` request is stateless and independent.
 
-ReadyAgents 0.9.0: PARTIAL. We persist local workflow state and support resume/approval pauses. An explicitly started, loopback-only Streamable HTTP command now returns a durable `run_id` that can be polled, approved, or cancelled without holding the original request open. That is a local authenticated task handle, not a hosted recovery surface: stopping the command stops the listener and in-process executor. A record may remain on disk; nothing resumes it automatically. This comparison is about the MCP surface, not LangGraph's other surfaces.
+ReadyAgents 0.10.0: PARTIAL. We persist local workflow state and support resume/approval pauses. The official `io.modelcontextprotocol/tasks` extension (and the deprecated `/runs` alias) returns a durable `taskId`/`run_id` that can be polled, approved via `tasks/update`, or cancelled without holding the original request open. That is a local authenticated task handle, not a hosted recovery surface: stopping the command stops the listener and in-process executor. A record may remain on disk; nothing resumes it automatically. This comparison is about the MCP surface, not LangGraph's other surfaces.
 
 ## n8n MCP Server Trigger: a long synchronous call can lose the result, and HITL is unsupported
 
@@ -37,7 +37,7 @@ Quote the current MCP tools reference:
 
 > Executing workflows with multi-step forms or any kind of human-in-the-loop interactions isn't supported.
 
-ReadyAgents 0.9.0: PARTIAL. We checkpoint locally and have an approval node. A disconnected caller can now recover a local result by polling `GET /runs/{run_id}` after `POST /runs` returns 202, and can decide or cooperatively cancel on the same authenticated loopback door. That does not make ReadyAgents a hosted MCP Server Trigger: the door is an explicit foreground command, and process death loses the in-flight executor. n8n's instance-level `execute_workflow` already returns an execution ID immediately; this page is only about the MCP Server Trigger surface.
+ReadyAgents 0.10.0: PARTIAL. We checkpoint locally and have an approval node. A disconnected 2026 MCP client can recover a local result by polling `tasks/get` after `CreateTaskResult`, and can decide (`tasks/update`) or cooperatively cancel on the same authenticated loopback door. That does not make ReadyAgents a hosted MCP Server Trigger: the door is an explicit foreground command, and process death loses the in-flight executor. n8n's instance-level `execute_workflow` already returns an execution ID immediately; this page is only about the MCP Server Trigger surface.
 
 ## Design note: modern MCP uses retry-shaped multi-round trips
 
@@ -51,4 +51,4 @@ Quote the Python SDK:
 
 > A resolver works on every connection. For a client on a legacy connection the SDK sends it the question directly; on a 2026-07-28 connection the SDK returns the question from the call, and the client's next attempt carries the answer.
 
-This is a design note, not a competitor gap. The ask is now a stateless retry-shaped resolver; ReadyAgents sidesteps it with a persisted approval node. 0.9.0 still does not implement MRTR or protocol elicitation. Approval pause remains out-of-band persisted HITL. An Unreleased localhost approval page can list those pauses; it is not MCP elicitation.
+This is a design note, not a competitor gap. The ask is now a stateless retry-shaped resolver. ReadyAgents 0.10.0 surfaces a paused approval as `tasks/get` `input_required` and accepts `tasks/update` `inputResponses`, routed through the same signed/RBAC/audit path as `readyagents decide`. That is protocol-native HITL on a durable run record, not a hosted elicitation service. Process death still loses the in-flight executor. The localhost approval page remains an additional local door, not a substitute for MCP.

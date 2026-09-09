@@ -33,4 +33,4 @@ Child runs are `python -m readyagents run <workflow> --json ...` with `shell=Fal
 
 Webhooks may set allowlisted JSON input keys only. Static job inputs win. `path`, `actor`, `packs`, `workflow`, and `dry_run` cannot be taken from the request.
 
-Compatible with ReadyAgents Core `>=0.9.0,<0.10`. Examples live in the pack repository, not in Core.
+Compatible with ReadyAgents Core `>=0.9.0,<0.11`. Examples live in the pack repository, not in Core. Tagging Core 0.10.0 does not add a scheduler to Core.

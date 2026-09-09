@@ -12,6 +12,18 @@ All notable changes to ReadyAgents Core.
 - Optional stdlib SQLite run-store with indexed run queries, revision conflict detection, and a
   verified non-destructive `runs migrate` command. JSON files remain the default and existing
   persistence/CLI behavior is preserved.
+- MCP `2026-07-28` conformance: `server/discover`, stateless per-request `_meta` negotiation,
+  `resultType` on every result, and the official `io.modelcontextprotocol/tasks` extension implemented
+  over the existing durable run record.
+- Approval gates are now reachable over MCP as Multi Round-Trip Request `input_required` items and
+  resolvable with `tasks/update`, routed through the same signed-decision, RBAC, and audit path as
+  `readyagents decide`.
+- `readyagents mcp probe URL` reports a remote server's supported protocol revisions and extensions.
+
+### Deprecated
+
+- The ReadyAgents `/runs` HTTP extension is superseded by the official tasks extension. It continues to
+  work and is scheduled for removal no earlier than v0.12.
 
 ### Docs
 
