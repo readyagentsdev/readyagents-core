@@ -291,3 +291,16 @@ def test_relative_database_under_home(tmp_path: Path) -> None:
     report = migrate_json_to_sqlite(settings=settings, database=Path("alt.sqlite3"))
     assert report.ok is True
     assert (settings.home_path() / "alt.sqlite3").is_file()
+
+
+def test_rejects_symlink_outside_home(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    _write_run(settings.runs_dir())
+    settings.home_path().mkdir(parents=True, exist_ok=True)
+    outside = tmp_path / "outside.sqlite3"
+    outside.write_bytes(b"")
+    link = settings.home_path() / "sneaky.sqlite3"
+    link.symlink_to(outside)
+    with pytest.raises(ConfigError, match="symlink"):
+        migrate_json_to_sqlite(settings=settings, database=Path("sneaky.sqlite3"))
+    assert outside.read_bytes() == b""
