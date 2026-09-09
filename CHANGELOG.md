@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 0.10.0 — 2026-09-09
+
 ### Added
 
 - Explicit localhost browser UI for redacted pending approvals, protected by short-lived
@@ -24,6 +26,12 @@ All notable changes to ReadyAgents Core.
 
 - The ReadyAgents `/runs` HTTP extension is superseded by the official tasks extension. It continues to
   work and is scheduled for removal no earlier than v0.12.
+
+### Security
+
+- MCP `tasks/update` approvals use the same RBAC, optional HMAC, and append-only audit path as
+  `readyagents decide`. Unsigned (when `READYAGENTS_DECISION_SECRET` is set) or unauthorized MCP
+  approvals are refused and leave the run paused. Loopback-only bind and bearer auth are unchanged.
 
 ### Docs
 
