@@ -105,13 +105,7 @@ Trust boundary is the local host. A privileged local process can read these file
 
 JSON-to-SQLite migration never deletes the JSON sources. The append-only audit trail under `$READYAGENTS_HOME/audit/` is a separate JSONL log and is not imported into the run store.
 
-ReadyAgents does **not** provide encryption at rest.
-
-## Audit chain and evidence packs
-
-Hash chaining (`seq`, `prev_hash`, `entry_hash`) on `$READYAGENTS_HOME/audit/<run_id>.jsonl` is tamper-*evident*, **not** tamper-proof. A process that can rewrite the whole file can rewrite the chain. Rotation writes a `chain_anchor` carrying the previous file's final hash. Copy that anchor **off-box** if you need an independent check; a chain that lives only next to the file it attests is not an independent witness.
-
-`readyagents evidence` writes a local pack (`run.json`, `audit.jsonl`, `decisions.json`, workflow, graph, HTML). Evidence packs **contain prompts and outputs** (redaction runs at pack time; treat the directory as sensitive). They are not a certificate and they are not encrypted. See [docs/compliance.md](docs/compliance.md).
+ReadyAgents does **not** provide encryption at rest. See [docs/compliance.md](docs/compliance.md).
 
 ## Secrets in issues and PRs
 

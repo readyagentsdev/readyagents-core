@@ -21,6 +21,8 @@ All notable changes to ReadyAgents Core.
   extra is **not** in `all`, starts no collector on import, and is off unless
   `READYAGENTS_OTEL=1`. Docs claim evidence, never compliance or certification.
 
+## 1.2.1 — 2026-09-10
+
 ### Fixed
 
 - Agent tool-calls inherit taint from the calling prompt/system, so
