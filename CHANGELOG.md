@@ -19,6 +19,11 @@ All notable changes to ReadyAgents Core.
   from `BudgetExceeded` and `CircuitOpen`. Optional `tokenizer` extra is **not**
   in `all`. The provider invoice is authoritative. Without the new flags,
   behaviour is unchanged. See [docs/cost.md](docs/cost.md).
+
+## 1.3.0 — 2026-09-10
+
+### Added
+
 - **Traceability evidence.** Audit JSONL is hash-chained (`seq`, `prev_hash`,
   `entry_hash`). Chaining is tamper-evident, not tamper-proof; copy the chain
   anchor off-box if you need an independent check. `readyagents audit verify`
