@@ -34,6 +34,7 @@ dependencies = [
 openai = ["openai>=1.40"]
 anthropic = ["anthropic>=0.34"]
 mcp = ["mcp>=1.2,<3"]
+mcp2 = ["mcp>=2,<3"]
 all = ["openai>=1.40", "anthropic>=0.34", "mcp>=1.2,<3"]
 dev = [
     "pytest>=8.0",

@@ -948,6 +948,11 @@ def mcp_serve(
         "--approval-ui",
         help="Mount the localhost approval UI on this HTTP process. HTTP only.",
     ),
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Print protocol versions, extensions, and SDK pin as JSON, then serve.",
+    ),
 ) -> None:
     """Expose builtin tools (and run_workflow) over MCP stdio or Streamable HTTP."""
     mode = (transport or "stdio").strip().lower()
@@ -986,6 +991,10 @@ def mcp_serve(
                     "are only valid with --transport streamable-http"
                 )
             )
+        if as_json:
+            from readyagents.mcp.protocol import serve_json_envelope
+
+            _print_json(serve_json_envelope(transport="stdio"))
         try:
             from readyagents.mcp.server import serve_stdio
 
@@ -995,6 +1004,10 @@ def mcp_serve(
         return
     if mode != "streamable-http":
         _fail(MCPError(f"Unknown --transport '{transport}'. Use stdio or streamable-http."))
+    if as_json:
+        from readyagents.mcp.protocol import serve_json_envelope
+
+        _print_json(serve_json_envelope(transport="http"))
     try:
         from readyagents.mcp.http import serve_streamable_http
 
@@ -1007,8 +1020,43 @@ def mcp_serve(
             max_pending_runs=max_pending_runs,
             approval_ui=approval_ui,
         )
-    except ReadyAgentsError as exc:
-        _fail(exc)
+    except ReadyAgentsError as err:
+        _fail(err)
+
+
+@mcp_app.command("probe")
+def mcp_probe(
+    url: str = typer.Argument(..., help="Remote MCP HTTP origin or /mcp URL."),
+    as_json: bool = typer.Option(False, "--json", help="Print the probe envelope as JSON."),
+) -> None:
+    """Read-only diagnostic: call server/discover (then initialize). Never calls a tool."""
+    from readyagents.mcp.probe import probe_server
+
+    try:
+        report = probe_server(url)
+    except ReadyAgentsError as err:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "mcp probe",
+                    ok=False,
+                    error=type(err).__name__,
+                    message=str(err),
+                    url=url,
+                )
+            )
+        else:
+            err_console.print(f"[red]{type(err).__name__}[/red]: {err}")
+        raise typer.Exit(code=1) from err
+    if as_json:
+        _print_json(_json_envelope("mcp probe", ok=True, **report))
+        return
+    versions = ", ".join(report.get("protocol_versions") or []) or "(none)"
+    extensions = ", ".join(report.get("extensions") or []) or "(none)"
+    console.print(f"url: {report.get('url')}")
+    console.print(f"protocol_versions: {versions}")
+    console.print(f"extensions: {extensions}")
+    console.print(f"negotiated: {report.get('negotiated')}")
 
 
 def _show_run(run_id: str, *, as_json: bool = False) -> None:
