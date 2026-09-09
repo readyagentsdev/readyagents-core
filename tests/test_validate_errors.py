@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import socket
 import tarfile
 import zipfile
@@ -14,6 +15,11 @@ from readyagents.config import clear_settings_cache
 
 runner = CliRunner()
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _plain(text: str) -> str:
+    """Strip ANSI and whitespace so Rich wrapping cannot hide tokens."""
+    return re.sub(r"\s+", "", re.sub(r"\x1b\[[0-9;]*m", "", text))
 
 
 def _json_from_cli(text: str) -> dict:
@@ -156,13 +162,14 @@ def test_wheel_and_sdist_contain_schema(tmp_path: Path) -> None:
 
 def test_help_lists_schema() -> None:
     result = runner.invoke(app, ["--help"])
-    assert result.exit_code == 0
-    assert "schema" in result.stdout
+    assert result.exit_code == 0, result.stdout + result.stderr
+    assert "schema" in _plain(result.stdout)
     help_schema = runner.invoke(app, ["schema", "--help"])
-    assert help_schema.exit_code == 0
-    assert "--output" in help_schema.stdout
-    assert "--check" in help_schema.stdout
-    assert "--json" in help_schema.stdout
+    assert help_schema.exit_code == 0, help_schema.stdout + help_schema.stderr
+    text = _plain(help_schema.stdout)
+    assert "--output" in text
+    assert "--check" in text
+    assert "--json" in text
 
 
 def test_success_path_load_does_not_require_compose(
