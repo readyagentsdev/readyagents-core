@@ -4,6 +4,17 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Fixed
+
+- Agent tool-calls inherit taint from the calling prompt/system, so
+  `on_tainted` applies when the model emits literal arguments.
+- Foreach copies parent provenance and marks `item`/`index` untrusted when
+  the items source is untrusted.
+- The resolved policy path and MCP pins persist across resume/decide and
+  later runs; omitting `--policy` on resume cannot fail-open a gate.
+- `nodes.<id>.require_approval`: only approve proceeds; reject is a policy
+  deny.
+
 ## 1.2.0 — 2026-09-10
 
 ### Added
@@ -18,17 +29,6 @@ All notable changes to ReadyAgents Core.
   description pinning, egress host allowlists, and a pre-send scan that
   refuses known secrets in model requests.
 - `readyagents policy check` and `readyagents policy explain`.
-
-### Fixed
-
-- Agent tool-calls inherit taint from the calling prompt/system, so
-  `on_tainted` applies when the model emits literal arguments.
-- Foreach copies parent provenance and marks `item`/`index` untrusted when
-  the items source is untrusted.
-- The resolved policy path and MCP pins persist across resume/decide and
-  later runs; omitting `--policy` on resume cannot fail-open a gate.
-- `nodes.<id>.require_approval`: only approve proceeds; reject is a policy
-  deny.
 
 ## 1.1.0 — 2026-09-09
 
