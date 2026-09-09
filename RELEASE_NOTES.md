@@ -7,7 +7,7 @@ ReadyAgents v0.9 can expose its MCP toolkit through an explicitly started, loopb
 ## Try it (no API keys)
 
 ```bash
-git clone https://github.com/readyagents/readyagents-core.git
+git clone https://github.com/readyagentsdev/readyagents-core.git
 cd readyagents-core
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
@@ -69,7 +69,7 @@ HITL over `/runs` reuses `examples/approval_gate.yaml` (no separate async-approv
 **`readyagents` is on PyPI.** Same engine as 0.8.0. Install docs no longer say the package is missing.
 
 ```bash
-pip install readyagents
+pip install readyagentsdev
 readyagents new my-flow
 ```
 
@@ -81,7 +81,7 @@ The wheel does not ship `examples/`. Clone-and-run still uses `examples/calc_pip
 
 **Eval CLI, local packs, workspace `list_dir`, extra `new` templates, unified `--json`. Still local. No always-on. No Node.js.**
 
-0.8.0 is the engine cut after 0.7.0. Install with `pip install readyagents` or from a clone (`pip install -e .`).
+0.8.0 is the engine cut after 0.7.0. Install with `pip install readyagentsdev` or from a clone (`pip install -e .`).
 
 ## Why this release matters
 
@@ -94,7 +94,7 @@ The wheel does not ship `examples/`. Clone-and-run still uses `examples/calc_pip
 ## Try it (no API keys)
 
 ```bash
-git clone https://github.com/readyagents/readyagents-core.git
+git clone https://github.com/readyagentsdev/readyagents-core.git
 cd readyagents-core
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate

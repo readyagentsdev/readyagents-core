@@ -21,7 +21,7 @@ make smoke
 
 `make lint` is `ruff check` plus `ruff format --check`. `make smoke` is the CI keyless set (`list_dir`, `eval`, `--pack`, dry-run, resume, approval, parallel, include). `make run-example` is the three-file shortcut.
 
-GitHub CI's Ruff step matches `make lint`: `ruff check` plus `ruff format --check` on `src` and `tests` ([#32](https://github.com/readyagents/readyagents-core/pull/32)).
+GitHub CI's Ruff step matches `make lint`: `ruff check` plus `ruff format --check` on `src` and `tests` ([#32](https://github.com/readyagentsdev/readyagents-core/pull/32)).
 
 Or:
 
