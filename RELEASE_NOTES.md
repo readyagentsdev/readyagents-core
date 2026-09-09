@@ -1,10 +1,19 @@
-# ReadyAgents Core 0.9.0 (Unreleased)
+# ReadyAgents Core 0.9.0
 
 **Opt-in loopback Streamable HTTP and local task handles. Stdio unchanged. No hosted recovery.**
+
+Packs are waitlisted, not for sale.
 
 ReadyAgents v0.9 can expose its MCP toolkit through an explicitly started, loopback-only Streamable HTTP server. Long workflows may be submitted for an immediate durable run_id, then polled, approved, or cancelled without holding the original request open. The task-handle routes are a documented ReadyAgents extension; MRTR/elicitation and restart-surviving workers are not claimed. Existing stdio hosts continue to work unchanged.
 
 ## Try it (no API keys)
+
+```bash
+pip install readyagentsdev==0.9.0
+readyagents new my-flow
+```
+
+Or from a clone:
 
 ```bash
 git clone https://github.com/readyagentsdev/readyagents-core.git
