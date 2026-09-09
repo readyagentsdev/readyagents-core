@@ -32,6 +32,14 @@ _ANSI: Final = re.compile(
 _KEY_ERROR_TYPES: Final = frozenset({"extra_forbidden"})
 _DID_YOU_MEAN_CUTOFF: Final = 0.75
 _UNKNOWN_NODE: Final = re.compile(r"(?:unknown node(?: id)?|start node) '(?P<id>[^']+)'")
+_NODE_UNKNOWN_REF: Final = re.compile(
+    r"Node '(?P<node>[^']+)' references unknown node '(?P<ref>[^']+)'"
+)
+_START_MISSING: Final = re.compile(r"start node '(?P<id>[^']+)' does not exist")
+_EDGE_FROM: Final = re.compile(r"Edge from unknown node '(?P<id>[^']+)'")
+_EDGE_TO: Final = re.compile(r"Edge to unknown node '(?P<id>[^']+)'")
+_DUP_BRANCH: Final = re.compile(r"Node '(?P<node>[^']+)': duplicate parallel branch ids")
+_ROUTE_FIELDS: Final = ("next", "then", "else")
 _FREE_TEXT_FIELDS: Final = frozenset(
     {
         "prompt",
@@ -135,7 +143,12 @@ def locate_errors(
     for err in exc.errors():
         raw_loc = tuple(err.get("loc", ()))
         loc = _translate_loc(raw_loc)
-        message = _with_suggestion(str(err.get("msg") or "invalid"), loc, index, err)
+        raw_message = str(err.get("msg") or "invalid")
+        if not loc:
+            inferred = _infer_graph_loc(raw_message, index)
+            if inferred:
+                loc = inferred
+        message = _with_suggestion(raw_message, loc, index, err)
         prefer_key = str(err.get("type") or "") in _KEY_ERROR_TYPES
         pos = _resolve_position(index, loc, shown_path, prefer_key=prefer_key)
         problems.append(LocatedError(loc=loc, message=message, position=pos))
@@ -380,6 +393,93 @@ def _translate_loc(loc: tuple[Any, ...]) -> tuple[str | int, ...]:
     return tuple(out)
 
 
+def _node_index_by_id(index: _Index, node_id: str) -> int | None:
+    hits: list[int] = []
+    for loc, item in index.by_path.items():
+        if (
+            len(loc) == 3
+            and loc[0] == "nodes"
+            and loc[2] == "id"
+            and item.scalar == node_id
+            and isinstance(loc[1], int)
+        ):
+            hits.append(loc[1])
+    return hits[0] if len(hits) == 1 else None
+
+
+def _infer_graph_loc(message: str, index: _Index) -> tuple[str | int, ...] | None:
+    """Map graph-validator messages (Pydantic loc=()) onto a real file path.
+
+    Empty loc must not fall back to the document root (``name:`` at 1:1). If the
+    referencing field cannot be identified uniquely, return None.
+    """
+    match = _NODE_UNKNOWN_REF.search(message)
+    if match:
+        idx = _node_index_by_id(index, match.group("node"))
+        if idx is None:
+            return None
+        unknown = match.group("ref")
+        for field in _ROUTE_FIELDS:
+            slot = index.by_path.get(("nodes", idx, field))
+            if slot is not None and slot.scalar == unknown:
+                return ("nodes", idx, field)
+        return None
+    match = _START_MISSING.search(message)
+    if match:
+        slot = index.by_path.get(("start",))
+        if slot is not None and slot.scalar == match.group("id"):
+            return ("start",)
+        return None
+    match = _EDGE_FROM.search(message)
+    if match:
+        return _first_edge_field(index, "from", match.group("id"))
+    match = _EDGE_TO.search(message)
+    if match:
+        return _first_edge_field(index, "to", match.group("id"))
+    match = _DUP_BRANCH.search(message)
+    if match:
+        idx = _node_index_by_id(index, match.group("node"))
+        if idx is None:
+            return None
+        return ("nodes", idx, "branches")
+    if "Workflow must declare at least one node" in message:
+        if ("nodes",) in index.by_path:
+            return ("nodes",)
+        return None
+    if message.endswith("Duplicate node ids") or "Duplicate node ids" in message:
+        return _second_duplicate_id(index)
+    return None
+
+
+def _first_edge_field(index: _Index, field: str, value: str) -> tuple[str | int, ...] | None:
+    hits: list[tuple[str | int, ...]] = []
+    for loc, item in index.by_path.items():
+        if len(loc) == 3 and loc[0] == "edges" and loc[2] == field and item.scalar == value:
+            hits.append(loc)
+    if len(hits) == 1:
+        return hits[0]
+    if hits:
+        return sorted(hits, key=lambda item: (item[1] if isinstance(item[1], int) else 0,))[0]
+    return None
+
+
+def _second_duplicate_id(index: _Index) -> tuple[str | int, ...] | None:
+    groups: dict[str, list[int]] = {}
+    for loc, item in index.by_path.items():
+        if (
+            len(loc) == 3
+            and loc[0] == "nodes"
+            and loc[2] == "id"
+            and isinstance(item.scalar, str)
+            and isinstance(loc[1], int)
+        ):
+            groups.setdefault(item.scalar, []).append(loc[1])
+    dups = [sorted(idxs) for idxs in groups.values() if len(idxs) > 1]
+    if len(dups) != 1:
+        return None
+    return ("nodes", dups[0][1], "id")
+
+
 def _resolve_position(
     index: _Index,
     loc: tuple[Any, ...],
@@ -387,14 +487,14 @@ def _resolve_position(
     *,
     prefer_key: bool,
 ) -> SourcePosition | None:
+    # Never map empty loc (or a walk-up to the document root) onto ``name:`` at 1:1.
     if not loc:
-        mark = index.by_path.get((), _Indexed()).value_mark
-        return _from_mark(path, index, mark)
+        return None
     for prefix in _prefixes(loc):
         if prefix in index.ambiguous:
             return None
     current = loc
-    while True:
+    while current:
         if current in index.ambiguous:
             return None
         slot = index.by_path.get(current)
@@ -405,10 +505,11 @@ def _resolve_position(
             if not prefer_key:
                 mark = slot.value_mark or slot.key_mark
             return _from_mark(path, index, mark)
-        if not current:
-            return None
         current = current[:-1]
         prefer_key = False
+        if not current:
+            return None
+    return None
 
 
 def _prefixes(loc: tuple[Any, ...]) -> list[tuple[Any, ...]]:

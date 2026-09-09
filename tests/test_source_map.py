@@ -262,8 +262,19 @@ def test_did_you_mean_unknown_node_id(tmp_path: Path) -> None:
     assert "Invalid workflow" in top
     assert "unknown node 'publsh'" in top
     assert "did you mean" not in top
-    joined = " ".join(item.message for item in caught.value.problems)
-    assert "did you mean 'publish'" in joined
+    assert len(caught.value.problems) == 1
+    problem = caught.value.problems[0]
+    assert "did you mean 'publish'" in problem.message
+    assert problem.loc[-1] == "next"
+    assert "name" not in problem.loc
+    pos = problem.position
+    assert pos is not None
+    assert "name:" not in pos.excerpt
+    assert "publsh" in pos.excerpt
+    idx = pos.column - 1
+    assert 0 <= idx < len(pos.excerpt)
+    assert pos.excerpt[idx:].startswith("publsh")
+    assert pos.pointer[idx] == "^"
 
 
 def test_did_you_mean_not_for_unrelated_or_free_text(tmp_path: Path) -> None:
@@ -330,8 +341,53 @@ def test_unmappable_loc_has_no_position() -> None:
     except ValidationError as exc:
         problems = locate_errors(exc, "memory.yaml", source="name: x\n")
     assert problems
-    # empty nodes is a model validator on the whole document; position may be root or none
-    assert all(p.position is None or p.position.line >= 1 for p in problems)
+    for problem in problems:
+        assert problem.position is None
+
+
+def test_unknown_then_else_and_start_are_not_name(tmp_path: Path) -> None:
+    then_path = _write(
+        tmp_path / "then.yaml",
+        "name: x\n"
+        "nodes:\n"
+        "  - id: gate\n"
+        "    type: condition\n"
+        '    when: "true"\n'
+        "    then: publsh\n"
+        "    else: hold\n"
+        "  - id: hold\n"
+        "    type: transform\n"
+        "    template: y\n",
+    )
+    with pytest.raises(WorkflowError) as caught:
+        load_workflow(then_path)
+    pos = caught.value.problems[0].position
+    assert pos is not None
+    assert "name:" not in pos.excerpt
+    assert "publsh" in pos.excerpt
+    assert caught.value.problems[0].loc[-1] == "then"
+
+    start_path = _write(
+        tmp_path / "start.yaml",
+        "name: x\nstart: missing\nnodes:\n  - id: a\n    type: transform\n    template: x\n",
+    )
+    with pytest.raises(WorkflowError) as caught:
+        load_workflow(start_path)
+    pos = caught.value.problems[0].position
+    assert pos is not None
+    assert "name:" not in pos.excerpt
+    assert "missing" in pos.excerpt
+    assert caught.value.problems[0].loc == ("start",)
+
+    implicit = _write(
+        tmp_path / "implicit-start.yaml",
+        "name: x\nnodes: []\n",
+    )
+    with pytest.raises(WorkflowError) as caught:
+        load_workflow(implicit)
+    pos = caught.value.problems[0].position
+    if pos is not None:
+        assert "name:" not in pos.excerpt
 
 
 def test_yaml_parse_error_has_mark(tmp_path: Path) -> None:
