@@ -53,7 +53,21 @@ file to load. Pure builtins (`calc`, `json_get`, `json_set`, `json_merge`) are
 - **misses** — cassette lookup failed (never a live fallback)
 
 An unclassified pack tool defaults to **unsealable**. A run is never called
-deterministic just because the model part was sealed.
+deterministic just because the model part was sealed. Packs may declare
+`recomputed` / `sealable` / `unsealable` via `register_tool_seals()` or
+`FunctionTool.determinism`; core builtin names cannot be overridden. See
+[packs.md](packs.md).
+
+## Freeze fixtures as CI
+
+`runs freeze` writes those determinism buckets, the ordered node ids, recorded
+tool names (and argument subsets), and usage ceilings into `case.yaml`.
+`readyagents eval` scores the **eval replay**, not the cassette file in
+isolation. A fixture whose 40-character `expect_contains` still matches
+**fails** if `unsealable`/`misses` drift, if a pinned sealed/recomputed
+partition drifts, if node order changes, if a tool round is missing or extra,
+or if a usage metric exceeds `max`. `--allow-unsealed` pins the non-empty
+`unsealable` list instead of dropping the field. There is no LLM-as-judge.
 
 ## Security
 

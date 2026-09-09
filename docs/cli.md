@@ -67,7 +67,7 @@ readyagents eval examples/eval/fail.yaml
 readyagents eval examples/eval/pass.yaml --json
 ```
 
-The suite is YAML or JSON with a `cases:` list. Each case has `name`, `workflow` (a path relative to the suite file, or an inline workflow mapping), and optional `inputs`, `decisions`, `expect_status` (default `succeeded`), `expect_outputs`, and `expect_contains`. An empty `cases:` list is refused.
+The suite is YAML or JSON with a `cases:` list. Each case has `name`, `workflow` (a path relative to the suite file, or an inline workflow mapping), and optional `inputs`, `decisions`, `expect_status` (default `succeeded`), `expect_outputs`, and `expect_contains`. Frozen fixtures also pin optional `expect_determinism` (sets of node ids for `sealed` / `recomputed` / `unsealable` / `misses`), `expect_nodes` (ordered node ids), `expect_tools` (name plus optional argument subset), and `expect_usage` ceilings (`prompt_tokens.max` and friends). Suites that omit those keys score as they did before. An empty `cases:` list is refused.
 
 Human output is one `PASS name` / `FAIL name: reason` line per case, then `passed=N failed=M`. `--json` prints `{ok, command, passed, failed, results}` with `command` `"eval"` and `results` as `{name, passed, reason}` rows. Exit `0` if every case passes, `1` if any fail or the suite cannot be loaded. A missing suite file is `ConfigError` (exit 1), same as a missing workflow; `--json` then prints `{ok: false, command: "eval", error, message}`.
 
@@ -159,8 +159,12 @@ Read-only. First divergent node, bounded redacted output diff, usage delta.
 ## `readyagents runs freeze RUN_ID --out DIR`
 
 Write `cassette.json`, `case.yaml`, and `README.md`. Conservative assertions
-by default; `--exact` pins full outputs. Refuses unsealable nodes unless
-`--allow-unsealed`. Warns that the fixture contains recorded model content.
+by default; `--exact` pins full outputs. Also writes `expect_determinism`,
+`expect_nodes`, `expect_tools` (when the cassette recorded tool calls), and
+`expect_usage` ceilings when usage was observed. `--allow-unsealed` fixtures
+pin the non-empty `unsealable` list rather than omitting it. Refuses
+unsealable nodes unless `--allow-unsealed`. Warns that the fixture contains
+recorded model content.
 
 See [time-machine.md](time-machine.md).
 

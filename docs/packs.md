@@ -36,7 +36,17 @@ class ContinuousPack(BasePack):
 
     def register_authorizers(self):
         return []  # optional RBAC hooks; core default is allow-all
+
+    def register_tool_seals(self):
+        # Optional cassette classification. Unclassified pack/MCP tools stay
+        # unsealable. Core builtins (calc, json_*, now, http_get, read_file,
+        # list_dir, write_file) cannot be overridden.
+        return {"watch_queue": "unsealable"}
 ```
+
+`FunctionTool(..., determinism="recomputed")` is the same declaration on the
+tool. First declaration wins. Invalid values (`"sometimes"`) fail at pack
+collect time. Old packs without `register_tool_seals` still load.
 
 `register_nodes()` values should expose `type_name` and `execute(node, state, context)`.
 
