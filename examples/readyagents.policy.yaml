@@ -1,0 +1,15 @@
+# Starter firewall policy — defence in depth, not a solution to prompt injection.
+version: 1
+default: allow
+detection:
+  injection:
+    threshold: 0.7
+    on_match: gate
+tools:
+  write_file:
+    on_tainted: gate
+    paths: ["out/**", "*.txt"]
+  http_get:
+    on_tainted: deny
+  "mcp:*":
+    on_description_change: gate

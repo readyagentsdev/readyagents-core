@@ -101,6 +101,19 @@ class AuthorizationError(ReadyAgentsError):
         super().__init__(f"Actor '{who}' is not allowed to {action} '{resource}'")
 
 
+class PolicyError(ConfigError):
+    """A policy file is missing, malformed, or unreadable (fail closed)."""
+
+
+class PolicyDenied(ReadyAgentsError):
+    """The engine firewall denied a tool call."""
+
+    def __init__(self, node_id: str, message: str, *, rule: str | None = None) -> None:
+        self.node_id = node_id
+        self.rule = rule
+        super().__init__(f"Node '{node_id}': {message}")
+
+
 class StructuredOutputError(NodeError):
     """An agent node's LLM output did not match its Pydantic/JSON schema."""
 

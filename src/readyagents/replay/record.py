@@ -191,8 +191,20 @@ def dispatch_tool(
     redactor: Any = None,
     secrets: list[str] | None = None,
     report_node_type: str | None = None,
+    ctx: Any = None,
+    state: Any = None,
+    raw_arguments: Any = None,
 ) -> Any:
     """Single tool-dispatch seam used by node tools and agent tool-calls."""
+    if ctx is not None and getattr(ctx, "policy", None) is not None and state is not None:
+        _enforce_firewall(
+            ctx=ctx,
+            state=state,
+            node_id=node_id,
+            name=name,
+            arguments=dict(arguments or {}),
+            raw_arguments=raw_arguments if raw_arguments is not None else arguments,
+        )
     seals = cassette.tool_seals if cassette is not None else None
     klass = classify_tool(name, seals=seals)
     if offline:
@@ -239,6 +251,96 @@ def dispatch_tool(
         cassette_unused = classify_node_type(report_node_type)
         del cassette_unused
     return result
+
+
+def _enforce_firewall(
+    *,
+    ctx: Any,
+    state: Any,
+    node_id: str,
+    name: str,
+    arguments: dict[str, Any],
+    raw_arguments: Any,
+) -> None:
+    from readyagents.firewall.enforce import Decision, ToolRequest, apply_decision, evaluate
+
+    pin_changed, description = _pin_status(ctx, state, name, node_id)
+    decision = evaluate(
+        ToolRequest(
+            name=name,
+            arguments=arguments,
+            node_id=node_id,
+            raw_arguments=raw_arguments,
+        ),
+        state,
+        ctx.policy,
+        pin_changed=pin_changed,
+        description=description,
+    )
+    decided = None
+    decision_fn = getattr(ctx, "decision_for", None)
+    if callable(decision_fn):
+        decided = decision_fn(node_id)
+    if decision.action == "gate" and decided:
+        if str(decided).strip().lower() in {
+            "approve",
+            "approved",
+            "yes",
+            "true",
+            "accept",
+            "ok",
+        }:
+            decision = Decision(
+                action="allow",
+                rule=decision.rule,
+                reason="policy gate approved via signed decision",
+                detection=decision.detection,
+            )
+        else:
+            decision = Decision(
+                action="deny",
+                rule=decision.rule,
+                reason="policy gate rejected via signed decision",
+                detection=decision.detection,
+            )
+    if ctx.auditor is not None:
+        ctx.auditor(
+            f"policy_{decision.action}",
+            run_id=state.run_id,
+            node_id=node_id,
+            tool=name,
+            rule=decision.rule,
+            reason=decision.reason,
+            actor=getattr(ctx, "actor", None),
+        )
+    apply_decision(decision, node_id=node_id, run_id=state.run_id)
+
+
+def _pin_status(ctx: Any, state: Any, name: str, node_id: str) -> tuple[bool, str | None]:
+    description = None
+    descs = getattr(ctx, "mcp_descriptions", None) or {}
+    if name in descs:
+        description = descs[name]
+    if "." not in name:
+        return False, description
+    server = name.split(".", 1)[0]
+    current = (getattr(ctx, "pin_digests", None) or {}).get(server)
+    if not current:
+        return False, description
+    pins = dict(state.metadata.get("mcp_pins") or {})
+    stored = pins.get(server)
+    if stored is None:
+        pins[server] = current
+        state.metadata["mcp_pins"] = pins
+        return False, description
+    if stored != current:
+        decision_fn = getattr(ctx, "decision_for", None)
+        if callable(decision_fn) and decision_fn(node_id) is not None:
+            pins[server] = current
+            state.metadata["mcp_pins"] = pins
+            return False, description
+        return True, description
+    return False, description
 
 
 def first_run_hint(*, recording: bool, has_agent: bool) -> str | None:

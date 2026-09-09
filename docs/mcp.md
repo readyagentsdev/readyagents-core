@@ -22,6 +22,10 @@ pip install -e ".[mcp]"
 | `write_file` | `path`, `content` | Sandboxed to workspace |
 | `http_get` | `url` | Off until `READYAGENTS_ALLOW_HTTP=1` or `allow_http: true`; private/loopback/metadata URLs stay blocked |
 
+When a firewall policy file is present, each MCP server's tool names,
+descriptions, and schemas are hashed on first use. A later change is a
+policy event (`on_description_change`, default gate). See [policy.md](policy.md).
+
 ## List a workspace without MCP
 
 Builtin `list_dir` is Python and needs no Node.js and no MCP filesystem server:

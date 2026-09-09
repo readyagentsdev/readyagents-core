@@ -123,6 +123,7 @@ def run_workflow_file(
     record: bool | None = None,
     offline: bool = False,
     cassette_path: Path | str | None = None,
+    policy: Path | str | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     workflow = load_workflow(path)
@@ -200,6 +201,19 @@ def run_workflow_file(
         mcp = MCPClient(workflow.mcp_servers, workspace)
         tools.merge(mcp.tools())
 
+    from readyagents.firewall.policy_file import load_resolved
+
+    loaded_policy = load_resolved(explicit=policy, workflow_dir=source_path.parent)
+    pin_digests: dict[str, str] = {}
+    mcp_descriptions: dict[str, str] = {}
+    if mcp is not None:
+        from readyagents.firewall.mcp_pin import grouped_snapshots
+
+        for server, snap in grouped_snapshots(mcp.tools()).items():
+            pin_digests[server] = snap.digest
+            for tname, desc in snap.tools:
+                mcp_descriptions[tname] = desc
+
     runs_dir = settings.runs_dir()
     auditor = None
     if persist:
@@ -248,12 +262,12 @@ def run_workflow_file(
     if offline:
         want_record = False
     cassette = None
-    secret_values: list[str] = []
+    from readyagents.replay.record import known_secret_values
+
+    secret_values = known_secret_values(settings, pack_secrets or None)
     if want_record or offline:
         from readyagents.replay.cassette import Cassette
-        from readyagents.replay.record import known_secret_values
 
-        secret_values = known_secret_values(settings, pack_secrets or None)
         if offline:
             path = Path(cassette_path) if cassette_path else None
             if path is None:
@@ -319,6 +333,9 @@ def run_workflow_file(
         offline=offline,
         recording=want_record,
         cassette_secrets=secret_values,
+        policy=loaded_policy,
+        pin_digests=pin_digests,
+        mcp_descriptions=mcp_descriptions,
     )
     metadata = {
         "source": str(source_path),
@@ -421,6 +438,7 @@ def resume_run(
     no_cache: bool = False,
     cancellation: CancellationToken | None = None,
     store: Any | None = None,
+    policy: Path | str | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     owned_store = False
@@ -455,6 +473,7 @@ def resume_run(
             no_cache=no_cache,
             cancellation=cancellation,
             store=store,
+            policy=policy,
         )
     finally:
         if owned_store:

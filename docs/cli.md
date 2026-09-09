@@ -71,6 +71,17 @@ The suite is YAML or JSON with a `cases:` list. Each case has `name`, `workflow`
 
 Human output is one `PASS name` / `FAIL name: reason` line per case, then `passed=N failed=M`. `--json` prints `{ok, command, passed, failed, results}` with `command` `"eval"` and `results` as `{name, passed, reason}` rows. Exit `0` if every case passes, `1` if any fail or the suite cannot be loaded. A missing suite file is `ConfigError` (exit 1), same as a missing workflow; `--json` then prints `{ok: false, command: "eval", error, message}`.
 
+## `readyagents policy check PATH`
+
+Validate a firewall policy file. Unknown keys, bad YAML, and missing files
+fail closed (exit 1). `--json` prints `{ok, command, default, source}`.
+
+## `readyagents policy explain WORKFLOW`
+
+Show which tools each node may call and why. `--policy PATH` optional
+(resolution is `--policy`, `READYAGENTS_POLICY`, then `readyagents.policy.yaml`
+beside the workflow).
+
 ## `readyagents run PATH`
 
 ```bash
