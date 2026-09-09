@@ -68,6 +68,8 @@ readyagents run examples/approval_gate.yaml --approve gate
 # or pause, then:
 readyagents run examples/approval_gate.yaml
 readyagents resume <run_id> --approve gate
+# optional Unreleased localhost page (not a hosted dashboard):
+# readyagents approvals serve --host 127.0.0.1 --port 8766
 readyagents run examples/fanout_gate.yaml --approve gate
 readyagents run examples/include_demo.yaml
 readyagents run examples/multi_gate.yaml --approve first --approve second
@@ -124,4 +126,6 @@ readyagents validate examples/code_review.yaml
 - [Workflow syntax](workflows.md)
 - [Configuration](configuration.md)
 - [MCP toolkit](mcp.md)
+- [Localhost approval UI](browser-approval-ui.md)
+- [Packs](packs.md) / [Continuous pack](continuous-pack.md) (optional, separate distribution)
 - [CLI](cli.md)
