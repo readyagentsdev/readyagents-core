@@ -12,6 +12,7 @@ from readyagents.errors import (
     CancellationRequested,
     CassetteMiss,
     CircuitOpen,
+    PolicyDenied,
     ReadyAgentsError,
     WorkflowError,
 )
@@ -62,6 +63,9 @@ def run_workflow(
 
     if ctx.usage_state is None:
         ctx.usage_state = state
+    from readyagents.firewall.taint import seed_input_provenance
+
+    seed_input_provenance(state)
     _arm_cancellation_persist(ctx, state)
     _persist(ctx, state)
     log_event(
@@ -107,6 +111,8 @@ def run_workflow(
             except ApprovalRequired:
                 raise
             except CassetteMiss:
+                raise
+            except PolicyDenied:
                 raise
             except ReadyAgentsError:
                 _raise_if_cancelled(ctx, state)
@@ -309,7 +315,7 @@ def _execute_with_policy(node: NodeSpec, state: RunState, ctx: ExecutionContext)
     started = utc_now()
     try:
         output, attempt = execute_node_with_policy(node, state, ctx)
-    except (BudgetExceeded, AuthorizationError, CircuitOpen):
+    except (BudgetExceeded, AuthorizationError, CircuitOpen, PolicyDenied):
         state.take_node_usage()
         raise
     usage = state.take_node_usage()
@@ -326,6 +332,9 @@ def _execute_with_policy(node: NodeSpec, state: RunState, ctx: ExecutionContext)
         usage=usage,
         tool_rounds=rounds,
     )
+    from readyagents.firewall.taint import note_node_output
+
+    note_node_output(state, node, output)
 
 
 def _uses_explicit_routing(workflow: WorkflowSpec) -> bool:

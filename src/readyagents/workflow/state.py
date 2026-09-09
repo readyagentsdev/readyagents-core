@@ -48,6 +48,7 @@ class RunState:
     pending_node: str | None = None
     pending: dict[str, Any] | None = None
     usage: dict[str, int] = field(default_factory=dict)
+    provenance: dict[str, dict[str, Any]] = field(default_factory=dict)
     started_at: str = field(default_factory=utc_now)
     finished_at: str | None = None
     _last_node_usage: dict[str, int] = field(default_factory=dict, repr=False, compare=False)
@@ -188,6 +189,7 @@ class RunState:
             "metadata": _jsonable(self.metadata),
             "errors": list(self.errors),
             "usage": dict(self.usage),
+            "provenance": _jsonable(self.provenance) if self.provenance else {},
         }
 
     @classmethod
@@ -231,6 +233,11 @@ class RunState:
             pending_node=data.get("pending_node"),
             pending=pending,
             usage={str(k): int(v) for k, v in dict(data.get("usage") or {}).items()},
+            provenance={
+                str(k): dict(v)
+                for k, v in dict(data.get("provenance") or {}).items()
+                if isinstance(v, Mapping)
+            },
             started_at=str(data.get("started_at") or utc_now()),
             finished_at=data.get("finished_at"),
         )
