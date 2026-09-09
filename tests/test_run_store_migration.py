@@ -25,7 +25,6 @@ def _plain(text: str) -> str:
     return re.sub(r"\s+", "", re.sub(r"\x1b\[[0-9;]*m", "", text))
 
 
-
 def _settings(tmp_path: Path) -> Settings:
     clear_settings_cache()
     return Settings(
