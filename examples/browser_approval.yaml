@@ -1,0 +1,35 @@
+name: browser-approval
+version: "1"
+description: >
+  Keyless HITL example for the localhost approval UI.
+  YAML is a normal approval graph — no UI fields.
+  Pause:  readyagents run examples/browser_approval.yaml
+  UI:     readyagents approvals serve --host 127.0.0.1 --port 8766
+  Resume: readyagents resume <run_id> --approve gate
+  One shot: readyagents run examples/browser_approval.yaml --approve gate
+
+start: add
+nodes:
+  - id: add
+    type: tool
+    tool: calc
+    arguments:
+      expression: "19 + 23"
+    output_key: total
+    next: gate
+
+  - id: gate
+    type: approval
+    prompt: "Publish {{ total }} from the localhost approval UI?"
+    then: publish
+    else: stop
+
+  - id: publish
+    type: transform
+    template: "browser-approval ok: {{ total }}"
+    output_key: summary
+
+  - id: stop
+    type: transform
+    template: "browser-approval rejected: {{ total }}"
+    output_key: summary

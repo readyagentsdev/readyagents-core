@@ -373,6 +373,23 @@ class RunCoordinator:
             max_workers=self.max_concurrent_runs,
             thread_name_prefix="readyagents-run",
         )
+        self._store = None
+        try:
+            from readyagents.run_store import open_run_store
+
+            self._store = open_run_store(self.settings)
+        except ImportError:
+            self._store = None
+
+    def attach_store(self, store: Any) -> None:
+        self._store = store
+
+    def _load_exact(self, run_id: str) -> RunState:
+        if self._store is None:
+            return load_run_exact(self._runs_dir, run_id)
+        if not isinstance(run_id, str) or not _RUN_ID_RE.fullmatch(run_id):
+            raise HttpRequestError(f"Invalid run id: {run_id}")
+        return self._store.get(run_id, allow_prefix=False).state
 
     def shutdown(self, timeout: float = 10.0) -> None:
         self._shutdown = True
@@ -384,6 +401,12 @@ class RunCoordinator:
             except Exception:  # noqa: BLE001
                 pass
         self._executor.shutdown(wait=False, cancel_futures=True)
+        closer = getattr(self._store, "close", None)
+        if callable(closer):
+            try:
+                closer()
+            except Exception:  # noqa: BLE001
+                pass
         deadline = time.monotonic() + max(0.0, float(timeout))
         while time.monotonic() < deadline:
             with self._lock:
@@ -396,7 +419,7 @@ class RunCoordinator:
         return self._start(payload, idempotency_key=idempotency_key)
 
     def get_run(self, run_id: str) -> dict:
-        state = load_run_exact(self._runs_dir, run_id)
+        state = self._load_exact(run_id)
         return self._record_payload(state)
 
     def decide(self, run_id: str, payload: dict) -> dict:
@@ -563,6 +586,9 @@ class RunCoordinator:
             previous[2].set()
 
     def _persist(self, state: RunState) -> None:
+        if self._store is not None:
+            self._store.save(state, redactor=self._redactor)
+            return
         persist_run(state, self._runs_dir, redactor=self._redactor)
 
     def _wrap_tools(self, token: Any) -> ToolRegistry | None:
@@ -745,7 +771,7 @@ class RunCoordinator:
                 self._finish_cancelled(run_id)
                 return
             try:
-                state = load_run_exact(self._runs_dir, run_id)
+                state = self._load_exact(run_id)
             except ReadyAgentsError:
                 return
             if state.status in _TERMINAL:
@@ -767,6 +793,7 @@ class RunCoordinator:
                 authorizer=self._authorizer,
                 cancellation=token,
                 initial_state=state,
+                store=self._store,
             )
         except ApprovalRequired:
             paused = True
@@ -792,7 +819,7 @@ class RunCoordinator:
     def _decide(self, run_id: str, payload: Any) -> dict[str, Any]:
         if self._shutdown:
             raise ServiceUnavailable("run API is shutting down")
-        load_run_exact(self._runs_dir, run_id)
+        self._load_exact(run_id)
         body = _require_object(payload, what="request body")
         _check_depth(body)
         _unknown_fields(body, _DECIDE_FIELDS, what="decide request")
@@ -809,7 +836,7 @@ class RunCoordinator:
         node_id = node_id.strip()
 
         with self._run_lock(run_id):
-            state = load_run_exact(self._runs_dir, run_id)
+            state = self._load_exact(run_id)
             if state.status != "paused" or state.pending_node != node_id:
                 raise RunConflict(
                     f"Run {run_id} is not paused at node '{node_id}' "
@@ -873,6 +900,7 @@ class RunCoordinator:
                 actor=actor,
                 authorizer=self._authorizer,
                 cancellation=token,
+                store=self._store,
             )
         except ApprovalRequired:
             paused = True
@@ -894,7 +922,7 @@ class RunCoordinator:
                 self._active.discard(run_id)
 
     def _cancel(self, run_id: str, payload: Any) -> dict[str, Any]:
-        load_run_exact(self._runs_dir, run_id)
+        self._load_exact(run_id)
         if payload is None:
             body: dict[str, Any] = {}
         else:
@@ -915,7 +943,7 @@ class RunCoordinator:
         actor = actor if actor is not None else self.settings.actor
 
         with self._run_lock(run_id):
-            state = load_run_exact(self._runs_dir, run_id)
+            state = self._load_exact(run_id)
             if state.status in _TERMINAL:
                 return self._record_payload(state)
             token = self._token_for(run_id)
@@ -926,7 +954,7 @@ class RunCoordinator:
                 active = run_id in self._active
             if not active:
                 self._finish_cancelled(run_id)
-                return self._record_payload(load_run_exact(self._runs_dir, run_id))
+                return self._record_payload(self._load_exact(run_id))
             snapshot = self._record_payload(state)
             snapshot["status"] = "cancel_requested"
             return snapshot
@@ -934,7 +962,7 @@ class RunCoordinator:
     def _finish_cancelled(self, run_id: str) -> None:
         with self._run_lock(run_id):
             try:
-                state = load_run_exact(self._runs_dir, run_id)
+                state = self._load_exact(run_id)
             except ReadyAgentsError:
                 return
             if state.status in {"succeeded", "cancelled"}:
@@ -948,7 +976,7 @@ class RunCoordinator:
     def _mark_failed(self, run_id: str, message: str) -> None:
         with self._run_lock(run_id):
             try:
-                state = load_run_exact(self._runs_dir, run_id)
+                state = self._load_exact(run_id)
             except ReadyAgentsError:
                 return
             if state.status in _TERMINAL:

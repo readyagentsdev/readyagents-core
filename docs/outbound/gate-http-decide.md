@@ -9,3 +9,13 @@ readyagents run examples/approval_gate.yaml          # exit 2, paused
 ```
 
 A valid signature resumes the run (`approval_gate ok`). An unsigned or forged signature leaves the run paused.
+
+Three decide paths share resume/RBAC/audit; they are not the same door:
+
+| Path | What signs | Who listens |
+| --- | --- | --- |
+| `readyagents decide` / `resume --approve` | Nothing HTTP; local CLI | No listener |
+| ReadyAgents Gate example (`hitl_gate.py`) | HMAC-SHA256 of the raw POST body (`X-ReadyAgents-Signature`) | Optional one-shot example server only |
+| Localhost approval UI (`readyagents approvals serve`) | In-process bootstrap/session/action tokens | Explicit loopback foreground process |
+
+The CLI does **not** sign HTTP payloads. Shared HMAC helpers live in `readyagents.decisions.signing` so Gate and tests stay compatible. The UI does not relax `on_pause_url` SSRF pinning and does not accept loopback callback URLs.

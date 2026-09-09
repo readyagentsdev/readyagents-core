@@ -1,3 +1,16 @@
+# ReadyAgents Core (Unreleased)
+
+Operators can explicitly start a local ReadyAgents approval page, review paused prompts, and
+approve or reject them without copying CLI commands. The page binds only to loopback, exposes a
+minimal redacted view, and protects bootstrap and decision actions with expiring one-use tokens.
+It is not hosted, does not start automatically, and adds no frontend toolchain.
+
+```bash
+readyagents run examples/browser_approval.yaml    # exit 2
+readyagents approvals serve --host 127.0.0.1 --port 8766
+# open the stderr bootstrap URL once, then Approve or Reject
+```
+
 # ReadyAgents Core 0.9.0
 
 **Opt-in loopback Streamable HTTP and local task handles. Stdio unchanged. No hosted recovery.**

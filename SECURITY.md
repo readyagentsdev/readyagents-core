@@ -40,6 +40,18 @@ v0.9 Streamable HTTP is an explicit foreground command (`readyagents mcp serve -
 
 Do not reverse-proxy this door onto the public internet in v0.9.
 
+## Localhost approval UI
+
+`readyagents approvals serve` is an explicit foreground loopback page, not a hosted dashboard.
+
+- Bind is loopback-only. Non-loopback hosts are rejected before a socket opens.
+- A one-use bootstrap URL is printed on stderr. After one GET it 303s to `/approvals` and sets an HttpOnly `SameSite=Strict` session cookie on `/approvals`.
+- Approve/reject uses one-use HMAC action tokens bound to run id, pending node, revision, and decision. Replay, stale revision, and wrong node do not resume twice.
+- Host/Origin checks, CSP (`default-src 'none'` plus self scripts/styles), `nosniff`, `no-store`, and frame denial apply. Query strings are not written to the access log.
+- The page is a redacted view. It does not display full inputs, outputs, tool traces, or secrets.
+- Trust boundary is the local operator on that host. A privileged local process can still read loopback traffic.
+- Outbound `on_pause_url` still refuses loopback/private/metadata URLs; the UI does not add a loopback webhook exception.
+
 ## Secrets in issues and PRs
 
 Do not paste API keys, `.env`, `.env-ai`, or MCP bearer tokens into GitHub.

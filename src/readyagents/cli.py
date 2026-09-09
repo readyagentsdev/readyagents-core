@@ -45,8 +45,13 @@ app = typer.Typer(
 )
 mcp_app = typer.Typer(help="Run ReadyAgents as an MCP server.", no_args_is_help=True)
 runs_app = typer.Typer(help="Inspect persisted workflow runs.", no_args_is_help=True)
+approvals_app = typer.Typer(
+    help="Foreground localhost approval UI (not a hosted dashboard).",
+    no_args_is_help=True,
+)
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(runs_app, name="runs")
+app.add_typer(approvals_app, name="approvals")
 
 console = Console()
 err_console = Console(stderr=True)
@@ -718,6 +723,68 @@ def runs_gc_cmd(
         console.print(f"  {rid}")
 
 
+@approvals_app.command("serve")
+def approvals_serve(
+    host: str = typer.Option(
+        "127.0.0.1",
+        "--host",
+        help="Bind host. v0.9 rejects non-loopback binds.",
+    ),
+    port: int = typer.Option(
+        8766,
+        "--port",
+        min=1,
+        max=65535,
+        help="Bind port (default 8766).",
+    ),
+    token_env: str = typer.Option(
+        "READYAGENTS_APPROVAL_UI_SECRET",
+        "--token-env",
+        help="Env var holding the UI HMAC secret. Never pass the secret as a flag.",
+    ),
+    session_ttl: int = typer.Option(
+        1800,
+        "--session-ttl",
+        min=30,
+        max=86400,
+        help="Session cookie TTL in seconds (default 1800).",
+    ),
+    action_ttl: int = typer.Option(
+        300,
+        "--action-ttl",
+        min=10,
+        max=3600,
+        help="One-use action token TTL in seconds (default 300).",
+    ),
+    actor: str | None = typer.Option(
+        None,
+        "--actor",
+        envvar="READYAGENTS_ACTOR",
+        help="Actor id for RBAC checks.",
+    ),
+    no_open: bool = typer.Option(
+        True,
+        "--no-open",
+        help="Do not launch a browser (default). Print the bootstrap URL on stderr.",
+    ),
+) -> None:
+    """Foreground localhost approval page. Stops when this process stops."""
+    try:
+        from readyagents.approvals.server import serve_approvals
+
+        serve_approvals(
+            host=host,
+            port=port,
+            token_env=token_env,
+            session_ttl=float(session_ttl),
+            action_ttl=float(action_ttl),
+            actor=actor,
+            no_open=no_open,
+        )
+    except ReadyAgentsError as exc:
+        _fail(exc)
+
+
 @mcp_app.command("serve")
 def mcp_serve(
     ctx: typer.Context,
@@ -764,6 +831,11 @@ def mcp_serve(
         envvar="READYAGENTS_MCP_MAX_PENDING_RUNS",
         min=1,
     ),
+    approval_ui: bool = typer.Option(
+        False,
+        "--approval-ui",
+        help="Mount the localhost approval UI on this HTTP process. HTTP only.",
+    ),
 ) -> None:
     """Expose builtin tools (and run_workflow) over MCP stdio or Streamable HTTP."""
     mode = (transport or "stdio").strip().lower()
@@ -774,6 +846,7 @@ def mcp_serve(
         "--token-env",
         "--max-concurrent-runs",
         "--max-pending-runs",
+        "--approval-ui",
     )
     http_params = (
         "host",
@@ -782,6 +855,7 @@ def mcp_serve(
         "token_env",
         "max_concurrent_runs",
         "max_pending_runs",
+        "approval_ui",
     )
     if mode == "stdio":
         from_argv = any(
@@ -796,8 +870,8 @@ def mcp_serve(
             _fail(
                 MCPError(
                     "HTTP flags (--host, --port, --auth, --token-env, "
-                    "--max-concurrent-runs, --max-pending-runs) are only valid "
-                    "with --transport streamable-http"
+                    "--max-concurrent-runs, --max-pending-runs, --approval-ui) "
+                    "are only valid with --transport streamable-http"
                 )
             )
         try:
@@ -819,6 +893,7 @@ def mcp_serve(
             token_env=token_env,
             max_concurrent_runs=max_concurrent_runs,
             max_pending_runs=max_pending_runs,
+            approval_ui=approval_ui,
         )
     except ReadyAgentsError as exc:
         _fail(exc)

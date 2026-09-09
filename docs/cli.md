@@ -146,6 +146,27 @@ readyagents runs report <run_id>
 readyagents runs report <run_id> --out /tmp/run.html
 ```
 
+## `readyagents approvals serve`
+
+Foreground **localhost** approval page. Not a hosted dashboard. Binds only after this command; v0.9 rejects non-loopback hosts. Default `--host 127.0.0.1 --port 8766`. The bootstrap URL is printed once on **stderr**.
+
+```bash
+readyagents approvals serve
+readyagents approvals serve --host 127.0.0.1 --port 8766
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--host` | Loopback only (`127.0.0.1`, `localhost`, `::1`) |
+| `--port` | Default `8766` |
+| `--token-env` | Env var for the UI HMAC secret (default `READYAGENTS_APPROVAL_UI_SECRET`). Never a secret CLI flag. |
+| `--session-ttl` | Session cookie seconds (default 1800) |
+| `--action-ttl` | One-use action token seconds (default 300) |
+| `--actor` | Actor id for RBAC |
+| `--no-open` | Do not launch a browser (default) |
+
+See [browser-approval-ui.md](browser-approval-ui.md).
+
 ## `readyagents mcp serve`
 
 MCP server. Requires `pip install -e ".[mcp]"`. **Stdio is the default** and needs no new flag. See [mcp.md](mcp.md).
@@ -165,6 +186,7 @@ readyagents mcp serve --transport streamable-http --host 127.0.0.1 --port 8765
 | `--token-env` | Env var that holds the bearer token (default `READYAGENTS_MCP_TOKEN`). There is **no** token-value CLI flag. |
 | `--max-concurrent-runs` | In-process executor cap (default `4`). HTTP only. |
 | `--max-pending-runs` | Queue cap (default `32`); extra `POST /runs` return `429` without a record. HTTP only. |
+| `--approval-ui` | Mount the localhost approval UI on this HTTP process. HTTP only. |
 
 If `--auth token` and the env var is empty, the process generates at least 256 bits of entropy and prints the token once to stderr. It is never persisted or logged.
 

@@ -2,6 +2,14 @@
 
 All notable changes to ReadyAgents Core.
 
+## Unreleased
+
+### Added
+
+- Explicit localhost browser UI for redacted pending approvals, protected by short-lived
+  single-use tokens and the existing RBAC/audit/signed-decision path. It uses vanilla assets,
+  starts only on command, and does not relax outbound SSRF protection.
+
 ## 0.9.0 — 2026-09-09
 
 ### Added
