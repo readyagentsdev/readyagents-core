@@ -9,12 +9,14 @@ from typer.testing import CliRunner
 
 from readyagents.cli import app
 from readyagents.config import clear_settings_cache
-from readyagents.errors import PolicyDenied, PolicyError
+from readyagents.errors import ApprovalRequired, PolicyDenied, PolicyError
 from readyagents.firewall.enforce import ToolRequest, evaluate
 from readyagents.firewall.policy_file import Policy, ToolRule
+from readyagents.llm.base import ToolCall
 from readyagents.packs.protocol import BasePack
+from readyagents.testing import ScriptedLLM
 from readyagents.tools import FunctionTool
-from readyagents.workflow.runner import run_workflow_file
+from readyagents.workflow.runner import resume_run, run_workflow_file
 from readyagents.workflow.state import RunState
 
 _runner = CliRunner()
@@ -230,3 +232,193 @@ def test_policy_explain_cli(tmp_path: Path) -> None:
     result = _runner.invoke(app, ["policy", "explain", str(wf), "--policy", str(policy), "--json"])
     assert result.exit_code == 0, result.stdout
     assert "deny" in result.stdout
+
+
+def test_prompt_tainted_evaluate_denies_literal_args() -> None:
+    policy = Policy(default="allow", tools={"write_file": ToolRule(on_tainted="deny")})
+    state = RunState.start("t", {})
+    decision = evaluate(
+        ToolRequest(
+            name="write_file",
+            arguments={"path": "pwned.txt", "content": "pwned"},
+            node_id="worker",
+            prompt_tainted=True,
+        ),
+        state,
+        policy,
+    )
+    assert decision.action == "deny"
+    assert "tainted" in decision.reason
+
+
+def test_agent_on_tainted_denies_literal_tool_args(tmp_path: Path, tmp_settings) -> None:
+    """default:allow + write_file.on_tainted:deny must deny when the agent saw untrusted state."""
+    policy = tmp_path / "p.yaml"
+    policy.write_text(
+        "version: 1\ndefault: allow\ntools:\n  write_file:\n    on_tainted: deny\n  now: {}\n",
+        encoding="utf-8",
+    )
+    wf = tmp_path / "w.yaml"
+    wf.write_text(
+        "name: hijack\nnodes:\n"
+        "  - id: page\n    type: tool\n    tool: now\n    output_key: page\n    next: worker\n"
+        "  - id: worker\n    type: agent\n"
+        "    prompt: 'Follow {{page}} and write a file.'\n"
+        "    tools: [write_file]\n    output_key: answer\n",
+        encoding="utf-8",
+    )
+    target = tmp_path / "pwned.txt"
+    llm = ScriptedLLM()
+    llm.enqueue(
+        "",
+        tool_calls=[
+            ToolCall(
+                id="w1",
+                name="write_file",
+                arguments={"path": "pwned.txt", "content": "pwned"},
+            )
+        ],
+    )
+    with pytest.raises(PolicyDenied, match="tainted"):
+        run_workflow_file(wf, settings=tmp_settings, persist=False, policy=policy, llm=llm)
+    assert not target.exists()
+
+
+def test_foreach_item_taint_denies_write(tmp_path: Path, tmp_settings) -> None:
+    policy = tmp_path / "p.yaml"
+    policy.write_text(
+        "version: 1\ndefault: allow\ntools:\n  write_file:\n    on_tainted: deny\n",
+        encoding="utf-8",
+    )
+    wf = tmp_path / "w.yaml"
+    wf.write_text(
+        "name: w\nnodes:\n"
+        "  - id: stamp\n    type: tool\n    tool: now\n    output_key: ts\n    next: wrap\n"
+        "  - id: wrap\n    type: transform\n    template: '[\"{{ts}}\"]'\n"
+        "    parse_json: true\n    output_key: items\n    next: mapped\n"
+        "  - id: mapped\n    type: foreach\n    items: items\n"
+        "    body:\n      id: inner\n      type: tool\n      tool: write_file\n"
+        "      arguments: {path: 'pwned.txt', content: '{{item}}'}\n",
+        encoding="utf-8",
+    )
+    target = tmp_path / "pwned.txt"
+    with pytest.raises(PolicyDenied, match="tainted"):
+        run_workflow_file(wf, settings=tmp_settings, persist=False, policy=policy)
+    assert not target.exists()
+
+
+def test_resume_without_policy_keeps_gate(tmp_path: Path, tmp_settings) -> None:
+    policy = tmp_path / "p.yaml"
+    policy.write_text(
+        "version: 1\ndefault: allow\ntools:\n  write_file:\n    on_tainted: gate\n",
+        encoding="utf-8",
+    )
+    wf = tmp_path / "w.yaml"
+    wf.write_text(
+        "name: w\nnodes:\n"
+        "  - id: stamp\n    type: tool\n    tool: now\n    output_key: ts\n    next: out\n"
+        "  - id: out\n    type: tool\n    tool: write_file\n"
+        "    arguments: {path: 'out.txt', content: '{{ts}}'}\n",
+        encoding="utf-8",
+    )
+    target = tmp_path / "out.txt"
+    with pytest.raises(ApprovalRequired) as first:
+        run_workflow_file(wf, settings=tmp_settings, persist=True, policy=policy)
+    assert first.value.node_id == "out"
+    assert not target.exists()
+    paused = first.value.state
+    assert paused is not None
+    assert paused.metadata.get("policy")
+    with pytest.raises(ApprovalRequired) as second:
+        resume_run(first.value.run_id, settings=tmp_settings)
+    assert second.value.node_id == "out"
+    assert not target.exists()
+    state = resume_run(first.value.run_id, settings=tmp_settings, decisions={"out": "approve"})
+    assert state.status == "succeeded"
+    assert target.is_file()
+
+
+def test_resume_missing_stored_policy_fails_closed(tmp_path: Path, tmp_settings) -> None:
+    policy = tmp_path / "p.yaml"
+    policy.write_text(
+        "version: 1\ndefault: allow\ntools:\n  write_file:\n    on_tainted: gate\n",
+        encoding="utf-8",
+    )
+    wf = tmp_path / "w.yaml"
+    wf.write_text(
+        "name: w\nnodes:\n"
+        "  - id: stamp\n    type: tool\n    tool: now\n    output_key: ts\n    next: out\n"
+        "  - id: out\n    type: tool\n    tool: write_file\n"
+        "    arguments: {path: 'out.txt', content: '{{ts}}'}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ApprovalRequired) as first:
+        run_workflow_file(wf, settings=tmp_settings, persist=True, policy=policy)
+    policy.unlink()
+    with pytest.raises(PolicyError, match="Stored policy"):
+        resume_run(first.value.run_id, settings=tmp_settings)
+    assert not (tmp_path / "out.txt").exists()
+
+
+def test_decide_without_policy_flag_reloads_stored(
+    tmp_path: Path, tmp_settings, monkeypatch
+) -> None:
+    _cli_env(monkeypatch, tmp_path, tmp_settings)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "p.yaml").write_text(
+        "version: 1\ndefault: allow\ntools:\n  write_file:\n    on_tainted: gate\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "w.yaml").write_text(
+        "name: w\nnodes:\n"
+        "  - id: stamp\n    type: tool\n    tool: now\n    output_key: ts\n    next: out\n"
+        "  - id: out\n    type: tool\n    tool: write_file\n"
+        "    arguments: {path: 'out.txt', content: '{{ts}}'}\n",
+        encoding="utf-8",
+    )
+    paused = _runner.invoke(app, ["run", "w.yaml", "--policy", "p.yaml", "--json"])
+    assert paused.exit_code == 2, paused.stdout + paused.stderr
+    import json
+
+    payload = json.loads(paused.stdout[paused.stdout.find("{") :])
+    run_id = payload["run_id"]
+    assert not (tmp_path / "out.txt").exists()
+    still = _runner.invoke(app, ["resume", run_id, "--json"])
+    assert still.exit_code == 2, still.stdout + still.stderr
+    decided = _runner.invoke(
+        app, ["decide", run_id, "--node", "out", "--decision", "approve", "--json"]
+    )
+    assert decided.exit_code == 0, decided.stdout + decided.stderr
+    done = json.loads(decided.stdout[decided.stdout.find("{") :])
+    assert done["status"] == "succeeded"
+    assert (tmp_path / "out.txt").is_file()
+
+
+def test_require_approval_reject_denies(tmp_path: Path, tmp_settings) -> None:
+    policy = tmp_path / "p.yaml"
+    policy.write_text(
+        "version: 1\ndefault: allow\nnodes:\n  n:\n    require_approval: true\n",
+        encoding="utf-8",
+    )
+    wf = tmp_path / "w.yaml"
+    wf.write_text(
+        "name: w\nnodes:\n  - id: n\n    type: tool\n    tool: calc\n"
+        "    arguments: {expression: '1+1'}\n    output_key: total\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ApprovalRequired) as paused:
+        run_workflow_file(wf, settings=tmp_settings, persist=True, policy=policy)
+    assert paused.value.node_id == "n"
+    with pytest.raises(PolicyDenied, match="require_approval") as denied:
+        run_workflow_file(
+            wf, settings=tmp_settings, persist=False, policy=policy, decisions={"n": "reject"}
+        )
+    assert denied.value.node_id == "n"
+    assert getattr(denied.value.state, "status", None) != "succeeded"
+    with pytest.raises(PolicyDenied, match="require_approval"):
+        resume_run(paused.value.run_id, settings=tmp_settings, decisions={"n": "reject"})
+    state = run_workflow_file(
+        wf, settings=tmp_settings, persist=False, policy=policy, decisions={"n": "approve"}
+    )
+    assert state.status == "succeeded"
+    assert state.output_keys["total"] == 2

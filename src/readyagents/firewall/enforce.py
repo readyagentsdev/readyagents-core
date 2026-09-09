@@ -23,6 +23,7 @@ class ToolRequest:
     arguments: dict[str, Any]
     node_id: str
     raw_arguments: Any = None
+    prompt_tainted: bool = False
 
 
 @dataclass(frozen=True)
@@ -45,7 +46,7 @@ def evaluate(
     if policy is None:
         return Decision(action="allow", rule="none", reason="no policy file")
     rule_id, rule = policy.tool_rule(call.name)
-    tainted = arguments_tainted(
+    tainted = bool(call.prompt_tainted) or arguments_tainted(
         state, call.raw_arguments if call.raw_arguments is not None else call.arguments
     )
     if policy.default == "deny" and rule is None:

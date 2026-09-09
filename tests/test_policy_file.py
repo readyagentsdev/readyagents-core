@@ -62,6 +62,29 @@ def test_explicit_wins_over_env(tmp_path: Path) -> None:
     assert loaded.default == "allow"
 
 
+def test_stored_policy_used_when_no_explicit_or_env(tmp_path: Path) -> None:
+    stored = tmp_path / "stored.yaml"
+    stored.write_text("version: 1\ndefault: deny\n", encoding="utf-8")
+    loaded = load_resolved(stored=stored, env={})
+    assert loaded is not None
+    assert loaded.default == "deny"
+
+
+def test_stored_policy_missing_fails_closed(tmp_path: Path) -> None:
+    with pytest.raises(PolicyError, match="Stored policy"):
+        load_resolved(stored=tmp_path / "gone.yaml", env={})
+
+
+def test_explicit_wins_over_stored(tmp_path: Path) -> None:
+    a = tmp_path / "a.yaml"
+    b = tmp_path / "b.yaml"
+    a.write_text("version: 1\ndefault: allow\n", encoding="utf-8")
+    b.write_text("version: 1\ndefault: deny\n", encoding="utf-8")
+    loaded = load_resolved(explicit=a, stored=b, env={})
+    assert loaded is not None
+    assert loaded.default == "allow"
+
+
 def test_policy_check_cli(tmp_path: Path) -> None:
     path = tmp_path / "p.yaml"
     path.write_text("version: 1\ndefault: allow\n", encoding="utf-8")

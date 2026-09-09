@@ -104,6 +104,37 @@ def arguments_tainted(state: RunState, arguments: Any) -> bool:
     return False
 
 
+def prompt_tainted(state: RunState, prompt: str, system: str | None = None) -> bool:
+    """True when an agent prompt/system interpolates untrusted state."""
+    blob = f"{prompt or ''}\n{system or ''}"
+    return provenance_for_template(state, blob, node_id=None).trust == UNTRUSTED
+
+
+def seed_foreach_item_provenance(
+    parent: RunState,
+    child: RunState,
+    *,
+    items_expr: str,
+    node_id: str,
+) -> None:
+    """Copy parent taint onto a foreach child; untrust item/index from untrusted items."""
+    child.provenance = dict(parent.provenance)
+    roots = template_roots(items_expr)
+    if not roots:
+        root = (items_expr or "").split(".", 1)[0].strip()
+        if root:
+            roots = [root]
+    source_untrusted = any(provenance_of(parent, root).trust == UNTRUSTED for root in roots)
+    if source_untrusted:
+        item_prov = untrusted(source="foreach", node_id=node_id, detail="item")
+        index_prov = untrusted(source="foreach", node_id=node_id, detail="index")
+    else:
+        item_prov = trusted(source="foreach", node_id=node_id, detail="item")
+        index_prov = trusted(source="foreach", node_id=node_id, detail="index")
+    set_provenance(child, "item", item_prov)
+    set_provenance(child, "index", index_prov)
+
+
 def provenance_for_template(state: RunState, template: str, *, node_id: str | None) -> Provenance:
     parts = [provenance_of(state, root) for root in template_roots(template)]
     return merge(parts, node_id=node_id)

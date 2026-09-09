@@ -110,6 +110,7 @@ readyagents run examples/research_brief.yaml --no-persist
 | `--no-cache` | Skip the local LLM response cache |
 | `--pack PATH` | Load a local pack `.py` (repeatable). Confined to the workspace. Env: `READYAGENTS_PACK` |
 | `--record` | Write a cassette under `$READYAGENTS_HOME/cassettes/` (opt-in; also `READYAGENTS_RECORD=1`) |
+| `--policy PATH` | Firewall policy file (`READYAGENTS_POLICY`). Stored on the run and reloaded on resume/decide. |
 
 Exit code `1` on validation or execution errors, including a missing workflow file (`ConfigError`). Exit code `2` is reserved for an **approval** node pausing for a decision. The CLI prints `ErrorClass: message` rather than a full traceback. Logs include `run=<id>` and `node=<id>`.
 
@@ -119,7 +120,7 @@ State is persisted after **each** successful node (unless `--no-persist`).
 
 ## `readyagents resume RUN_ID`
 
-Resume a paused or failed run from the last successful node. Uses the workflow path stored on the run record.
+Resume a paused or failed run from the last successful node. Uses the workflow path stored on the run record. A policy that was in force for the run is reloaded even if `--policy` is omitted.
 
 ```bash
 readyagents resume abcdef --approve gate

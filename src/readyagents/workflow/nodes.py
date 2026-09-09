@@ -97,6 +97,7 @@ class ExecutionContext:
         policy: Any | None = None,
         pin_digests: dict[str, str] | None = None,
         mcp_descriptions: dict[str, str] | None = None,
+        pin_home: Path | None = None,
     ) -> None:
         self.workflow = workflow
         self.tools = tools
@@ -129,6 +130,7 @@ class ExecutionContext:
         self.policy = policy
         self.pin_digests = dict(pin_digests or {})
         self.mcp_descriptions = dict(mcp_descriptions or {})
+        self.pin_home = Path(pin_home) if pin_home else None
         self.last_tool_rounds: list[dict[str, Any]] = []
         self._persist_lock = threading.RLock()
         self._in_flight = 0
@@ -200,6 +202,7 @@ class ExecutionContext:
             policy=self.policy,
             pin_digests=self.pin_digests,
             mcp_descriptions=self.mcp_descriptions,
+            pin_home=self.pin_home,
         )
 
 
@@ -210,15 +213,24 @@ def _maybe_node_gate(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> 
     rule = (policy.nodes or {}).get(node.id)
     if rule is None or not rule.require_approval:
         return
-    if ctx.decision_for(node.id) is not None:
-        return
-    from readyagents.errors import ApprovalRequired
+    raw = ctx.decision_for(node.id)
+    if raw is None:
+        from readyagents.errors import ApprovalRequired
 
-    raise ApprovalRequired(
+        raise ApprovalRequired(
+            node.id,
+            state.run_id,
+            f"Policy requires approval before node '{node.id}' "
+            f"(rule nodes.{node.id}.require_approval)",
+            state=state,
+        )
+    if raw in _APPROVE_VALUES:
+        return
+    raise PolicyDenied(
         node.id,
-        state.run_id,
-        f"Policy requires approval before node '{node.id}' (rule nodes.{node.id}.require_approval)",
-        state=state,
+        f"Policy requires approval before node '{node.id}' was not granted "
+        f"(rule nodes.{node.id}.require_approval)",
+        rule=f"nodes.{node.id}.require_approval",
     )
 
 
@@ -329,6 +341,7 @@ def _invoke_agent_tool(
     args = call.arguments if isinstance(call.arguments, dict) else {}
     if ctx.dry_run and name in _DRY_RUN_STUB_TOOLS:
         return f"[dry-run] {name} {args}"
+    from readyagents.firewall.taint import prompt_tainted as agent_prompt_tainted
     from readyagents.replay.record import dispatch_tool
 
     result = dispatch_tool(
@@ -344,6 +357,7 @@ def _invoke_agent_tool(
         ctx=ctx,
         state=state,
         raw_arguments=args,
+        prompt_tainted=agent_prompt_tainted(state, node.prompt or "", node.system),
     )
     return _maybe_quarantine(ctx, name, result)
 
@@ -836,6 +850,8 @@ def _run_foreach(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> list
         if isinstance(row, dict) and row.get("status") == "ok":
             outputs.append(row.get("output"))
     start = len(outputs)
+    from readyagents.firewall.taint import seed_foreach_item_provenance
+
     for index, item in enumerate(items):
         if index < start:
             continue
@@ -851,6 +867,7 @@ def _run_foreach(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> list
         child.output_keys["item"] = item
         child.node_outputs["index"] = index
         child.output_keys["index"] = index
+        seed_foreach_item_provenance(state, child, items_expr=node.items or "", node_id=node.id)
         item_ctx = ctx
         prev_rounds = item_ctx.last_tool_rounds
         item_ctx.last_tool_rounds = []

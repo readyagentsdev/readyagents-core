@@ -23,8 +23,9 @@ pip install -e ".[mcp]"
 | `http_get` | `url` | Off until `READYAGENTS_ALLOW_HTTP=1` or `allow_http: true`; private/loopback/metadata URLs stay blocked |
 
 When a firewall policy file is present, each MCP server's tool names,
-descriptions, and schemas are hashed on first use. A later change is a
-policy event (`on_description_change`, default gate). See [policy.md](policy.md).
+descriptions, and schemas are hashed on first use and stored under
+`$READYAGENTS_HOME/mcp-pins/`. A later change — including on a fresh run — is
+a policy event (`on_description_change`, default gate). See [policy.md](policy.md).
 
 ## List a workspace without MCP
 

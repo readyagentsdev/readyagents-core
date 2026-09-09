@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+_SAFE_SERVER = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 @dataclass(frozen=True)
@@ -42,3 +46,35 @@ def grouped_snapshots(tools: Mapping[str, Any]) -> dict[str, PinSnapshot]:
         server = name.split(".", 1)[0] if "." in name else name
         buckets.setdefault(server, {})[name] = tool
     return {server: snapshot_tools(server, group) for server, group in buckets.items()}
+
+
+def pin_path(home: Path, server: str) -> Path:
+    name = server if _SAFE_SERVER.fullmatch(server) else hashlib.sha256(server.encode()).hexdigest()
+    return Path(home) / "mcp-pins" / f"{name}.json"
+
+
+def load_pin_digest(home: Path | None, server: str) -> str | None:
+    """Return a stored digest, ``None`` on first use, or ``''`` if the pin file is corrupt."""
+    if home is None:
+        return None
+    path = pin_path(Path(home), server)
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return ""
+    if isinstance(data, dict):
+        digest = data.get("digest")
+        if isinstance(digest, str) and digest:
+            return digest
+    return ""
+
+
+def store_pin_digest(home: Path | None, server: str, digest: str) -> None:
+    if home is None or not server or not digest:
+        return
+    from readyagents.atomic import atomic_write_text
+
+    payload = json.dumps({"server": server, "digest": digest}, sort_keys=True, ensure_ascii=False)
+    atomic_write_text(pin_path(Path(home), server), payload + "\n", encoding="utf-8", newline="\n")

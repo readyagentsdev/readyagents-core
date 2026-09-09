@@ -4,8 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from readyagents.firewall.taint import provenance_of
+from readyagents.firewall.taint import (
+    prompt_tainted,
+    provenance_of,
+    seed_foreach_item_provenance,
+    untrusted,
+)
 from readyagents.workflow.runner import run_workflow_file
+from readyagents.workflow.state import RunState
 
 
 def _write(path: Path, text: str) -> Path:
@@ -95,3 +101,20 @@ def test_include_propagates(tmp_path: Path, tmp_settings) -> None:
     )
     state = run_workflow_file(wf, settings=tmp_settings, persist=False)
     assert state.status == "succeeded"
+
+
+def test_prompt_tainted_when_template_root_is_untrusted() -> None:
+    state = RunState.start("t", {"page": "hi"})
+    state.provenance["page"] = untrusted(source="tool:now", node_id="page").as_dict()
+    assert prompt_tainted(state, "Follow {{page}}", None) is True
+    assert prompt_tainted(state, "hello", None) is False
+
+
+def test_foreach_child_marks_item_untrusted_from_untrusted_items() -> None:
+    parent = RunState.start("t", {})
+    parent.provenance["items"] = untrusted(source="tool:now", node_id="wrap").as_dict()
+    child = RunState.start("t", {"item": "x", "index": 0})
+    seed_foreach_item_provenance(parent, child, items_expr="items", node_id="mapped")
+    assert provenance_of(child, "item").trust == "untrusted"
+    assert provenance_of(child, "index").trust == "untrusted"
+    assert provenance_of(child, "items").trust == "untrusted"

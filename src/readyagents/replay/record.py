@@ -194,6 +194,7 @@ def dispatch_tool(
     ctx: Any = None,
     state: Any = None,
     raw_arguments: Any = None,
+    prompt_tainted: bool = False,
 ) -> Any:
     """Single tool-dispatch seam used by node tools and agent tool-calls."""
     if ctx is not None and getattr(ctx, "policy", None) is not None and state is not None:
@@ -204,6 +205,7 @@ def dispatch_tool(
             name=name,
             arguments=dict(arguments or {}),
             raw_arguments=raw_arguments if raw_arguments is not None else arguments,
+            prompt_tainted=prompt_tainted,
         )
     seals = cassette.tool_seals if cassette is not None else None
     klass = classify_tool(name, seals=seals)
@@ -261,6 +263,7 @@ def _enforce_firewall(
     name: str,
     arguments: dict[str, Any],
     raw_arguments: Any,
+    prompt_tainted: bool = False,
 ) -> None:
     from readyagents.firewall.enforce import Decision, ToolRequest, apply_decision, evaluate
 
@@ -271,6 +274,7 @@ def _enforce_firewall(
             arguments=arguments,
             node_id=node_id,
             raw_arguments=raw_arguments,
+            prompt_tainted=prompt_tainted,
         ),
         state,
         ctx.policy,
@@ -316,6 +320,9 @@ def _enforce_firewall(
     apply_decision(decision, node_id=node_id, run_id=state.run_id)
 
 
+_PIN_APPROVE = {"approve", "approved", "yes", "true", "accept", "ok"}
+
+
 def _pin_status(ctx: Any, state: Any, name: str, node_id: str) -> tuple[bool, str | None]:
     description = None
     descs = getattr(ctx, "mcp_descriptions", None) or {}
@@ -327,19 +334,30 @@ def _pin_status(ctx: Any, state: Any, name: str, node_id: str) -> tuple[bool, st
     current = (getattr(ctx, "pin_digests", None) or {}).get(server)
     if not current:
         return False, description
+    from readyagents.firewall.mcp_pin import load_pin_digest, store_pin_digest
+
+    pin_home = getattr(ctx, "pin_home", None)
     pins = dict(state.metadata.get("mcp_pins") or {})
-    stored = pins.get(server)
+    stored_run = pins.get(server)
+    stored_file = load_pin_digest(pin_home, server)
+    stored = stored_run if stored_run is not None else stored_file
     if stored is None:
         pins[server] = current
         state.metadata["mcp_pins"] = pins
+        store_pin_digest(pin_home, server, current)
         return False, description
     if stored != current:
         decision_fn = getattr(ctx, "decision_for", None)
-        if callable(decision_fn) and decision_fn(node_id) is not None:
+        decided = decision_fn(node_id) if callable(decision_fn) else None
+        if str(decided or "").strip().lower() in _PIN_APPROVE:
             pins[server] = current
             state.metadata["mcp_pins"] = pins
+            store_pin_digest(pin_home, server, current)
             return False, description
         return True, description
+    if stored_run is None:
+        pins[server] = current
+        state.metadata["mcp_pins"] = pins
     return False, description
 
 

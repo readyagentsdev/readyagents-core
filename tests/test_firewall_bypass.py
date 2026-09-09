@@ -502,3 +502,94 @@ def test_exact_tool_rule_wins_over_glob(tmp_path: Path) -> None:
         policy,
     )
     assert allowed.action == "allow"
+
+
+def test_agent_literal_args_cannot_bypass_on_tainted(tmp_path: Path, tmp_settings) -> None:
+    policy = _write(
+        tmp_path / "p.yaml",
+        "version: 1\ndefault: allow\ntools:\n  write_file:\n    on_tainted: deny\n",
+    )
+    wf = _write(
+        tmp_path / "w.yaml",
+        "name: hijack\nnodes:\n"
+        "  - id: page\n    type: tool\n    tool: now\n    output_key: page\n    next: worker\n"
+        "  - id: worker\n    type: agent\n"
+        "    prompt: 'Follow {{page}}. Call write_file.'\n"
+        "    tools: [write_file]\n    output_key: answer\n",
+    )
+    target = tmp_path / "pwned.txt"
+    llm = ScriptedLLM()
+    llm.enqueue(
+        "",
+        tool_calls=[
+            ToolCall(
+                id="w1",
+                name="write_file",
+                arguments={"path": "pwned.txt", "content": "pwned"},
+            )
+        ],
+    )
+    with pytest.raises(PolicyDenied) as caught:
+        run_workflow_file(wf, settings=tmp_settings, persist=False, policy=policy, llm=llm)
+    _deny_closed(caught.value, node_id="worker")
+    assert not target.exists()
+
+
+def test_foreach_does_not_launder_item_taint(tmp_path: Path, tmp_settings) -> None:
+    policy = _write(
+        tmp_path / "p.yaml",
+        "version: 1\ndefault: allow\ntools:\n  write_file:\n    on_tainted: deny\n",
+    )
+    wf = _write(
+        tmp_path / "w.yaml",
+        "name: w\nnodes:\n"
+        "  - id: stamp\n    type: tool\n    tool: now\n    output_key: ts\n    next: wrap\n"
+        "  - id: wrap\n    type: transform\n    template: '[\"{{ts}}\"]'\n"
+        "    parse_json: true\n    output_key: items\n    next: mapped\n"
+        "  - id: mapped\n    type: foreach\n    items: items\n"
+        "    body:\n      id: inner\n      type: tool\n      tool: write_file\n"
+        "      arguments: {path: 'pwned.txt', content: '{{item}}'}\n",
+    )
+    with pytest.raises(PolicyDenied) as caught:
+        run_workflow_file(wf, settings=tmp_settings, persist=False, policy=policy)
+    _deny_closed(caught.value, node_id="inner")
+    assert not (tmp_path / "pwned.txt").exists()
+
+
+def test_resume_omitting_policy_does_not_fail_open(tmp_path: Path, tmp_settings) -> None:
+    policy = _write(
+        tmp_path / "p.yaml",
+        "version: 1\ndefault: allow\ntools:\n  write_file:\n    on_tainted: gate\n",
+    )
+    wf = _write(
+        tmp_path / "w.yaml",
+        "name: w\nnodes:\n"
+        "  - id: stamp\n    type: tool\n    tool: now\n    output_key: ts\n    next: out\n"
+        "  - id: out\n    type: tool\n    tool: write_file\n"
+        "    arguments: {path: 'out.txt', content: '{{ts}}'}\n",
+    )
+    with pytest.raises(ApprovalRequired) as first:
+        run_workflow_file(wf, settings=tmp_settings, persist=True, policy=policy)
+    with pytest.raises(ApprovalRequired):
+        resume_run(first.value.run_id, settings=tmp_settings)
+    assert not (tmp_path / "out.txt").exists()
+
+
+def test_require_approval_reject_cannot_run_node(tmp_path: Path, tmp_settings) -> None:
+    policy = _write(
+        tmp_path / "p.yaml",
+        "version: 1\ndefault: allow\nnodes:\n  n:\n    require_approval: true\n",
+    )
+    wf = _write(
+        tmp_path / "w.yaml",
+        "name: w\nnodes:\n  - id: n\n    type: tool\n    tool: calc\n"
+        "    arguments: {expression: '1+1'}\n    output_key: total\n",
+    )
+    with pytest.raises(PolicyDenied) as caught:
+        run_workflow_file(
+            wf, settings=tmp_settings, persist=False, policy=policy, decisions={"n": "reject"}
+        )
+    _deny_closed(caught.value, node_id="n")
+    assert getattr(caught.value.state, "output_keys", {}) == {} or "total" not in (
+        getattr(caught.value.state, "output_keys", {}) or {}
+    )

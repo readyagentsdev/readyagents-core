@@ -13,7 +13,10 @@ system prompt, decides whether a tool runs.
 - Hosts outside an egress allowlist (`http_get` and policy `allow_hosts`),
   layered on the existing public-IP SSRF pin.
 - Paths outside a policy glob, still inside the workspace sandbox.
-- MCP tool description/schema changes after first use (rug pull).
+- MCP tool description/schema changes after first use (rug pull), including
+  across later runs (pins live under `$READYAGENTS_HOME/mcp-pins/`).
+- Agent tool-calls whose prompt or system interpolates untrusted state, even
+  when the model emits literal arguments.
 - Known secret values being placed into a model request.
 
 ## What it does not stop

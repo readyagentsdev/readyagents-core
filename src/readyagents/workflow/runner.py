@@ -203,7 +203,14 @@ def run_workflow_file(
 
     from readyagents.firewall.policy_file import load_resolved
 
-    loaded_policy = load_resolved(explicit=policy, workflow_dir=source_path.parent)
+    stored_policy = None
+    if resume_state is not None:
+        raw_stored = resume_state.metadata.get("policy")
+        if isinstance(raw_stored, str) and raw_stored.strip():
+            stored_policy = raw_stored.strip()
+    loaded_policy = load_resolved(
+        explicit=policy, workflow_dir=source_path.parent, stored=stored_policy
+    )
     pin_digests: dict[str, str] = {}
     mcp_descriptions: dict[str, str] = {}
     if mcp is not None:
@@ -336,6 +343,7 @@ def run_workflow_file(
         policy=loaded_policy,
         pin_digests=pin_digests,
         mcp_descriptions=mcp_descriptions,
+        pin_home=settings.home_path(),
     )
     metadata = {
         "source": str(source_path),
@@ -344,6 +352,8 @@ def run_workflow_file(
         "workspace": str(workspace),
         "actor": resolved_actor,
     }
+    if loaded_policy is not None and loaded_policy.source:
+        metadata["policy"] = loaded_policy.source
     if offline:
         metadata["replay"] = True
     if want_record:
