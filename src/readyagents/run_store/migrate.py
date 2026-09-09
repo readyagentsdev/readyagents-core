@@ -86,17 +86,41 @@ def resolve_source_dir(path: Path | str | None, settings: Settings) -> Path:
     return source
 
 
+def _is_under(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
+
+
 def resolve_database_path(path: Path | str | None, settings: Settings) -> Path:
-    home = settings.home_path()
+    home = settings.home_path().resolve()
+    constrained = False
     if path is None:
-        dest = settings.run_db_path()
+        given = settings.run_db
+        if given is None:
+            dest = home / "runs.sqlite3"
+            constrained = True
+        else:
+            dest = Path(given).expanduser()
+            if not dest.is_absolute():
+                dest = home / dest
+                constrained = True
     else:
         dest = Path(path).expanduser()
         if not dest.is_absolute():
             dest = home / dest
+            constrained = True
+    if dest.is_symlink():
+        target = dest.resolve()
+        if constrained and not _is_under(target, home):
+            raise ConfigError(
+                f"Database symlink target is outside READYAGENTS_HOME: {dest}"
+            )
+        dest = target
+    else:
         dest = dest.resolve()
-        if not dest.is_absolute():
-            raise ConfigError("Database path must resolve to an absolute file path")
     if dest.exists():
         mode = dest.stat().st_mode
         if stat.S_ISDIR(mode):

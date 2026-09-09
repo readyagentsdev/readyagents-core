@@ -32,7 +32,7 @@ from readyagents.workflow.engine import run_workflow
 from readyagents.workflow.nodes import ExecutionContext
 from readyagents.workflow.pause import build_pause_event
 from readyagents.workflow.schema import WorkflowSpec, validate_required_inputs
-from readyagents.workflow.state import RunState, load_decision_file, load_run, persist_run
+from readyagents.workflow.state import RunState, load_decision_file, persist_run
 
 log = get_logger("runner")
 
@@ -321,34 +321,44 @@ def resume_run(
     store: Any | None = None,
 ) -> RunState:
     settings = settings or get_settings()
-    if store is not None:
-        loaded = store.get(run_id, allow_prefix=True)
-        state = loaded.state
-    else:
-        state = load_run(settings.runs_dir(), run_id)
-    source = path or state.metadata.get("source")
-    if not source:
-        raise ConfigError(f"Run {state.run_id} has no stored workflow path. Pass --workflow PATH.")
-    return run_workflow_file(
-        source,
-        inputs=inputs,
-        dry_run=dry_run,
-        settings=settings,
-        llm=llm,
-        persist=persist,
-        extra_tools=extra_tools,
-        extra_packs=extra_packs,
-        decisions=decisions,
-        resume_state=state,
-        actor=actor,
-        authorizer=authorizer,
-        secrets=secrets,
-        decision_file=decision_file,
-        on_pause=on_pause,
-        no_cache=no_cache,
-        cancellation=cancellation,
-        store=store,
-    )
+    owned_store = False
+    if store is None:
+        from readyagents.run_store import open_run_store
+
+        store = open_run_store(settings)
+        owned_store = True
+    try:
+        state = store.get(run_id, allow_prefix=True).state
+        source = path or state.metadata.get("source")
+        if not source:
+            raise ConfigError(
+                f"Run {state.run_id} has no stored workflow path. Pass --workflow PATH."
+            )
+        return run_workflow_file(
+            source,
+            inputs=inputs,
+            dry_run=dry_run,
+            settings=settings,
+            llm=llm,
+            persist=persist,
+            extra_tools=extra_tools,
+            extra_packs=extra_packs,
+            decisions=decisions,
+            resume_state=state,
+            actor=actor,
+            authorizer=authorizer,
+            secrets=secrets,
+            decision_file=decision_file,
+            on_pause=on_pause,
+            no_cache=no_cache,
+            cancellation=cancellation,
+            store=store,
+        )
+    finally:
+        if owned_store:
+            closer = getattr(store, "close", None)
+            if callable(closer):
+                closer()
 
 
 def replay_run(
@@ -369,23 +379,32 @@ def replay_run(
 ) -> RunState:
     """Start a new run with the stored workflow path and inputs."""
     settings = settings or get_settings()
-    previous = load_run(settings.runs_dir(), run_id)
-    source = previous.metadata.get("source")
-    if not source:
-        raise ConfigError(f"Run {previous.run_id} has no stored workflow path. Cannot replay.")
-    return run_workflow_file(
-        source,
-        inputs=previous.inputs,
-        dry_run=dry_run,
-        settings=settings,
-        llm=llm,
-        persist=persist,
-        extra_tools=extra_tools,
-        extra_packs=extra_packs,
-        decisions=decisions,
-        actor=actor,
-        authorizer=authorizer,
-        secrets=secrets,
-        decision_file=decision_file,
-        no_cache=no_cache,
-    )
+    from readyagents.run_store import open_run_store
+
+    store = open_run_store(settings)
+    try:
+        previous = store.get(run_id, allow_prefix=True).state
+        source = previous.metadata.get("source")
+        if not source:
+            raise ConfigError(
+                f"Run {previous.run_id} has no stored workflow path. Cannot replay."
+            )
+        return run_workflow_file(
+            source,
+            inputs=previous.inputs,
+            dry_run=dry_run,
+            settings=settings,
+            llm=llm,
+            persist=persist,
+            extra_tools=extra_tools,
+            extra_packs=extra_packs,
+            decisions=decisions,
+            actor=actor,
+            authorizer=authorizer,
+            secrets=secrets,
+            decision_file=decision_file,
+            no_cache=no_cache,
+            store=store,
+        )
+    finally:
+        store.close()
