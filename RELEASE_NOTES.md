@@ -1,4 +1,6 @@
-# Unreleased
+# ReadyAgents Core 0.11.0
+
+**Workflow JSON Schema, located validation errors, editor wiring.**
 
 Writing a ReadyAgents workflow no longer means writing YAML blind. `readyagents schema` produces a JSON
 Schema generated from the same models the engine validates against, new scaffolds point your editor at
@@ -6,6 +8,18 @@ a local copy (the hosted `$id` URL is an identifier and 404s today), and you get
 hints for every node type as you type. When validation does fail, it now tells you the line and column
 and shows you the offending line with a caret under it — inside nested branches and included files too.
 No new runtime dependency, no network access, and nothing about the workflow format changed.
+
+Packs are waitlisted, not for sale.
+
+## Try it
+
+```bash
+pip install readyagentsdev==0.11.0
+readyagents schema --output workflow.schema.json
+readyagents new my-flow
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
 
 # ReadyAgents Core 0.10.1
 

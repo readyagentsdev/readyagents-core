@@ -2,7 +2,7 @@
 
 All notable changes to ReadyAgents Core.
 
-## Unreleased
+## 0.11.0 — 2026-09-09
 
 ### Added
 
@@ -12,6 +12,11 @@ All notable changes to ReadyAgents Core.
 - Workflow validation errors now report file, line, column, and a caret excerpt, including inside
   `parallel` branches, `foreach` bodies, and included sub-workflows. `validate --json` gains an additive
   `problems` array.
+
+### Fixed
+
+- Schema errors surface NodeType enums, did-you-mean hints, and settings redaction.
+- Graph-validator carets no longer land on the top-level `name:` line for empty/mislocated errors.
 
 ## 0.10.1 — 2026-09-09
 

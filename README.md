@@ -11,7 +11,7 @@ This repository is the free core. You keep the provider account and the bill. In
 
 ## 60-second start
 
-Requires Python 3.11+. Current version is **0.10.1**. Install with `pip install readyagentsdev`, or from this clone.
+Requires Python 3.11+. Current version is **0.11.0**. Install with `pip install readyagentsdev`, or from this clone.
 
 ```bash
 git clone https://github.com/readyagentsdev/readyagents-core.git
