@@ -26,6 +26,7 @@ __all__ = [
     "MCPError",
     "NodeError",
     "ReadyAgentsError",
+    "RunawayGuard",
     "StructuredOutputError",
     "TemplateError",
     "ToolError",

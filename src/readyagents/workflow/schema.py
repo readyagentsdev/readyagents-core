@@ -61,6 +61,28 @@ class BudgetSpec(BaseModel):
     )
 
 
+class RunawaySpec(BaseModel):
+    """Optional per-run loop/call/wall-clock guards. Distinct from BudgetSpec."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_model_calls: int | None = Field(
+        default=None,
+        ge=1,
+        description="Maximum LLM complete() attempts for the run.",
+    )
+    max_tool_rounds: int | None = Field(
+        default=None,
+        ge=1,
+        description="Maximum agent tool-call rounds across the whole run.",
+    )
+    max_wall_seconds: float | None = Field(
+        default=None,
+        gt=0,
+        description="Maximum wall-clock seconds for the run.",
+    )
+
+
 class CircuitSpec(BaseModel):
     """Process-local circuit breaker for LLM providers."""
 
@@ -351,6 +373,10 @@ class WorkflowSpec(BaseModel):
     budget: BudgetSpec | None = Field(
         default=None,
         description="Optional token/cost budget for LLM calls.",
+    )
+    runaway: RunawaySpec | None = Field(
+        default=None,
+        description="Optional per-run model-call, tool-round, and wall-clock guards.",
     )
     fallback_models: list[str] = Field(
         default_factory=list,

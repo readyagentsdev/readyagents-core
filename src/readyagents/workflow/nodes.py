@@ -21,6 +21,7 @@ from readyagents.errors import (
     NodeError,
     PolicyDenied,
     ReadyAgentsError,
+    RunawayGuard,
     TemplateError,
     ToolError,
     WorkflowError,
@@ -99,6 +100,8 @@ class ExecutionContext:
         mcp_descriptions: dict[str, str] | None = None,
         pin_home: Path | None = None,
         observers: list[Any] | None = None,
+        spend_meter: Any | None = None,
+        labels: Mapping[str, str] | None = None,
     ) -> None:
         self.workflow = workflow
         self.tools = tools
@@ -133,6 +136,8 @@ class ExecutionContext:
         self.mcp_descriptions = dict(mcp_descriptions or {})
         self.pin_home = Path(pin_home) if pin_home else None
         self.observers = list(observers or [])
+        self.spend_meter = spend_meter
+        self.labels = {str(k): str(v) for k, v in dict(labels or {}).items()}
         self.last_tool_rounds: list[dict[str, Any]] = []
         self._persist_lock = threading.RLock()
         self._in_flight = 0
@@ -206,6 +211,8 @@ class ExecutionContext:
             mcp_descriptions=self.mcp_descriptions,
             pin_home=self.pin_home,
             observers=self.observers,
+            spend_meter=self.spend_meter,
+            labels=self.labels,
         )
 
 
@@ -395,6 +402,10 @@ def _agent_tool_loop(
         rounds += 1
         if rounds > cap:
             raise NodeError(node.id, f"tool-use exceeded max_tool_rounds={cap}")
+        meter = getattr(ctx, "spend_meter", None)
+        if meter is not None:
+            meter.consult_tool_round()
+            meter.record_tool_round()
         for call in result.tool_calls:
             if call.name not in allowed:
                 raise NodeError(
@@ -503,7 +514,13 @@ def _complete_agent(
             cache_key = ctx.llm_cache.key(ref, messages, tools=tools)
             cache_hit = ctx.llm_cache.get(cache_key)
             if cache_hit is not None:
-                _account_usage(state, ctx, {"cache_hits": 1})
+                extras: dict[str, int] = {"cache_hits": 1}
+                meter = getattr(ctx, "spend_meter", None)
+                if meter is not None:
+                    saved = meter.record_cache_hit(ref, cache_hit.usage or {})
+                    if saved:
+                        extras["cache_savings_micros"] = saved
+                _account_usage(state, ctx, extras)
                 log_event(
                     log,
                     "cache_hit",
@@ -514,11 +531,19 @@ def _complete_agent(
                     model=ref,
                 )
                 return cache_hit
+            meter = getattr(ctx, "spend_meter", None)
+            if meter is not None:
+                meter.record_cache_miss()
+                _account_usage(state, ctx, {"cache_misses": 1})
         check_budget(
             (ctx.usage_state or state).usage,
             max_tokens=ctx.budget_tokens,
             max_cost_micros=ctx.budget_cost_micros,
         )
+        meter = getattr(ctx, "spend_meter", None)
+        hint = _prompt_token_hint(messages)
+        if meter is not None:
+            meter.consult_before_call(ref, prompt_tokens=hint)
         try:
             if ctx.offline:
                 from readyagents.replay.offline import CassetteProvider
@@ -559,8 +584,12 @@ def _complete_agent(
                     )
             tried.append(ref)
             result = provider.complete(messages, model=model_id, tools=tools)
+        except (BudgetExceeded, RunawayGuard):
+            raise
         except LLMError as exc:
             last_error = exc
+            if meter is not None:
+                meter.release_reservation(prompt_tokens=hint)
             if breaker is not None:
                 breaker.record_failure(ref)
             log_event(
@@ -577,6 +606,12 @@ def _complete_agent(
         if breaker is not None:
             breaker.record_success(ref)
         usage = normalize_usage(result.usage, model=result.model or model_id_for(ref))
+        if meter is not None:
+            meter.record_usage(
+                result.model or ref,
+                usage,
+                reserved_prompt=hint,
+            )
         if usage_nonzero(usage):
             _account_usage(state, ctx, usage)
         if use_cache and ctx.llm_cache is not None:
@@ -723,6 +758,16 @@ def _estimate_tokens(*texts: str) -> int:
     return max(1, total // 4)
 
 
+def _prompt_token_hint(messages: list[Message]) -> int:
+    from readyagents.cost.tokens import count_tokens
+
+    total = 0
+    for message in messages:
+        n, _measured = count_tokens(message.content or "")
+        total += n
+    return total
+
+
 @contextmanager
 def _track_node_body(ctx: ExecutionContext) -> Iterator[None]:
     ctx.enter_node_body()
@@ -756,7 +801,7 @@ def execute_node_with_policy(
             raise
         except PolicyDenied:
             raise
-        except (BudgetExceeded, AuthorizationError, CircuitOpen):
+        except (BudgetExceeded, AuthorizationError, CircuitOpen, RunawayGuard):
             raise
         except ReadyAgentsError as exc:
             last_error = exc
@@ -985,6 +1030,15 @@ def _run_parallel(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dic
         except ApprovalRequired:
             raise
         except CancellationRequested:
+            raise
+        except (
+            BudgetExceeded,
+            AuthorizationError,
+            CircuitOpen,
+            RunawayGuard,
+            CassetteMiss,
+            PolicyDenied,
+        ):
             raise
         except NodeError:
             raise

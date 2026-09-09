@@ -125,6 +125,13 @@ def run_workflow_file(
     offline: bool = False,
     cassette_path: Path | str | None = None,
     policy: Path | str | None = None,
+    max_spend: float | None = None,
+    max_tokens_cap: int | None = None,
+    labels: Mapping[str, str] | None = None,
+    override_budget: bool = False,
+    max_model_calls: int | None = None,
+    max_run_tool_rounds: int | None = None,
+    max_wall_seconds: float | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     workflow = load_workflow(path)
@@ -302,6 +309,82 @@ def run_workflow_file(
         cassette.tool_seals = dict(tool_seals)
     fallback = list(workflow.fallback_models or []) + settings.fallback_model_list()
     pause_url = workflow.on_pause_url or settings.pause_notify_url
+    from readyagents.cost.meter import SpendMeter
+    from readyagents.cost.prices import load_price_table
+
+    price_table = load_price_table(settings.prices_path())
+    stored_spend = None
+    stored_labels: dict[str, str] = {}
+    if resume_state is not None and isinstance(resume_state.metadata, dict):
+        raw_spend = resume_state.metadata.get("spend")
+        if isinstance(raw_spend, dict):
+            stored_spend = raw_spend
+        raw_labels = resume_state.metadata.get("labels")
+        if isinstance(raw_labels, dict):
+            stored_labels = {str(k): str(v) for k, v in raw_labels.items()}
+    resolved_labels = dict(stored_labels)
+    if labels:
+        resolved_labels.update({str(k): str(v) for k, v in dict(labels).items()})
+    runaway = workflow.runaway
+    meter_max_spend = usd_to_micros(max_spend) if max_spend is not None else None
+    if meter_max_spend is None and stored_spend is not None:
+        raw_cap = stored_spend.get("max_spend_micros")
+        meter_max_spend = int(raw_cap) if raw_cap is not None else None
+    meter_max_tokens = max_tokens_cap
+    if meter_max_tokens is None and stored_spend is not None:
+        raw_tok = stored_spend.get("max_tokens")
+        meter_max_tokens = int(raw_tok) if raw_tok is not None else None
+    meter_max_calls = max_model_calls
+    if meter_max_calls is None and runaway is not None:
+        meter_max_calls = runaway.max_model_calls
+    if meter_max_calls is None and stored_spend is not None:
+        raw_calls = stored_spend.get("max_model_calls")
+        meter_max_calls = int(raw_calls) if raw_calls is not None else None
+    meter_max_rounds = max_run_tool_rounds
+    if meter_max_rounds is None and runaway is not None:
+        meter_max_rounds = runaway.max_tool_rounds
+    if meter_max_rounds is None and stored_spend is not None:
+        raw_rounds = stored_spend.get("max_tool_rounds")
+        meter_max_rounds = int(raw_rounds) if raw_rounds is not None else None
+    meter_max_wall = max_wall_seconds
+    if meter_max_wall is None and runaway is not None:
+        meter_max_wall = runaway.max_wall_seconds
+    if meter_max_wall is None and stored_spend is not None:
+        raw_wall = stored_spend.get("max_wall_seconds")
+        meter_max_wall = float(raw_wall) if raw_wall is not None else None
+    if stored_spend is not None:
+        spend_meter = SpendMeter.from_snapshot(stored_spend, table=price_table)
+        spend_meter.table = price_table
+        if max_spend is not None:
+            spend_meter.max_spend_micros = meter_max_spend
+        if max_tokens_cap is not None:
+            spend_meter.max_tokens = meter_max_tokens
+        if max_model_calls is not None:
+            spend_meter.max_model_calls = meter_max_calls
+        if max_run_tool_rounds is not None:
+            spend_meter.max_tool_rounds = meter_max_rounds
+        if max_wall_seconds is not None:
+            spend_meter.max_wall_seconds = meter_max_wall
+    else:
+        spend_meter = SpendMeter(
+            max_spend_micros=meter_max_spend,
+            max_tokens=meter_max_tokens,
+            max_model_calls=meter_max_calls,
+            max_tool_rounds=meter_max_rounds,
+            max_wall_seconds=meter_max_wall,
+            table=price_table,
+        )
+    if resume_state is None:
+        _refuse_to_start(
+            workflow,
+            merged,
+            path=source_path,
+            meter=spend_meter,
+            override=override_budget,
+            auditor=auditor,
+            actor=resolved_actor,
+            default_model=workflow.default_model or settings.default_model,
+        )
 
     def _pause(exc: Any, state: RunState) -> None:
         if on_pause is not None:
@@ -346,6 +429,8 @@ def run_workflow_file(
         mcp_descriptions=mcp_descriptions,
         pin_home=settings.home_path(),
         observers=collect_pack_observers(packs),
+        spend_meter=spend_meter,
+        labels=resolved_labels,
     )
     metadata = {
         "source": str(source_path),
@@ -354,6 +439,8 @@ def run_workflow_file(
         "workspace": str(workspace),
         "actor": resolved_actor,
     }
+    if resolved_labels:
+        metadata["labels"] = dict(resolved_labels)
     if loaded_policy is not None and loaded_policy.source:
         metadata["policy"] = loaded_policy.source
     if offline:
@@ -385,6 +472,7 @@ def run_workflow_file(
             hint = first_run_hint(recording=False, has_agent=True)
             if hint:
                 log.info("%s", hint)
+        _write_ledger(settings, ctx, state, persist=persist)
         return state
     except Exception as exc:
         run_state = getattr(exc, "state", None)
@@ -396,6 +484,8 @@ def run_workflow_file(
             state=run_state if isinstance(run_state, RunState) else None,
             persist_fn=_save if persist else None,
         )
+        if isinstance(run_state, RunState):
+            _write_ledger(settings, ctx, run_state, persist=persist)
         raise
     finally:
         from readyagents.observability import shutdown_observers
@@ -409,6 +499,93 @@ def run_workflow_file(
             closer = getattr(store, "close", None)
             if callable(closer):
                 closer()
+
+
+_TERMINAL_LEDGER = frozenset({"succeeded", "failed", "paused", "cancelled"})
+
+
+def _refuse_to_start(
+    workflow: WorkflowSpec,
+    inputs: Mapping[str, Any],
+    *,
+    path: Path,
+    meter: Any,
+    override: bool,
+    auditor: Any,
+    actor: str | None,
+    default_model: str | None = None,
+) -> None:
+    from readyagents.cost.estimate import estimate_workflow
+    from readyagents.errors import BudgetExceeded
+
+    if not meter.has_spend_cap:
+        return
+    estimate = estimate_workflow(
+        workflow,
+        inputs,
+        default_model=default_model or workflow.default_model,
+        workflow_dir=path.parent,
+        table=meter.table,
+    )
+    over_tokens = meter.max_tokens is not None and estimate.ceiling_tokens >= meter.max_tokens
+    over_spend = False
+    if meter.max_spend_micros is not None:
+        if estimate.unpriced:
+            over_spend = True
+        elif (estimate.ceiling_micros or 0) >= meter.max_spend_micros:
+            over_spend = True
+    if not over_tokens and not over_spend:
+        return
+    payload = {
+        "workflow": workflow.name,
+        "floor_tokens": estimate.floor_tokens,
+        "ceiling_tokens": estimate.ceiling_tokens,
+        "floor_micros": estimate.floor_micros,
+        "ceiling_micros": estimate.ceiling_micros,
+        "unpriced": estimate.unpriced,
+        "max_tokens": meter.max_tokens,
+        "max_spend_micros": meter.max_spend_micros,
+        "actor": actor,
+    }
+    if override:
+        if auditor is not None:
+            auditor("budget_override", **payload)
+        return
+    if auditor is not None:
+        auditor("budget_refuse", **payload)
+    if over_tokens:
+        raise BudgetExceeded(
+            "tokens",
+            estimate.ceiling_tokens,
+            int(meter.max_tokens or 0),
+            reason="refuse_to_start",
+        )
+    used = estimate.ceiling_micros if estimate.ceiling_micros is not None else 0
+    raise BudgetExceeded(
+        "cost_micros",
+        int(used),
+        int(meter.max_spend_micros or 0),
+        reason="refuse_to_start",
+    )
+
+
+def _write_ledger(
+    settings: Settings, ctx: ExecutionContext, state: RunState, *, persist: bool
+) -> None:
+    if not persist:
+        return
+    if state.status not in _TERMINAL_LEDGER:
+        return
+    from readyagents.cost.ledger import append_spend, spend_entry_from_state
+
+    meter = getattr(ctx, "spend_meter", None)
+    if meter is not None:
+        state.metadata["spend"] = meter.snapshot()
+    labels = getattr(ctx, "labels", None)
+    if labels:
+        state.metadata["labels"] = dict(labels)
+    entry = spend_entry_from_state(state, labels=labels)
+    append_spend(settings.ledger_dir(), entry, redactor=ctx.redactor)
 
 
 def _write_cassette(
@@ -456,6 +633,13 @@ def resume_run(
     cancellation: CancellationToken | None = None,
     store: Any | None = None,
     policy: Path | str | None = None,
+    max_spend: float | None = None,
+    max_tokens_cap: int | None = None,
+    labels: Mapping[str, str] | None = None,
+    override_budget: bool = False,
+    max_model_calls: int | None = None,
+    max_run_tool_rounds: int | None = None,
+    max_wall_seconds: float | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     owned_store = False
@@ -491,6 +675,13 @@ def resume_run(
             cancellation=cancellation,
             store=store,
             policy=policy,
+            max_spend=max_spend,
+            max_tokens_cap=max_tokens_cap,
+            labels=labels,
+            override_budget=override_budget,
+            max_model_calls=max_model_calls,
+            max_run_tool_rounds=max_run_tool_rounds,
+            max_wall_seconds=max_wall_seconds,
         )
     finally:
         if owned_store:
