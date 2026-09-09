@@ -66,6 +66,10 @@ def test_freeze_round_trip_eval(tmp_path: Path, tmp_settings, monkeypatch) -> No
     scored = _runner.invoke(app, ["eval", str(dest / "case.yaml")])
     assert scored.exit_code == 0, scored.stdout + scored.stderr
     assert "PASS" in scored.stdout or "passed=" in scored.stdout
+    case_text = (dest / "case.yaml").read_text(encoding="utf-8")
+    assert "expect_determinism:" in case_text
+    assert "expect_nodes:" in case_text
+    assert "pins determinism" in (dest / "README.md").read_text(encoding="utf-8")
 
     # Wiping cassette entries must fail eval — the case consults cassette.json.
     cassette = Cassette.load(dest / "cassette.json")
@@ -116,6 +120,8 @@ def test_freeze_exact_pins_outputs(tmp_path: Path, tmp_settings) -> None:
     case = (dest / "case.yaml").read_text(encoding="utf-8")
     assert "expect_outputs" in case
     assert "exact-pin" in case
+    assert "expect_determinism:" in case
+    assert "expect_nodes:" in case
 
 
 def test_diff_identical_and_changed(tmp_settings, tmp_path: Path) -> None:
