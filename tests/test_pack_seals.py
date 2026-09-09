@@ -141,6 +141,14 @@ def test_unclassified_pack_tool_still_needs_allow_unsealed(tmp_path: Path, tmp_s
     case = (dest / "case.yaml").read_text(encoding="utf-8")
     assert "unsealable:" in case
     assert "m" in case
+    cases = load_eval_suite(dest / "case.yaml")
+    assert cases[0].expect_determinism is not None
+    assert "m" in cases[0].expect_determinism.get("unsealable", [])
+    report = run_eval(cases, tools=tools, settings=tmp_settings)
+    assert report.ok, [row.reason for row in report.results]
+    replayed = report.results[0].state
+    assert replayed is not None
+    assert "m" in (replayed.metadata.get("determinism") or {}).get("unsealable", [])
 
 
 def test_declared_recomputed_pack_tool_freezes_without_flag(tmp_path: Path, tmp_settings) -> None:

@@ -297,3 +297,53 @@ def test_score_tool_arguments_without_cassette_fail() -> None:
     ok, reason = _score(state, case)
     assert not ok
     assert "require a cassette" in reason
+
+
+def test_allow_unsealed_freeze_eval_cli_still_passes(
+    tmp_path: Path, tmp_settings, monkeypatch
+) -> None:
+    """Offline eval must keep the unsealable pin; replay must not reclassify as sealed."""
+    _cli_env(monkeypatch, tmp_path, tmp_settings)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "mystery.yaml").write_text(
+        "name: mystery-flow\n"
+        "nodes:\n"
+        "  - id: m\n"
+        "    type: tool\n"
+        "    tool: mystery\n"
+        "    output_key: v\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "mystery_pack.py").write_text(
+        "from readyagents.packs import BasePack\n"
+        "from readyagents.tools import FunctionTool\n"
+        "\n"
+        "class MysteryPack(BasePack):\n"
+        "    name = 'mystery'\n"
+        "    version = '0.0.1'\n"
+        "    def register_tools(self):\n"
+        "        return [FunctionTool(name='mystery', description='x', handler=lambda: 'y')]\n"
+        "\n"
+        "def get_pack():\n"
+        "    return MysteryPack()\n",
+        encoding="utf-8",
+    )
+    ran = _runner.invoke(
+        app,
+        ["run", "mystery.yaml", "--record", "--json", "--pack", "mystery_pack.py"],
+    )
+    assert ran.exit_code == 0, ran.stdout + ran.stderr
+    run_id = str(_json_from_cli(ran.stdout)["run_id"])
+    frozen = _runner.invoke(
+        app,
+        ["runs", "freeze", run_id, "--out", "frozen-mystery", "--allow-unsealed"],
+    )
+    assert frozen.exit_code == 0, frozen.stdout + frozen.stderr
+    dest = tmp_path / "frozen-mystery"
+    data = _load_case(dest)
+    assert "m" in data["cases"][0]["expect_determinism"]["unsealable"]
+    assert data["cases"][0].get("expect_contains") or data["cases"][0].get("expect_outputs")
+    scored = _runner.invoke(app, ["eval", str(dest / "case.yaml"), "--json"])
+    assert scored.exit_code == 0, scored.stdout + scored.stderr
+    payload = _json_from_cli(scored.stdout)
+    assert payload.get("ok") is True

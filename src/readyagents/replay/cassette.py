@@ -325,7 +325,13 @@ class Cassette:
                 nearest_key=nearest,
             )
         self._consume[f"{_TOOL}:{digest}"] = occ + 1
-        self.report.note(node_id, "sealed")
+        klass = classify_tool(name, seals=self.tool_seals)
+        if klass == "recomputed":
+            self.report.note(node_id, "recomputed")
+        elif klass == "sealable":
+            self.report.note(node_id, "sealed")
+        else:
+            self.report.note(node_id, "unsealable")
         return entry.get("result")
 
     def nearest_key(self, kind: str, digest: str) -> str | None:
