@@ -12,6 +12,51 @@ from readyagents.cost.prices import PriceTable, load_price_table
 from readyagents.errors import BudgetExceeded, RunawayGuard
 
 
+class SharedBudget:
+    """Cross-run USD cap for ``readyagents batch``. Per-row meters keep their own stats."""
+
+    def __init__(self, max_spend_micros: int) -> None:
+        self.max_spend_micros = max(0, int(max_spend_micros))
+        self.cost_micros = 0
+        self._reserved = 0
+        self._lock = threading.Lock()
+
+    def remaining_micros(self) -> int:
+        with self._lock:
+            return max(0, self.max_spend_micros - self.cost_micros - self._reserved)
+
+    def reserve(self, estimated_cost: int | None, *, model: str = "") -> None:
+        del model
+        with self._lock:
+            if estimated_cost is None:
+                raise BudgetExceeded(
+                    "cost_micros",
+                    self.cost_micros,
+                    self.max_spend_micros,
+                    reason="unpriced",
+                )
+            cost = max(0, int(estimated_cost))
+            in_flight = self.cost_micros + self._reserved
+            projected = in_flight + cost
+            if in_flight >= self.max_spend_micros or projected > self.max_spend_micros:
+                raise BudgetExceeded(
+                    "cost_micros",
+                    projected,
+                    self.max_spend_micros,
+                    reason="before_call",
+                )
+            self._reserved += cost
+
+    def commit(self, actual_cost: int, reserved_cost: int) -> None:
+        with self._lock:
+            self._reserved = max(0, self._reserved - max(0, int(reserved_cost)))
+            self.cost_micros += max(0, int(actual_cost))
+
+    def release(self, reserved_cost: int) -> None:
+        with self._lock:
+            self._reserved = max(0, self._reserved - max(0, int(reserved_cost)))
+
+
 class SpendMeter:
     """Accumulated usage + optional hard caps. Caps are inert when unset.
 
@@ -32,6 +77,7 @@ class SpendMeter:
         table: PriceTable | None = None,
         started_at: str | None = None,
         clock: Any | None = None,
+        shared_budget: SharedBudget | None = None,
     ) -> None:
         self.max_spend_micros = max_spend_micros
         self.max_tokens = max_tokens
@@ -40,6 +86,7 @@ class SpendMeter:
         self.max_wall_seconds = max_wall_seconds
         self.table = table
         self.started_at = started_at
+        self.shared_budget = shared_budget
         self._clock = clock or time.monotonic
         self._lock = threading.Lock()
         self.prompt_tokens = 0
@@ -124,13 +171,36 @@ class SpendMeter:
                     )
                 self._reserved_cost += estimated_cost
             self.model_calls += 1
+            if self.shared_budget is not None:
+                shared_cost = estimated_cost if quote.priced else None
+                try:
+                    self.shared_budget.reserve(shared_cost, model=model)
+                except BudgetExceeded:
+                    if self.max_tokens is not None:
+                        self._reserved_tokens = max(0, self._reserved_tokens - estimated_tokens)
+                    if self.max_spend_micros is not None and estimated_cost:
+                        self._reserved_cost = max(0, self._reserved_cost - estimated_cost)
+                    self.model_calls = max(0, self.model_calls - 1)
+                    raise
 
     def release_reservation(self, *, prompt_tokens: int = 0, completion_tokens: int = 0) -> None:
         tokens = max(0, int(prompt_tokens)) + max(0, int(completion_tokens))
+        table = self.table or load_price_table()
+        reserved_cost = 0
         with self._lock:
             self._reserved_tokens = max(0, self._reserved_tokens - tokens)
+            # Best-effort: drop matching reserved USD when we know the table.
+            prompt = max(0, int(prompt_tokens))
+            completion = max(0, int(completion_tokens))
+            quote = table.quote("")
+            priced = quote.cost_micros(prompt, completion)
+            if priced:
+                reserved_cost = priced
+                self._reserved_cost = max(0, self._reserved_cost - priced)
             if self._reserved_tokens == 0:
                 self._reserved_cost = 0
+        if self.shared_budget is not None and reserved_cost:
+            self.shared_budget.release(reserved_cost)
 
     def record_usage(
         self,
@@ -166,6 +236,8 @@ class SpendMeter:
                 self.unpriced = True
                 if model not in self.unpriced_models:
                     self.unpriced_models.append(model)
+            if self.shared_budget is not None:
+                self.shared_budget.commit(priced or 0, reserved_cost or 0)
             bucket = self.by_model.setdefault(
                 model or "unknown",
                 {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "cost_micros": 0},

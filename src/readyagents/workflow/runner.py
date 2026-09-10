@@ -159,6 +159,9 @@ def run_workflow_file(
     vote_signature_status: str = "unsigned",
     sovereign: bool | None = None,
     sovereign_allow: Sequence[str] | None = None,
+    shared_budget: Any | None = None,
+    governor: Any | None = None,
+    priority: Any | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     source_file = Path(path)
@@ -531,7 +534,10 @@ def run_workflow_file(
             max_tool_rounds=meter_max_rounds,
             max_wall_seconds=meter_max_wall,
             table=price_table,
+            shared_budget=shared_budget,
         )
+    if shared_budget is not None:
+        spend_meter.shared_budget = shared_budget
     if resume_state is None:
         _refuse_to_start(
             workflow,
@@ -647,15 +653,31 @@ def run_workflow_file(
         resume_state.pending_node = None
         resume_state.pending = None
         resume_state.status = "running"
+    from readyagents.llm.base import parse_model_ref
+    from readyagents.workflow.governor import RunPriority, get_governor
+
+    gov = governor if governor is not None else get_governor()
+    prio = RunPriority.INTERACTIVE if priority is None else priority
+    provider_name = None
+    if ctx.default_model:
+        try:
+            provider_name = parse_model_ref(str(ctx.default_model))[0]
+        except ValueError:
+            provider_name = None
     try:
-        state = run_workflow(
-            workflow,
-            merged,
-            ctx,
-            metadata=metadata,
-            state=resume_state if resume_state is not None else initial_state,
-            run_id=run_id,
-        )
+        with gov.acquire(
+            workflow=workflow.name,
+            provider=provider_name,
+            priority=prio,
+        ):
+            state = run_workflow(
+                workflow,
+                merged,
+                ctx,
+                metadata=metadata,
+                state=resume_state if resume_state is not None else initial_state,
+                run_id=run_id,
+            )
         if cassette is not None:
             state.metadata["determinism"] = cassette.report.as_dict()
         _write_cassette(
