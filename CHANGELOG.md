@@ -4,6 +4,15 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Fixed
+
+- `readyagents bundle` fails if `pip download` cannot collect declared runtime
+  wheels; a `--no-index` install needs those wheels, not only the project.
+- Resuming a sovereign run restores the socket guard and stored allowlist from
+  the run record even when `resume` is invoked without `--sovereign`.
+- Keyless OpenAI-compat for allowlisted private bases uses the same parsed
+  CLI/env allowlist as the egress guard (`--sovereign-allow 10.0.0.8`).
+
 ## 1.8.0 — 2026-09-10
 
 ### Added
@@ -21,12 +30,6 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
-- `readyagents bundle` fails if `pip download` cannot collect declared runtime
-  wheels; a `--no-index` install needs those wheels, not only the project.
-- Resuming a sovereign run restores the socket guard and stored allowlist from
-  the run record even when `resume` is invoked without `--sovereign`.
-- Keyless OpenAI-compat for allowlisted private bases uses the same parsed
-  CLI/env allowlist as the egress guard (`--sovereign-allow 10.0.0.8`).
 - JSON run-record reads retry Windows sharing violations, so a poll during
   persist does not fail with `PermissionError`.
 - Sequential HITL resume waits out a prior in-flight executor when the run is
