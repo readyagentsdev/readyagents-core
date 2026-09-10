@@ -20,6 +20,15 @@ All notable changes to ReadyAgents Core.
   in `all`. The provider invoice is authoritative. Without the new flags,
   behaviour is unchanged. See [docs/cost.md](docs/cost.md).
 
+### Fixed
+
+- Spend meter reserves only the in-flight call's estimated tokens/cost, not
+  the unused remainder of `--max-tokens` / `--max-spend`, so overlapping
+  parallel `complete()` calls that together fit under the cap succeed.
+- Spend ledger `cost_micros` follows the meter snapshot, including `0` when
+  the model is unpriced, instead of copying the legacy default-rate value
+  from run `usage`.
+
 ## 1.3.0 — 2026-09-10
 
 ### Added
