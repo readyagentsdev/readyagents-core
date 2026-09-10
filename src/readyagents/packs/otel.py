@@ -167,7 +167,7 @@ def span_attributes(event: Any) -> dict[str, Any]:
         if "completion_tokens" in usage:
             attrs["gen_ai.usage.output_tokens"] = int(usage["completion_tokens"])
         if "total_tokens" in usage:
-            attrs["gen_ai.usage.total_tokens"] = int(usage["total_tokens"])
+            attrs["readyagents.total_tokens"] = int(usage["total_tokens"])
         if "cost_micros" in usage:
             attrs["readyagents.cost_micros"] = int(usage["cost_micros"])
     incoming = getattr(event, "attributes", None) or {}

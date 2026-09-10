@@ -36,6 +36,32 @@ def test_help() -> None:
     assert "eval" in result.stdout
 
 
+def test_readme_cli_table_lists_help_commands() -> None:
+    """Front-door README CLI section must name the verbs shipped `--help` prints."""
+    root = runner.invoke(app, ["--help"])
+    runs = runner.invoke(app, ["runs", "--help"])
+    approvals = runner.invoke(app, ["approvals", "--help"])
+    assert root.exit_code == 0, root.stdout + root.stderr
+    assert runs.exit_code == 0, runs.stdout + runs.stderr
+    assert approvals.exit_code == 0, approvals.stdout + approvals.stderr
+    help_text = root.stdout + runs.stdout + approvals.stdout
+    readme = Path(__file__).resolve().parents[1].joinpath("README.md").read_text(encoding="utf-8")
+    table = readme.split("## CLI", 1)[1].split("## Examples", 1)[0]
+    for token in (
+        "connectors",
+        "sign",
+        "verify",
+        "lock",
+        "sbom",
+        "trust",
+        "fork",
+        "freeze",
+        "serve",
+    ):
+        assert token in help_text, token
+        assert token in table, token
+
+
 def test_version() -> None:
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0

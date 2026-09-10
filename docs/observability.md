@@ -63,7 +63,7 @@ When enabled, each event becomes a span whose attributes are limited to:
 | `gen_ai.request.model` | configured model name only |
 | `gen_ai.usage.input_tokens` | `usage["prompt_tokens"]` (count, not the prompt) |
 | `gen_ai.usage.output_tokens` | `usage["completion_tokens"]` |
-| `gen_ai.usage.total_tokens` | `usage["total_tokens"]` |
+| `readyagents.total_tokens` | `usage["total_tokens"]` (local sum; not a GenAI registry `gen_ai.*` name) |
 
 Anything else on the event (prompt, input, output, arguments, secrets) is dropped.
 
