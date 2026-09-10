@@ -19,6 +19,8 @@ All notable changes to ReadyAgents Core.
   is **not** in `all`. No default-trusted key. Signing proves origin, not
   safety. See [docs/supply-chain.md](docs/supply-chain.md).
 
+## 1.5.1 — 2026-09-10
+
 ### Fixed
 
 - Workload `sign_assertion` is attached to outbound pause-notify (`post_json`)
