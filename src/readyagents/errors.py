@@ -12,6 +12,11 @@ class ReadyAgentsError(Exception):
     state: object | None = None
 
 
+def missing_extra_message(label: str, extra: str) -> str:
+    """Install hint for an optional extra. Distribution name is readyagentsdev."""
+    return f"The {label} extra is not installed. Run: pip install 'readyagentsdev[{extra}]'"
+
+
 class ConfigError(ReadyAgentsError):
     """Invalid configuration, missing settings, or unreadable files."""
 

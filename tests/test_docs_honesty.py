@@ -11,9 +11,9 @@ from typer.testing import CliRunner
 
 from readyagents import __version__
 from readyagents.cli import app
-from readyagents.errors import LLMError
+from readyagents.errors import A2AError, LLMError, MCPError, missing_extra_message
 from readyagents.llm.anthropic_provider import AnthropicProvider
-from readyagents.llm.base import Message, missing_extra_message
+from readyagents.llm.base import Message
 from readyagents.llm.openai_provider import OpenAIProvider
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -92,6 +92,44 @@ def test_a2a_docs_card_is_protocol_0_3() -> None:
     assert "protocolVersion" in text
     assert "0.3.0" in text
     assert "agent-card.json` (A2A v1.0)" not in text
+
+
+def test_construct_server_missing_mcp_extra_names_readyagentsdev(monkeypatch) -> None:
+    import readyagents.mcp.server as srv
+
+    monkeypatch.setattr(srv, "mcp_available", lambda: False)
+    with pytest.raises(MCPError, match=r"readyagentsdev\[mcp\]"):
+        srv.construct_server()
+
+
+def test_mcp_client_missing_extra_names_readyagentsdev(tmp_path: Path, monkeypatch) -> None:
+    from readyagents.mcp.client import MCPClient
+    from readyagents.workflow.schema import MCPServerSpec
+
+    monkeypatch.setattr("readyagents.mcp.client.mcp_available", lambda: False)
+    client = MCPClient({"demo": MCPServerSpec(command="true")}, tmp_path)
+    with pytest.raises(MCPError, match=r"readyagentsdev\[mcp\]"):
+        client.tools()
+
+
+def test_a2a_serve_missing_uvicorn_names_readyagentsdev(
+    tmp_path: Path, tmp_settings, monkeypatch
+) -> None:
+    wf = tmp_path / "wf.yaml"
+    wf.write_text(
+        "name: t\nstart: a\nnodes:\n  - id: a\n    type: transform\n    template: 'ok'\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setitem(sys.modules, "uvicorn", None)
+    from readyagents.a2a.server import serve_a2a
+
+    with pytest.raises(A2AError, match=r"readyagentsdev\[mcp\]"):
+        serve_a2a(wf)
+
+
+def test_mcp_docs_name_readyagentsdev_extra() -> None:
+    text = (ROOT / "docs" / "mcp.md").read_text(encoding="utf-8")
+    assert "readyagentsdev[mcp]" in text
 
 
 def test_readme_does_not_sell_unreleased_as_tag() -> None:
