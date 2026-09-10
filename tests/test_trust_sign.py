@@ -135,8 +135,11 @@ def test_keyring_add_list_remove_permissions(tmp_path: Path) -> None:
     entry = add_key(pub, name="ops", home=home)
     ring = load_keyring(home=home)
     assert ring.find(entry.key_id) is not None
-    mode = stat.S_IMODE((home / "keyring.json").stat().st_mode)
-    assert mode & 0o177 == 0
+    from readyagents.permissions import permissions_enforceable
+
+    if permissions_enforceable(home):
+        mode = stat.S_IMODE((home / "keyring.json").stat().st_mode)
+        assert mode & 0o177 == 0
     removed = remove_key(entry.key_id, home=home)
     assert removed.key_id == entry.key_id
     assert load_keyring(home=home).keys == []
