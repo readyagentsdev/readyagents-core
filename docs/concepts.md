@@ -21,7 +21,7 @@ A workflow is a YAML (or JSON) file with:
 | `tool` | Call a named builtin, pack, or MCP tool |
 | `condition` | Branch on a small expression |
 | `transform` | Template, JSON parse, or dotted-path extract |
-| `approval` | Human-in-the-loop gate; pauses until `--approve` / `--reject` or an injected decision |
+| `approval` | Human-in-the-loop gate; pauses until `--approve` / `--reject` or an injected decision. Opt-in quorum, roles, lazy deadlines: [approvals.md](approvals.md). |
 | `parallel` | Run independent branch nodes concurrently |
 | `include` | Run another workflow file and take its outputs |
 | `foreach` | Sequential map over a list (`{{item}}` / `{{index}}`; default 32 / max 100; no nest) |

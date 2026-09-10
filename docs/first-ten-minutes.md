@@ -38,7 +38,7 @@ Or inject a JSON decision without `--approve` flags:
 readyagents decide <run_id> --node gate --decision approve
 ```
 
-One gate is enough. `examples/gated_write.yaml` does `calc`, then a single approval, then `write_file`. Exit **2** means the file is still absent. `--approve gate` writes once. Reject never writes. That is not a rubber-stamp prompt on every tool.
+One gate is enough. `examples/gated_write.yaml` does `calc`, then a single approval, then `write_file`. Exit **2** means the file is still absent. `--approve gate` writes once. Reject never writes. That is not a rubber-stamp prompt on every tool. Quorum, lazy deadlines, and delegation are opt-in: [approvals.md](approvals.md).
 
 ```bash
 readyagents run examples/gated_write.yaml

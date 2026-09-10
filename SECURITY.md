@@ -102,6 +102,17 @@ MCP `tasks/update` approvals have the **same authority** as `readyagents decide`
 
 Do not reverse-proxy this door onto the public internet.
 
+## Enterprise approvals
+
+Quorum, roles, lazy deadlines, and delegation are opt-in workflow fields. Core
+starts no timer; an unattended `expires_in` does not fire until resume, decide,
+or a status query. `on_expire: approve` is refused at validation so stalling a
+gate cannot mint an approval. Delegation is single-hop, time-bounded,
+non-widening, and checked at decision time. Notify payloads are redacted and
+bounded; webhook destinations use the existing SSRF pin. `approvals list`
+does not distinguish unauthorized from missing. Every new path uses the
+existing signed decision object. See [docs/approvals.md](docs/approvals.md).
+
 ## Localhost approval UI
 
 `readyagents approvals serve` is an explicit foreground loopback page, not a hosted dashboard.

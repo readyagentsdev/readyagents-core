@@ -1,3 +1,20 @@
+# Unreleased — enterprise HITL (draft, not a release)
+
+Opt-in quorum, role routing, lazy deadlines (`reject` / `escalate` / `fail`;
+`on_expire: approve` is refused), time-bounded revocable delegation, reason
+capture, file/command/webhook channels, and `readyagents approvals list`.
+Core starts no timer. A gate with no new fields is unchanged.
+
+```bash
+readyagents run examples/quorum_gate.yaml
+readyagents decide RUN --node gate --decision approve --actor alice
+readyagents decide RUN --node gate --decision approve --actor bob
+readyagents approvals list --json
+```
+
+See [docs/approvals.md](docs/approvals.md).
+
+
 # Unreleased — supply-chain trust (draft, not a release)
 
 Canonical SHA-256 digests (algorithm v1) for workflows including every

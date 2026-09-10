@@ -51,4 +51,6 @@ engine: no extra denies, no gates, no pins.
 Workspace path containment, `http_get` SSRF pinning, signed approval
 decisions, RBAC hooks, cassette redaction, and append-only audit remain in
 force. Policy gates reuse the existing approval pause (exit 2, `decide`,
-decision files, localhost approval UI).
+decision files, localhost approval UI). Enterprise HITL (quorum, roles, lazy
+deadlines, delegation) is opt-in and uses that same decision object;
+[approvals.md](approvals.md).

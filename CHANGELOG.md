@@ -6,6 +6,16 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Enterprise HITL.** Opt-in quorum (`approvals_required`), distinct actors,
+  `deny_actor` (including `$initiator`), role routing (`approver_roles` /
+  `require: any|all`), lazy deadlines (`expires_in` with `on_expire: reject |
+  escalate | fail` — **`approve` is refused at validation**), time-bounded
+  revocable single-hop delegation (`readyagents delegate` /
+  `delegations list|revoke`), `require_reason` and override recording, file /
+  command / webhook notify channels, and `readyagents approvals list`. Core
+  starts no timer; expiry is evaluated on resume, decide, and status query.
+  A gate with none of the new fields is unchanged. See
+  [docs/approvals.md](docs/approvals.md).
 - **Supply-chain trust.** Canonical SHA-256 digests (algorithm v1) for
   workflows including every resolved `include`, pack file bytes, and MCP
   advertised tool surfaces. `readyagents sign` / `verify` write a detached

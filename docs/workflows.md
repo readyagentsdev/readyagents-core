@@ -163,6 +163,8 @@ readyagents approvals serve   # optional localhost UI; YAML unchanged
 
 The approval YAML is unchanged. The optional page is a foreground loopback UI, not a hosted dashboard. See [browser-approval-ui.md](browser-approval-ui.md).
 
+Optional enterprise fields (all inert unless set): `approvals_required`, `distinct_actors`, `deny_actor`, `approver_roles`, `require`, `expires_in`, `on_expire` (`reject` / `escalate` / `fail`; **`approve` is refused**), `escalate_to`, `require_reason`, `reject_short_circuit`, `recommendation`, `notify`. Core starts **no timer** — expiry is lazy. Full model: [approvals.md](approvals.md).
+
 `then` is the approve path; `else` is the reject path. `next` is used when approved if `then` is omitted.
 
 Multiple gates in one graph are allowed. Each needs its own `--approve NODE` (or `--reject`), or an injected JSON decision (`readyagents decide` / `--decision-file`). See `examples/multi_gate.yaml`.
@@ -271,6 +273,8 @@ readyagents runs replay <run_id>
 | --- | --- | --- |
 | `examples/calc_pipeline.yaml` | No | Clone-and-run smoke test |
 | `examples/approval_gate.yaml` | No | Human-in-the-loop approval |
+| `examples/quorum_gate.yaml` | No | Two-approver quorum gate |
+| `examples/expiring_gate.yaml` | No | Lazy `expires_in` / `on_expire: reject` |
 | `examples/gated_write.yaml` | No | calc → one approval → write_file; pause does not create the file |
 | `examples/multi_gate.yaml` | No | Two sequential approval gates |
 | `examples/fanout_gate.yaml` | No | Parallel fan-out + approval |
