@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 1.9.0 — 2026-09-10
+
 ### Added
 
 - **A2A interoperability.** Serve one workflow as an A2A agent
