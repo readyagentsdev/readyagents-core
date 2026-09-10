@@ -4,6 +4,12 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Fixed
+
+- Scoped delegation is matched against the gate's `approver_roles` as well as
+  the actor's JWT/RBAC roles, so a finance grant still applies when the
+  delegate already holds a different role.
+
 ## 1.7.0 — 2026-09-10
 
 ### Added
