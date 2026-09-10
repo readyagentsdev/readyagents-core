@@ -1,3 +1,23 @@
+# ReadyAgents Core 1.5.1
+
+**Identity skeptic fixes: outbound notify JWTs and brokered secret isolation.**
+
+Workload `sign_assertion` is attached to outbound pause-notify (`post_json`)
+when configured so a fixture peer can verify the JWT against the public key.
+Credential grants are delivered via a thread-local mapping, not shared
+`os.environ`, so parallel tool branches cannot see a sibling's secret.
+
+Packs are waitlisted, not for sale.
+
+## Try it
+
+```bash
+pip install readyagentsdev==1.5.1
+readyagents identity whoami
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
 # ReadyAgents Core 1.5.0
 
 **Agent identity and credential brokering.**

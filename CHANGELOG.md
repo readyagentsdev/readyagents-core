@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 1.5.1 — 2026-09-10
+
 ### Fixed
 
 - Workload `sign_assertion` is attached to outbound pause-notify (`post_json`)
