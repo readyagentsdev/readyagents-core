@@ -23,6 +23,12 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- First-ten-minutes and getting-started versions match the package; the
+  first-ten-minutes path documents `pip install readyagentsdev` (the wheel
+  does not ship `examples/`). Extra-missing OpenAI/Anthropic errors name
+  `readyagentsdev`. `readyagents init` next-steps are wheel-safe. A2A docs
+  distinguish the v1.0 well-known path from card `protocolVersion` 0.3.0.
+  README labels A2A and memory as Unreleased on this checkout, not the 1.9.0 tag.
 - Cancel of a paused (input-required) run finishes immediately even if the
   worker has not yet dropped the in-flight set, so A2A `tasks/cancel` does not
   sit in `working` and starve the 120/min poll cap.

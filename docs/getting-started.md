@@ -8,7 +8,7 @@
 
 ## Install
 
-Current version is **1.0.0**. Preferred install is from PyPI:
+Current version is **1.9.0**. Preferred install is from PyPI:
 
 ```bash
 python -m venv .venv
@@ -39,38 +39,39 @@ Agent nodes need a key in `.env` after you install the matching extra.
 
 ## First run (no keys)
 
+The PyPI wheel does **not** ship `examples/`. From any install:
+
 ```bash
-readyagents run examples/calc_pipeline.yaml
+readyagents doctor
+readyagents new my-flow
+readyagents run my-flow/workflow.yaml
+readyagents runs list
+readyagents new demo --template gated
+readyagents run demo/workflow.yaml --approve gate
 ```
 
-This uses `calc`, `now`, `json_get`, a transform, and a condition. It writes a run record under `.readyagents/runs/` (gitignored) after each node.
+From a clone of this repository, the same keyless graph is `examples/calc_pipeline.yaml` (`calc`, `now`, `json_get`, a transform, and a condition). It writes a run record under `.readyagents/runs/` (gitignored) after each node.
 
 ```bash
+readyagents run examples/calc_pipeline.yaml
 readyagents runs list
 readyagents runs show <run_id>
 readyagents eval examples/eval/pass.yaml
 readyagents run examples/list_dir.yaml
 ```
 
-Scaffold a local starter (workflow + README + `.env.example` + a local JSON Schema):
-
-```bash
-readyagents new my-flow
-readyagents run my-flow/workflow.yaml
-readyagents new demo --template gated
-readyagents run demo/workflow.yaml --approve gate
-```
+Scaffolds write a local starter (workflow + README + `.env.example` + a local JSON Schema).
 
 Scaffolds start `workflow.yaml` with a `yaml-language-server` modeline pointing at `./workflow.schema.json` (the hosted `$id` URL 404s today, so the default is a local file). For an air-gapped copy: `readyagents schema --output .readyagents/workflow.schema.json`. Editor setup: [authoring.md](authoring.md).
 
-Human-in-the-loop (no keys):
+Human-in-the-loop (no keys). From PyPI use the `gated` scaffold above. From a clone:
 
 ```bash
 readyagents run examples/approval_gate.yaml --approve gate
 # or pause, then:
 readyagents run examples/approval_gate.yaml
 readyagents resume <run_id> --approve gate
-# optional Unreleased localhost page (not a hosted dashboard):
+# optional localhost page (not a hosted dashboard):
 # readyagents approvals serve --host 127.0.0.1 --port 8766
 readyagents run examples/fanout_gate.yaml --approve gate
 readyagents run examples/include_demo.yaml

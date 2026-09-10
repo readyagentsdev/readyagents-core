@@ -11,7 +11,7 @@ This repository is the free core. You keep the provider account and the bill. In
 
 ## 60-second start
 
-Requires **Python 3.11–3.14** on Linux, macOS, or Windows. Current version is **1.9.0**. Install with `pip install readyagentsdev`, or from this clone.
+Requires **Python 3.11–3.14** on Linux, macOS, or Windows. Tagged **1.9.0** is the connector suite (`pip install readyagentsdev`). This checkout also has **Unreleased** A2A and memory — clone and `pip install -e .` to try those; they are not on the 1.9.0 tag.
 
 ```bash
 git clone https://github.com/readyagentsdev/readyagents-core.git
@@ -47,8 +47,8 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Builtin tools with **zero extra servers**: `now`, `calc`, `json_get`, `list_dir`, `read_file`, `write_file`, optional `http_get`
 - Small governed connector set (`rest`, `sql`, `object_storage`, `message`, `ingest`) plus `readyagents connectors` catalog — [connectors](docs/connectors.md)
 - Optional [MCP](https://modelcontextprotocol.io) client and server (`readyagents mcp serve`, `readyagents mcp probe`) with official tasks and MRTR approvals
-- Optional [A2A](docs/a2a.md) serve/probe and `type: a2a` delegation (projection over the run record; remote content untrusted; not certification)
-- Optional [memory](docs/memory.md) (`type: memory`, local JSON/SQLite, BM25, TTL/forget) — untrusted; delayed injection and scope escape first; not a quality claim
+- Optional [A2A](docs/a2a.md) serve/probe and `type: a2a` delegation (**Unreleased** on this checkout; 0.3 JSON-RPC projection; remote content untrusted; not certification)
+- Optional [memory](docs/memory.md) (`type: memory`, local JSON/SQLite, BM25, TTL/forget) — **Unreleased** on this checkout; untrusted; delayed injection and scope escape first; not a quality claim
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -168,7 +168,7 @@ flowchart LR
 - [Compliance evidence](docs/compliance.md) (Articles 12–14 mapping; not certification)
 - [Observability](docs/observability.md)
 - [Changelog](CHANGELOG.md)
-- [Release notes 0.8.0](RELEASE_NOTES.md)
+- [Release notes 1.9.0](RELEASE_NOTES.md)
 
 ## Install extras
 
