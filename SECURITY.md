@@ -18,6 +18,13 @@ Include:
 
 We will acknowledge the report and work on a fix before any disclosure.
 
+## Sovereign mode is not an OS sandbox
+
+`--sovereign` refuses non-loopback connects in-process for that run. DNS
+lookups can still leak. MCP stdio children are `network_uncontrolled`. A native
+extension can bypass the wrapper. Attestation is technical evidence, not legal
+data-residency compliance. See [docs/sovereign.md](docs/sovereign.md).
+
 ## Agent firewall (defence in depth)
 
 Prompt injection is not solved. With a policy file, the engine taint-tracks

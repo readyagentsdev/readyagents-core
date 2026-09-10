@@ -4,6 +4,19 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Added
+
+- **Sovereign mode.** `--sovereign` / `READYAGENTS_SOVEREIGN=1` refuses
+  non-loopback egress at the process socket boundary for the run (model
+  calls, tools, packs, threads). Loopback is allowed; private endpoints are
+  explicit (`--sovereign-allow`). `readyagents attest` emits a residency
+  document that marks MCP stdio `network_uncontrolled: true` and does not
+  claim legal compliance. `readyagents bundle` writes wheels plus checksums
+  for `pip install --no-index --find-links`. `readyagents doctor` reports
+  whether sovereign would succeed here and loopback model presence, never
+  secret values. See [docs/sovereign.md](docs/sovereign.md) and
+  [docs/local-models.md](docs/local-models.md).
+
 ### Fixed
 
 - Scoped delegation is matched against the gate's `approver_roles` as well as
