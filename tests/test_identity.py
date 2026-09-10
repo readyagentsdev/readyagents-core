@@ -160,6 +160,26 @@ def test_wrong_audience_and_issuer(tmp_path: Path) -> None:
         verify_token(_token(pem, {"iss": "https://evil.example/"}), anchors, base=tmp_path)
 
 
+def test_skew_boundary_accepts_inside_and_refuses_outside(tmp_path: Path) -> None:
+    pem, jwk = _rsa_pair()
+    skew = 60
+    trust = _write_trust(tmp_path, jwk, max_skew_seconds=skew)
+    anchors = load_trust_anchors(trust)
+    now = int(time.time())
+    inside = _token(
+        pem,
+        {"exp": now - (skew - 1), "nbf": now - 120, "iat": now - 120, "jti": "skew-in"},
+    )
+    actor = verify_token(inside, anchors, base=tmp_path)
+    assert actor.identified() is True
+    outside = _token(
+        pem,
+        {"exp": now - (skew + 1), "nbf": now - 180, "iat": now - 180, "jti": "skew-out"},
+    )
+    with pytest.raises(IdentityError, match="expired"):
+        verify_token(outside, anchors, base=tmp_path)
+
+
 def test_expired_and_nbf(tmp_path: Path) -> None:
     pem, jwk = _rsa_pair()
     trust = _write_trust(tmp_path, jwk)
@@ -348,7 +368,8 @@ def test_broker_grant_and_env_isolation(
         credentials=creds,
     )
     assert state.status == "succeeded"
-    assert seen["granted_env"] == secret
+    # Grants are not delivered via process os.environ (parallel-safe).
+    assert seen["granted_env"] is None
     assert seen["granted_map"] == secret
     assert seen["other_env"] is None
     assert seen["other_map"] is None
@@ -358,6 +379,78 @@ def test_broker_grant_and_env_isolation(
     cred_meta = state.metadata.get("credentials") or {}
     assert cred_meta["grab"]["kind"] == "static"
     assert cred_meta["grab"]["secrets"] == ["PARTNER_API_TOKEN"]
+
+
+def test_parallel_non_granted_branch_never_sees_secret(
+    tmp_path: Path, tmp_settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import threading
+    import time
+
+    secret = "parallel-secret-token"
+    monkeypatch.setenv("PARTNER_API_TOKEN", secret)
+    seen: dict[str, str | None] = {}
+    barrier = threading.Barrier(2, timeout=5)
+
+    def granted_tool(**_k: object) -> str:
+        from readyagents.credentials.broker import current_granted
+
+        barrier.wait()
+        time.sleep(0.15)
+        seen["granted_env"] = os.environ.get("PARTNER_API_TOKEN")
+        seen["granted_map"] = current_granted().get("PARTNER_API_TOKEN")
+        return "ok-granted"
+
+    def other_tool(**_k: object) -> str:
+        from readyagents.credentials.broker import current_granted
+
+        barrier.wait()
+        time.sleep(0.15)
+        seen["other_env"] = os.environ.get("PARTNER_API_TOKEN")
+        seen["other_map"] = current_granted().get("PARTNER_API_TOKEN")
+        return "ok-other"
+
+    creds = tmp_path / "readyagents.credentials.yaml"
+    creds.write_text(
+        "version: 1\ncredentials:\n  grab:\n    secrets: [PARTNER_API_TOKEN]\n  other:\n    secrets: []\n",
+        encoding="utf-8",
+    )
+    wf = tmp_path / "wf.yaml"
+    wf.write_text(
+        yaml.safe_dump(
+            {
+                "name": "cred-parallel",
+                "nodes": [
+                    {
+                        "id": "fan",
+                        "type": "parallel",
+                        "branches": [
+                            {"id": "grab", "type": "tool", "tool": "grab"},
+                            {"id": "other", "type": "tool", "tool": "other"},
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    tools = ToolRegistry()
+    tools.register(FunctionTool(name="grab", description="g", handler=granted_tool, schema={}))
+    tools.register(FunctionTool(name="other", description="o", handler=other_tool, schema={}))
+    state = run_workflow_file(
+        wf,
+        settings=tmp_settings,
+        persist=False,
+        extra_tools=tools,
+        secrets=MappingSecrets({"PARTNER_API_TOKEN": secret}),
+        credentials=creds,
+    )
+    assert state.status == "succeeded"
+    assert seen["granted_map"] == secret
+    assert seen["granted_env"] is None
+    assert seen["other_env"] is None
+    assert seen["other_map"] is None
+    assert os.environ.get("PARTNER_API_TOKEN") == secret
 
 
 def test_subprocess_minimal_env() -> None:
@@ -381,6 +474,60 @@ def test_actor_flag_still_default(tmp_path: Path, tmp_settings) -> None:
     assert state.metadata.get("actor") == "local-user"
     identity = state.metadata.get("identity")
     assert identity is None or identity.get("method") in {None, "none"}
+
+
+def test_sign_assertion_on_notify_verifies_against_public_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import jwt
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
+
+    from readyagents.notify import post_json
+
+    pem, _jwk = _rsa_pair()
+    key_path = tmp_path / "workload.pem"
+    key_path.write_bytes(pem)
+    subject = "agent://readyagents/local"
+    monkeypatch.setenv("READYAGENTS_WORKLOAD_SUBJECT", subject)
+    monkeypatch.setenv("READYAGENTS_WORKLOAD_KEY", str(key_path))
+    monkeypatch.setenv("READYAGENTS_WORKLOAD_KID", "wk1")
+    monkeypatch.setattr(
+        "readyagents.mcp.builtin.socket.getaddrinfo",
+        lambda *a, **k: [(0, 0, 0, "", ("8.8.8.8", 0))],
+    )
+    seen: dict[str, object] = {}
+
+    def fake_exchange(*_a: object, **kwargs: object) -> tuple[int, bytes, str | None]:
+        seen["headers"] = kwargs.get("headers")
+        seen["body"] = kwargs.get("body")
+        return 204, b"", None
+
+    monkeypatch.setattr("readyagents.notify._http_exchange", fake_exchange)
+    post_json("https://hooks.example/pause", {"event": "approval_required"})
+    headers = seen["headers"]
+    assert isinstance(headers, dict)
+    auth = str(headers.get("Authorization") or "")
+    assert auth.startswith("Bearer ")
+    token = auth[len("Bearer ") :]
+    private = load_pem_private_key(pem, password=None)
+    public = private.public_key()
+    claims = jwt.decode(
+        token,
+        key=public,
+        algorithms=["RS256"],
+        audience="https://hooks.example",
+        issuer=subject,
+    )
+    assert claims["sub"] == subject
+    blob = repr(headers) + repr(seen.get("body"))
+    assert "PRIVATE" not in blob
+    assert pem.decode() not in blob
+    from readyagents.identity.workload import sign_assertion
+
+    again = sign_assertion(audience="https://hooks.example")
+    jwt.decode(
+        again, key=public, algorithms=["RS256"], audience="https://hooks.example", issuer=subject
+    )
 
 
 def test_whoami_no_private_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

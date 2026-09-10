@@ -49,6 +49,7 @@ def materialise(
     backends: Any,
     *,
     mint: bool = True,
+    env_snapshot: Mapping[str, str | None] | None = None,
 ) -> list[GrantedSecret]:
     ttl = parse_ttl(grant.ttl)
     out: list[GrantedSecret] = []
@@ -58,7 +59,10 @@ def materialise(
             out.append(minted)
             continue
         value = lookup_secret(name, backends)
-        if value is None:
+        if value is None and env_snapshot is not None and name in env_snapshot:
+            raw = env_snapshot.get(name)
+            value = raw if raw else None
+        elif value is None:
             value = os.environ.get(name)
         if not value:
             continue
@@ -74,30 +78,50 @@ def credential_kind(granted: list[GrantedSecret]) -> str | None:
     return "static"
 
 
+class RunEnvGuard:
+    """Strip managed secret names from process env for the whole run.
+
+    Grants are delivered via ``current_granted()`` (a ContextVar), not
+    ``os.environ``, so parallel tool branches cannot see each other's secrets.
+    """
+
+    def __init__(self, managed: set[str]) -> None:
+        self.managed = set(managed)
+        self.saved: dict[str, str | None] = {}
+        self._installed = False
+
+    def install(self) -> None:
+        if self._installed:
+            return
+        for name in self.managed:
+            self.saved[name] = os.environ.get(name)
+            os.environ.pop(name, None)
+        self._installed = True
+
+    def restore(self) -> None:
+        if not self._installed:
+            return
+        for name, previous in self.saved.items():
+            if previous is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = previous
+        self._installed = False
+
+
 @contextmanager
 def scoped_env(
     granted: list[GrantedSecret],
     *,
     managed: set[str],
 ) -> Iterator[Mapping[str, str]]:
-    """Strip managed names from os.environ except those granted to this tool."""
+    """Expose granted secrets on a thread-local ContextVar only — not os.environ."""
+    del managed  # process env is stripped once per run by RunEnvGuard
     mapping = {item.name: item.value for item in granted}
     token = _GRANTED.set(mapping)
-    saved: dict[str, str | None] = {}
     try:
-        for name in managed:
-            saved[name] = os.environ.get(name)
-            if name in mapping:
-                os.environ[name] = mapping[name]
-            elif name in os.environ:
-                del os.environ[name]
         yield mapping
     finally:
-        for name, previous in saved.items():
-            if previous is None:
-                os.environ.pop(name, None)
-            else:
-                os.environ[name] = previous
         _GRANTED.reset(token)
 
 

@@ -104,6 +104,7 @@ class ExecutionContext:
         labels: Mapping[str, str] | None = None,
         verified_actor: Any | None = None,
         credential_policy: Any | None = None,
+        credential_env: Mapping[str, str | None] | None = None,
     ) -> None:
         self.workflow = workflow
         self.tools = tools
@@ -142,6 +143,7 @@ class ExecutionContext:
         self.labels = {str(k): str(v) for k, v in dict(labels or {}).items()}
         self.verified_actor = verified_actor
         self.credential_policy = credential_policy
+        self.credential_env = dict(credential_env) if credential_env is not None else None
         self.last_credential_kind: str | None = None
         self.last_tool_rounds: list[dict[str, Any]] = []
         self._persist_lock = threading.RLock()
@@ -220,6 +222,7 @@ class ExecutionContext:
             labels=self.labels,
             verified_actor=self.verified_actor,
             credential_policy=self.credential_policy,
+            credential_env=self.credential_env,
         )
 
 

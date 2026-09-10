@@ -207,6 +207,7 @@ def run_workflow_file(
         configure_logging(settings.log_level, fmt=settings.log_format, redactor=redactor)
 
     mcp = None
+    env_guard = None
     if workflow.mcp_servers and not dry_run:
         from readyagents.mcp.client import MCPClient
 
@@ -400,6 +401,12 @@ def run_workflow_file(
             except Exception as notify_exc:  # noqa: BLE001
                 log.warning("pause webhook failed: %s", notify_exc)
 
+    cred_policy = _load_credentials(credentials, source_path.parent)
+    if cred_policy is not None:
+        from readyagents.credentials.broker import RunEnvGuard
+
+        env_guard = RunEnvGuard(cred_policy.managed_names())
+        env_guard.install()
     ctx = ExecutionContext(
         workflow,
         tools,
@@ -436,7 +443,8 @@ def run_workflow_file(
         spend_meter=spend_meter,
         labels=resolved_labels,
         verified_actor=verified_actor,
-        credential_policy=_load_credentials(credentials, source_path.parent),
+        credential_policy=cred_policy,
+        credential_env=env_guard.saved if env_guard is not None else None,
     )
     metadata = {
         "source": str(source_path),
@@ -509,6 +517,8 @@ def run_workflow_file(
             closer = getattr(store, "close", None)
             if callable(closer):
                 closer()
+        if env_guard is not None:
+            env_guard.restore()
 
 
 def _load_credentials(explicit: Path | str | None, workflow_dir: Path) -> Any:

@@ -19,9 +19,11 @@ Resolution: `--credentials`, `READYAGENTS_CREDENTIALS`, then
 
 ## Grant and scrub
 
-Before a tool runs, only the secrets listed for that tool are materialised.
-Managed names are stripped from `os.environ` for tools that were not granted
-them. After the call, the previous environment is restored.
+Before a run, managed secret names are stripped from process `os.environ`.
+Each tool receives only its grant through a thread-local mapping
+(`current_granted()`), not through shared `os.environ`, so parallel branches
+cannot see each other's secrets. After the run, the previous environment is
+restored.
 
 A determined in-process tool can copy a value *while it is granted*. The
 control is against accident and a careless pack, not hostile in-process code.
