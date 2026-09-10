@@ -14,7 +14,9 @@ system prompt, decides whether a tool runs.
   layered on the existing public-IP SSRF pin.
 - Paths outside a policy glob, still inside the workspace sandbox.
 - MCP tool description/schema changes after first use (rug pull), including
-  across later runs (pins live under `$READYAGENTS_HOME/mcp-pins/`).
+  across later runs, **when a firewall policy file is present** (pins live
+  under `$READYAGENTS_HOME/mcp-pins/`; without a policy file, `evaluate` is
+  identity allow and `pin_changed` does not gate).
 - Agent tool-calls whose prompt or system interpolates untrusted state, even
   when the model emits literal arguments.
 - Known secret values being placed into a model request.

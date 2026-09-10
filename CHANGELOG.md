@@ -23,6 +23,9 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- Security-model docs: MCP description/schema pins gate only when a firewall
+  policy file is present. Without a policy, shipped `evaluate` stays identity
+  allow (`pin_changed` does not pause an unconfigured run).
 - MCP and A2A missing-extra errors name `readyagentsdev[mcp]` (PyPI), not only
   clone-only `pip install -e ".[mcp]"`.
 - README CLI table lists shipped `connectors`, `sign`/`verify`/`lock`/`sbom`/`trust`,
