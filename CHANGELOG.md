@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 1.4.0 — 2026-09-10
+
 ### Added
 
 - **TokenOps.** Versioned, overridable model price table (`READYAGENTS_PRICES`).

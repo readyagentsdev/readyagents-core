@@ -1,3 +1,32 @@
+# ReadyAgents Core 1.4.0
+
+**TokenOps: estimate, spend caps, ledger, and runaway guards.**
+
+Versioned, overridable model price table (`READYAGENTS_PRICES`); unknown models
+are explicitly unpriced, never a silent zero. `readyagents run PATH --estimate`
+walks the engine's routing with no execute and no network and prints a range
+with assumptions. `--max-spend` / `--max-tokens` are consulted before each model
+call; parallel branches share one meter; a resumed run continues the same
+budget. `--label KEY=VALUE` is stored on the run and in an append-only
+hash-chained spend ledger (`readyagents spend`). Cache hits/misses/savings
+appear on the run record, `runs report`, and the ledger. Runaway guards
+(`--max-model-calls`, `--max-run-tool-rounds`, `--max-wall-seconds`, workflow
+`runaway:`) raise `RunawayGuard`, distinct from `BudgetExceeded` and
+`CircuitOpen`. Optional `tokenizer` extra is not in `all`. The provider invoice
+is authoritative. Without the new flags, behaviour is unchanged.
+
+Packs are waitlisted, not for sale.
+
+## Try it
+
+```bash
+pip install readyagentsdev==1.4.0
+readyagents run examples/calc_pipeline.yaml --estimate
+readyagents spend
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
 # ReadyAgents Core (Unreleased) — TokenOps draft
 
 **Know the bill before you press enter.** `readyagents run --estimate` walks
