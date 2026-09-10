@@ -76,6 +76,16 @@
     addTerm(dl, "Prompt", run && run.prompt);
     addTerm(dl, "Started", run && run.started_at);
     addTerm(dl, "Actor", run && run.actor);
+    if (run && run.approvals_required) {
+      addTerm(
+        dl,
+        "Votes",
+        String(run.approvals_received || 0) + "/" + String(run.approvals_required)
+      );
+    }
+    if (run && run.expires_at) {
+      addTerm(dl, "Expires", run.expires_at);
+    }
     item.appendChild(dl);
     var actions = document.createElement("div");
     actions.className = "actions";

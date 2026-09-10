@@ -17,6 +17,10 @@ VIEW_FIELDS: tuple[str, ...] = (
     "prompt",
     "actor",
     "revision",
+    "approvals_required",
+    "approvals_received",
+    "eligible_actors",
+    "expires_at",
 )
 
 ASSET_STYLE_URL = "/approvals/assets/style.css"
@@ -59,9 +63,26 @@ def approval_view(
     active = redactor if redactor is not None else Redactor()
     pending = _field(state, "pending")
     prompt = ""
+    required = 1
+    received = 0
+    eligible: list[str] = []
+    expires_at = ""
     if isinstance(pending, Mapping):
         raw_prompt = pending.get("prompt")
         prompt = "" if raw_prompt is None else str(raw_prompt)
+        raw_required = pending.get("approvals_required")
+        if raw_required is not None:
+            try:
+                required = max(1, int(raw_required))
+            except (TypeError, ValueError):
+                required = 1
+        votes = pending.get("approvals_received")
+        if isinstance(votes, list):
+            received = len(votes)
+        raw_eligible = pending.get("eligible_actors")
+        if isinstance(raw_eligible, list):
+            eligible = [_text(item) for item in raw_eligible]
+        expires_at = _text(pending.get("expires_at"))
     metadata = _field(state, "metadata")
     meta_actor = None
     if isinstance(metadata, Mapping):
@@ -77,6 +98,10 @@ def approval_view(
         "prompt": _redact(active, prompt),
         "actor": _redact(active, resolved_actor),
         "revision": int(revision),
+        "approvals_required": required,
+        "approvals_received": received,
+        "eligible_actors": eligible,
+        "expires_at": expires_at,
     }
     return {key: view[key] for key in VIEW_FIELDS}
 

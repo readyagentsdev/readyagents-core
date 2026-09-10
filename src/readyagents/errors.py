@@ -32,6 +32,10 @@ class WorkflowError(ReadyAgentsError):
         self.problems = list(problems or [])
 
 
+class GateExpired(WorkflowError):
+    """A gate hit on_expire: fail. Distinct from a human reject."""
+
+
 class NodeError(ReadyAgentsError):
     """A single node failed after retries / timeout."""
 
@@ -68,11 +72,13 @@ class ApprovalRequired(ReadyAgentsError):
         prompt: str,
         *,
         state: object | None = None,
+        pause: dict | None = None,
     ) -> None:
         self.node_id = node_id
         self.run_id = run_id
         self.prompt = prompt
         self.state = state
+        self.pause = pause
         super().__init__(
             f"Approval required at node '{node_id}' (run {run_id}). {prompt} "
             f"Resume with: readyagents resume {run_id} --approve {node_id} "

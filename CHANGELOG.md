@@ -4,6 +4,19 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Added
+
+- **Enterprise HITL.** Opt-in quorum (`approvals_required`), distinct actors,
+  `deny_actor` (including `$initiator`), role routing (`approver_roles` /
+  `require: any|all`), lazy deadlines (`expires_in` with `on_expire: reject |
+  escalate | fail` — **`approve` is refused at validation**), time-bounded
+  revocable single-hop delegation (`readyagents delegate` /
+  `delegations list|revoke`), `require_reason` and override recording, file /
+  command / webhook notify channels, and `readyagents approvals list`. Core
+  starts no timer; expiry is evaluated on resume, decide, and status query.
+  A gate with none of the new fields is unchanged. See
+  [docs/approvals.md](docs/approvals.md).
+
 ## 1.6.0 — 2026-09-10
 
 ### Added

@@ -1,0 +1,36 @@
+name: quorum_gate
+version: "1"
+description: >
+  Keyless two-approver gate. One vote leaves the run paused (exit 2).
+  Pause:  readyagents run examples/quorum_gate.yaml
+  Votes:  readyagents decide <run_id> --node gate --decision approve --actor alice
+          readyagents decide <run_id> --node gate --decision approve --actor bob
+  A single --approve gate is not enough.
+
+start: add
+nodes:
+  - id: add
+    type: tool
+    tool: calc
+    arguments:
+      expression: "19 + 23"
+    output_key: total
+    next: gate
+
+  - id: gate
+    type: approval
+    prompt: "Release payment of {{total}}? Two approvers required."
+    then: receipt
+    else: denied
+    approvals_required: 2
+    distinct_actors: true
+
+  - id: receipt
+    type: transform
+    template: "quorum_gate ok: paid {{total}}"
+    output_key: summary
+
+  - id: denied
+    type: transform
+    template: "quorum_gate denied: {{total}}"
+    output_key: summary

@@ -145,6 +145,7 @@ def run_workflow(
                 raise
             _raise_if_cancelled(ctx, state)
             state.pending_node = None
+            state.pending = None
             _persist(ctx, state)
             if ctx.auditor is not None:
                 ctx.auditor(
@@ -204,6 +205,12 @@ def run_workflow(
                 f"readyagents decide {state.run_id} --node {exc.node_id} --decision approve"
             ),
         }
+        extra = getattr(exc, "pause", None)
+        if isinstance(extra, dict):
+            for key, value in extra.items():
+                if key in {"node_id", "type"}:
+                    continue
+                state.pending[key] = value
         state.finish("paused")
         _persist(ctx, state)
         exc.state = state
@@ -278,8 +285,16 @@ def _resume_cursor(workflow: WorkflowSpec, state: RunState) -> tuple[str | None,
         ]
         if current not in completed:
             state.node_outputs.pop(current, None)
+    preserved = None
+    if (
+        isinstance(state.pending, dict)
+        and state.pending.get("type") == "approval"
+        and current
+        and state.pending.get("node_id") == current
+    ):
+        preserved = dict(state.pending)
     state.pending_node = None
-    state.pending = None
+    state.pending = preserved
     state.status = "running"
     state.finished_at = None
     return current, completed

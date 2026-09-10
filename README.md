@@ -92,7 +92,10 @@ flowchart LR
 | `readyagents audit verify [--file PATH]` | Walk the hash-chained audit trail |
 | `readyagents spend [--since DATE] [--by day\|workflow\|model\|actor\|label]` | Aggregate the local spend ledger |
 | `readyagents graph PATH` | Deterministic Mermaid routing (executes nothing) |
-| `readyagents decide RUN_ID [--file FILE \| --node ID --decision approve] [--token-file JWT] [--actor NAME]` | Inject an approval; `--actor` stays the default, `--token-file` identifies |
+| `readyagents decide RUN_ID [--file FILE \| --node ID --decision approve] [--token-file JWT] [--actor NAME] [--reason TEXT]` | Inject an approval; `--actor` stays the default, `--token-file` identifies |
+| `readyagents approvals list [--role ROLE] [--actor NAME] [--expiring-within 1h]` | Queue of paused gates the caller may see |
+| `readyagents delegate --from A --to B --until TS [--scope ROLE]` | Time-bounded, single-hop, revocable approval delegation |
+| `readyagents delegations list \| revoke ID` | List or revoke local delegations |
 | `readyagents identity verify --token-file JWT` | Verify an assertion against local trust anchors |
 | `readyagents identity whoami` | Workload fingerprint (never the private key) |
 | `readyagents runs list` | List persisted runs |
@@ -114,6 +117,8 @@ flowchart LR
 | `examples/calc_pipeline.yaml` | Builtin tools, transform, condition |
 | `examples/calc_pipeline.json` | Same graph as `calc_pipeline.yaml` |
 | `examples/approval_gate.yaml` | Human-in-the-loop pause / resume |
+| `examples/quorum_gate.yaml` | Two-approver gate (keyless) |
+| `examples/expiring_gate.yaml` | Lazy deadline, `on_expire: reject` (keyless) |
 | `examples/multi_gate.yaml` | Two sequential approval gates |
 | `examples/fanout_gate.yaml` | Parallel branches + approval |
 | `examples/include_demo.yaml` | Sub-workflow `include` |

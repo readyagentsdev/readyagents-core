@@ -53,6 +53,7 @@ approvals_app = typer.Typer(
     help="Foreground localhost approval UI (not a hosted dashboard).",
     no_args_is_help=True,
 )
+delegations_app = typer.Typer(help="Time-bounded approval delegations.", no_args_is_help=True)
 policy_app = typer.Typer(help="Validate and explain firewall policy files.", no_args_is_help=True)
 audit_app = typer.Typer(
     help="Inspect the append-only hash-chained audit trail.", no_args_is_help=True
@@ -68,6 +69,7 @@ trust_app = typer.Typer(
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(runs_app, name="runs")
 app.add_typer(approvals_app, name="approvals")
+app.add_typer(delegations_app, name="delegations")
 app.add_typer(policy_app, name="policy")
 app.add_typer(audit_app, name="audit")
 app.add_typer(identity_app, name="identity")
@@ -632,6 +634,7 @@ def resume_cmd(
         "--frozen",
         help="Refuse to run when readyagents.lock digests do not match.",
     ),
+    reason: str | None = typer.Option(None, "--reason", help="Reason captured with the vote."),
 ) -> None:
     """Resume a paused or failed run from the last successful node."""
     persist = not no_persist
@@ -640,6 +643,10 @@ def resume_cmd(
         from readyagents.cost.ledger import parse_labels
 
         labels = parse_labels(label) if label else None
+        decisions = build_decisions(approve, reject)
+        reason_nodes = dict(decisions)
+        if decision_file is not None and reason:
+            reason_nodes.update(load_decision_file(decision_file))
         state = resume_run(
             run_id,
             path=workflow,
@@ -647,7 +654,7 @@ def resume_cmd(
             dry_run=dry_run,
             persist=persist,
             pack_specs=collect_pack_specs(pack),
-            decisions=build_decisions(approve, reject),
+            decisions=decisions,
             decision_file=decision_file,
             actor=actor,
             no_cache=no_cache,
@@ -661,6 +668,7 @@ def resume_cmd(
             max_wall_seconds=max_wall_seconds,
             require_signed=require_signed,
             frozen=frozen,
+            vote_reasons={key: reason for key in reason_nodes} if reason and reason_nodes else None,
         )
     except KeyboardInterrupt:
         if as_json:
@@ -703,6 +711,7 @@ def decide_cmd(
     as_json: bool = typer.Option(False, "--json"),
     no_persist: bool = typer.Option(False, "--no-persist"),
     pack: list[str] = typer.Option([], "--pack", help=_PACK_HELP),
+    reason: str | None = typer.Option(None, "--reason", help="Reason captured with the vote."),
 ) -> None:
     """Inject an external approval decision into a paused run, then resume.
 
@@ -757,6 +766,8 @@ def decide_cmd(
             decisions=decisions,
             actor=resolved_actor,
             verified_actor=verified,
+            vote_reasons={key: reason for key in decisions} if reason else None,
+            vote_signature_status="identified" if verified is not None else "unsigned",
         )
     except ReadyAgentsError as exc:
         _emit_run_exception(exc, as_json=as_json, persist=persist, command="decide")
@@ -1334,6 +1345,196 @@ def approvals_serve(
         )
     except ReadyAgentsError as exc:
         _fail(exc)
+
+
+@approvals_app.command("list")
+def approvals_list_cmd(
+    role: str | None = typer.Option(None, "--role", help="Filter to this approver role."),
+    actor: str | None = typer.Option(None, "--actor", envvar="READYAGENTS_ACTOR"),
+    expiring_within: str | None = typer.Option(
+        None, "--expiring-within", help="Duration like 1h; omit to list all pending."
+    ),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """List paused approval gates this caller may see. Unauthorized looks empty."""
+    from readyagents.approvals.queue import list_approvals
+    from readyagents.config import get_settings
+    from readyagents.run_store import open_run_store
+    from readyagents.run_store.base import RunQuery
+
+    try:
+        settings = get_settings()
+        store = open_run_store(settings)
+        try:
+            found = [item.state for item in store.list(RunQuery(status="paused", limit=256))]
+        finally:
+            closer = getattr(store, "close", None)
+            if callable(closer):
+                closer()
+        rows = list_approvals(
+            found,
+            actor=actor,
+            role=role,
+            expiring_within=expiring_within,
+            home=settings.home_path(),
+        )
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "approvals list",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(_json_envelope("approvals list", ok=True, approvals=rows))
+        return
+    if not rows:
+        console.print("no pending approvals")
+        return
+    for row in rows:
+        console.print(
+            f"{row['run_id']} node={row['node_id']} "
+            f"votes={row['approvals_received']}/{row['approvals_required']} "
+            f"expires={row['expires_at'] or '-'} status={row['status']}"
+        )
+
+
+@app.command("delegate")
+def delegate_cmd(
+    from_actor: str = typer.Option(..., "--from", help="Delegator actor id."),
+    to_actor: str = typer.Option(..., "--to", help="Delegate actor id."),
+    until: str = typer.Option(..., "--until", help="RFC 3339 / ISO-8601 timestamp."),
+    scope: str | None = typer.Option(None, "--scope", help="Optional role scope."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Grant a time-bounded, single-hop, revocable delegation. Checked at decision time."""
+    from readyagents.approvals.delegate import add_delegation
+    from readyagents.config import get_settings
+
+    try:
+        settings = get_settings()
+        entry = add_delegation(
+            from_actor=from_actor,
+            to_actor=to_actor,
+            until=until,
+            scope=scope,
+            home=settings.home_path(),
+        )
+        from readyagents.audit import audit_dir_for, make_auditor
+
+        make_auditor(audit_dir_for(settings.home_path()))(
+            "delegation_granted",
+            run_id="delegation",
+            actor=from_actor,
+            delegated_from=from_actor,
+            delegated_to=to_actor,
+            until=entry.until,
+            scope=entry.scope,
+            delegation_id=entry.id,
+        )
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "delegate",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(_json_envelope("delegate", ok=True, **entry.as_dict()))
+        return
+    console.print(
+        f"delegated {entry.from_actor} -> {entry.to_actor} until={entry.until} id={entry.id}"
+    )
+
+
+@delegations_app.command("list")
+def delegations_list_cmd(
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """List local delegations."""
+    from readyagents.approvals.delegate import load_delegations
+    from readyagents.config import get_settings
+
+    try:
+        rows = [item.as_dict() for item in load_delegations(home=get_settings().home_path())]
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "delegations list",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(_json_envelope("delegations list", ok=True, delegations=rows))
+        return
+    if not rows:
+        console.print("no delegations")
+        return
+    for row in rows:
+        flag = " revoked" if row.get("revoked") else ""
+        console.print(
+            f"{row['id']} {row['from']} -> {row['to']} until={row['until']} "
+            f"scope={row.get('scope') or '-'}{flag}"
+        )
+
+
+@delegations_app.command("revoke")
+def delegations_revoke_cmd(
+    delegation_id: str = typer.Argument(..., help="Delegation id."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Revoke a delegation. Later decisions from the delegate are refused."""
+    from readyagents.approvals.delegate import revoke_delegation
+    from readyagents.config import get_settings
+
+    try:
+        settings = get_settings()
+        entry = revoke_delegation(delegation_id, home=settings.home_path())
+        from readyagents.audit import audit_dir_for, make_auditor
+
+        make_auditor(audit_dir_for(settings.home_path()))(
+            "delegation_revoked",
+            run_id="delegation",
+            actor=entry.from_actor,
+            delegated_from=entry.from_actor,
+            delegated_to=entry.to_actor,
+            delegation_id=entry.id,
+        )
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "delegations revoke",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(_json_envelope("delegations revoke", ok=True, **entry.as_dict()))
+        return
+    console.print(f"revoked {entry.id}")
 
 
 @mcp_app.command("serve")
@@ -2309,6 +2510,9 @@ def _show_run(run_id: str, *, as_json: bool = False) -> None:
             return
     finally:
         store.close()
+    from readyagents.approvals.queue import fire_lazy_expiry
+
+    state = fire_lazy_expiry(state, settings=get_settings())
     if as_json:
         _print_json(_json_envelope("runs show", ok=True, **state.to_record()))
         return

@@ -57,6 +57,14 @@ class CompositeAuthorizer:
         for part in self.parts:
             part.check(actor, action, resource)
 
+    def roles_for(self, actor: str | None) -> list[str]:
+        out: list[str] = []
+        for part in self.parts:
+            fn = getattr(part, "roles_for", None)
+            if callable(fn):
+                out.extend(str(item) for item in list(fn(actor) or []))
+        return out
+
 
 def resolve_authorizer(raw: Any) -> Authorizer:
     if raw is None:

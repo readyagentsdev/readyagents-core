@@ -43,6 +43,7 @@ newest first (at most 100). Each row shows:
 - start time
 - actor
 - a redacted summary
+- additive quorum/deadline fields when the gate declared them (`approvals_required`, votes received, `expires_at`)
 
 It does **not** show full inputs, outputs, tool traces, secrets, API keys, or
 unredacted PII. Display redaction runs even when workflow persistence redaction

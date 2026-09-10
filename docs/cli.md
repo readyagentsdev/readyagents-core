@@ -192,6 +192,8 @@ corrupt lines are skipped (`skipped_corrupt` in `--json`). No network.
 an OIDC/JWT assertion; verification is against `--trust-anchors` /
 `READYAGENTS_TRUST_ANCHORS`. *Signed* (HMAC of the body) and *identified*
 (verified subject) are separate. Replay of the same token on a gate is refused.
+`--reason TEXT` is stored with the vote (`require_reason` on the node enforces
+it). See [approvals.md](approvals.md).
 
 ## `readyagents identity`
 
@@ -380,6 +382,25 @@ readyagents approvals serve --host 127.0.0.1 --port 8766
 | `--no-open` | Do not launch a browser (default) |
 
 See [browser-approval-ui.md](browser-approval-ui.md).
+
+## `readyagents approvals list`
+
+Queue of paused approval gates this caller may see. Unauthorized and missing
+look identical (empty). `--role`, `--actor`, `--expiring-within 1h`, `--json`.
+Listing evaluates expiry for **display** only; it does not resume the graph.
+Status query (`runs show`), `resume`, and `decide` do fire lazy expiry.
+
+## `readyagents delegate` / `delegations list|revoke`
+
+Time-bounded, single-hop, revocable delegation stored under
+`$READYAGENTS_HOME/delegations.json`. Self, chains, and scope-widening grants
+are refused. Checked at decision time. See [approvals.md](approvals.md).
+
+```bash
+readyagents delegate --from alice --to bob --until 2026-09-20T00:00:00Z --scope security
+readyagents delegations list --json
+readyagents delegations revoke ID
+```
 
 ## `readyagents mcp serve`
 

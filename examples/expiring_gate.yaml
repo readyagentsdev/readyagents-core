@@ -1,0 +1,36 @@
+name: expiring_gate
+version: "1"
+description: >
+  Keyless gate with a lazy deadline. Core starts no timer; expiry is evaluated
+  on resume, decide, or status query (readyagents runs show). Unattended, the
+  deadline does not fire. on_expire: approve is refused at schema validation.
+  Pause:  readyagents run examples/expiring_gate.yaml
+  Resume: readyagents resume <run_id> --approve gate --actor alice
+
+start: add
+nodes:
+  - id: add
+    type: tool
+    tool: calc
+    arguments:
+      expression: "7 + 1"
+    output_key: total
+    next: gate
+
+  - id: gate
+    type: approval
+    prompt: "Release {{total}} within four hours?"
+    then: receipt
+    else: denied
+    expires_in: 4h
+    on_expire: reject
+
+  - id: receipt
+    type: transform
+    template: "expiring_gate ok: paid {{total}}"
+    output_key: summary
+
+  - id: denied
+    type: transform
+    template: "expiring_gate denied: {{total}}"
+    output_key: summary

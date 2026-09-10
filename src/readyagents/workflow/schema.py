@@ -10,6 +10,25 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from readyagents.errors import WorkflowError
 
 
+class ApprovalNotifySpec(BaseModel):
+    """Opt-in pause notification. Failure never changes run state."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: str = Field(description="file, command, or webhook.")
+    path: str | None = Field(default=None, description="JSONL path for kind=file.")
+    command: list[str] = Field(default_factory=list, description="Argv for kind=command.")
+    url: str | None = Field(default=None, description="HTTPS URL for kind=webhook.")
+
+    @field_validator("kind")
+    @classmethod
+    def _kind(cls, value: str) -> str:
+        cleaned = value.strip().lower()
+        if cleaned not in {"file", "command", "webhook"}:
+            raise ValueError("notify.kind must be file, command, or webhook")
+        return cleaned
+
+
 class NodeType(StrEnum):
     agent = "agent"
     tool = "tool"
@@ -245,6 +264,58 @@ class NodeSpec(BaseModel):
         description="Optional output field that is the human-readable justification.",
     )
 
+    # enterprise HITL (approval nodes only; ignored defaults keep 1.0 gates)
+    approvals_required: int | None = Field(
+        default=None,
+        ge=1,
+        le=32,
+        description="Quorum size. Omitted means a single decision resolves the gate.",
+    )
+    distinct_actors: bool | None = Field(
+        default=None,
+        description="Refuse the same identity twice. Defaults true when quorum > 1.",
+    )
+    deny_actor: list[str] = Field(
+        default_factory=list,
+        description="Identities that may not vote (typically the run initiator).",
+    )
+    approver_roles: list[str] = Field(
+        default_factory=list,
+        description="Roles that may vote. Recorded on the pause as the eligible set.",
+    )
+    require: str | None = Field(
+        default=None,
+        description="any (default) or all across declared approver_roles.",
+    )
+    expires_in: str | None = Field(
+        default=None,
+        description="Lazy deadline (30m, 4h, 1d). Evaluated on resume/decide/status.",
+    )
+    on_expire: str | None = Field(
+        default=None,
+        description="reject, escalate, or fail. approve is refused at validation.",
+    )
+    escalate_to: list[str] = Field(
+        default_factory=list,
+        description="Workflow-declared roles used when on_expire is escalate.",
+    )
+    require_reason: bool = Field(
+        default=False,
+        description="Refuse a vote that omits a reason.",
+    )
+    reject_short_circuit: bool = Field(
+        default=True,
+        description="A single reject settles the gate (default).",
+    )
+    recommendation: str | None = Field(
+        default=None,
+        description="Model recommendation; a contradicting vote is recorded as override.",
+    )
+    notify: list[ApprovalNotifySpec] = Field(
+        default_factory=list,
+        description="Opt-in file/command/webhook pause notifications.",
+    )
+
     @field_validator("id")
     @classmethod
     def _id_token(cls, value: str) -> str:
@@ -305,6 +376,12 @@ class NodeSpec(BaseModel):
                 raise ValueError(
                     f"Node '{self.id}': approval nodes require 'then', 'else', or 'next'"
                 )
+            self._validate_hitl()
+        elif self._hitl_declared():
+            raise ValueError(
+                f"Node '{self.id}': quorum/expiry/delegation fields "
+                "are only valid on approval nodes"
+            )
         if t == NodeType.parallel.value and not self.branches:
             raise ValueError(f"Node '{self.id}': parallel nodes require 'branches'")
         if t == NodeType.include.value and not self.path:
@@ -317,6 +394,50 @@ class NodeSpec(BaseModel):
             if self.body.type == NodeType.foreach.value:
                 raise ValueError(f"Node '{self.id}': nested foreach is not supported")
         return self
+
+    def _hitl_declared(self) -> bool:
+        if self.approvals_required is not None:
+            return True
+        if self.distinct_actors is not None:
+            return True
+        if self.deny_actor or self.approver_roles or self.escalate_to or self.notify:
+            return True
+        if self.expires_in or self.on_expire or self.require_reason or self.recommendation:
+            return True
+        if self.require not in (None, "any"):
+            return True
+        if self.reject_short_circuit is False:
+            return True
+        return False
+
+    def _validate_hitl(self) -> None:
+        if self.require is not None and self.require.strip().lower() not in {"any", "all"}:
+            raise ValueError(f"Node '{self.id}': require must be 'any' or 'all'")
+        if self.require is not None:
+            self.require = self.require.strip().lower()
+        expire = (self.on_expire or "").strip().lower()
+        if self.on_expire is not None:
+            if expire == "approve":
+                raise ValueError(
+                    f"Node '{self.id}': on_expire: approve is refused "
+                    "(an attacker who can stall a gate must never gain an approval)"
+                )
+            if expire not in {"reject", "escalate", "fail"}:
+                raise ValueError(f"Node '{self.id}': on_expire must be reject, escalate, or fail")
+            self.on_expire = expire
+        if self.expires_in:
+            from readyagents.approvals.gate import parse_expires_in
+
+            parse_expires_in(self.expires_in)
+        if expire == "escalate" and not self.escalate_to:
+            raise ValueError(f"Node '{self.id}': on_expire: escalate requires escalate_to")
+        for spec in self.notify:
+            if spec.kind == "file" and not spec.path:
+                raise ValueError(f"Node '{self.id}': file notify requires path")
+            if spec.kind == "command" and not spec.command:
+                raise ValueError(f"Node '{self.id}': command notify requires command")
+            if spec.kind == "webhook" and not spec.url:
+                raise ValueError(f"Node '{self.id}': webhook notify requires url")
 
 
 class EdgeSpec(BaseModel):

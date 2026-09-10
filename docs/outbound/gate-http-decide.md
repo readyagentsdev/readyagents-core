@@ -10,6 +10,10 @@ readyagents run examples/approval_gate.yaml          # exit 2, paused
 
 A valid signature resumes the run (`approval_gate ok`). An unsigned or forged signature leaves the run paused.
 
+HMAC inbound decisions and Ed25519 artifact signatures stay separate. Quorum
+votes, delegated decisions, and queue/UI actions convert into this same
+signed decision object; they do not add a bypass. See [approvals.md](../approvals.md).
+
 Three decide paths share resume/RBAC/audit; they are not the same door:
 
 | Path | What signs | Who listens |
