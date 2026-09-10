@@ -43,6 +43,31 @@ def test_grouped_snapshots_by_server() -> None:
     assert set(grouped) == {"alpha", "beta"}
 
 
+def test_pin_changed_without_policy_is_allow() -> None:
+    """Unconfigured (no policy file) MCP must stay additive: pin drift does not gate."""
+    state = RunState.start("t", {})
+    decision = evaluate(
+        ToolRequest(name="alpha.one", arguments={}, node_id="n"),
+        state,
+        None,
+        pin_changed=True,
+    )
+    assert decision.action == "allow"
+    assert decision.rule == "none"
+
+
+def test_security_model_docs_do_not_claim_pins_without_policy() -> None:
+    text = (
+        Path(__file__)
+        .resolve()
+        .parents[1]
+        .joinpath("docs/security-model.md")
+        .read_text(encoding="utf-8")
+    )
+    assert "when a firewall policy file is present" in text
+    assert "pin_changed" in text or "without a policy file" in text
+
+
 def test_description_injection_routes_to_policy() -> None:
     policy = Policy(
         tools={"mcp:*": ToolRule(on_description_change="deny")},
