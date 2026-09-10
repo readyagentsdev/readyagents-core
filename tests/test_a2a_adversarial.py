@@ -176,16 +176,25 @@ def _rpc(client, method: str, params: dict[str, Any], *, token: str | None = _TO
 def _wait(client, task_id: str, *, token: str | None = _TOKEN) -> dict[str, Any]:
     deadline = time.monotonic() + 12
     last: dict[str, Any] | None = None
+    last_error: Any = None
     while time.monotonic() < deadline:
         resp = _rpc(client, "tasks/get", {"id": task_id}, token=token)
-        body = resp.json()
-        last = body.get("result") if isinstance(body, dict) else None
-        state = ((last or {}).get("status") or {}).get("state")
-        if state in {"completed", "failed", "canceled", "input-required"}:
-            assert last is not None
-            return last
-        time.sleep(0.05)
-    raise AssertionError(f"task {task_id} did not settle: {last}")
+        body = resp.json() if resp.content else None
+        if not isinstance(body, dict):
+            time.sleep(0.1)
+            continue
+        if body.get("error"):
+            last_error = body.get("error")
+            time.sleep(0.1)
+            continue
+        result = body.get("result")
+        if isinstance(result, dict):
+            last = result
+            state = ((last or {}).get("status") or {}).get("state")
+            if state in {"completed", "failed", "canceled", "input-required"}:
+                return last
+        time.sleep(0.1)
+    raise AssertionError(f"task {task_id} did not settle: last={last} error={last_error}")
 
 
 def _close_coordinator(coordinator: object) -> None:
@@ -674,6 +683,9 @@ def test_cancel_of_terminal_task_refuses_illegal_transition(tmp_path: Path, tmp_
         _wait(client, task_id)
         canceled = _rpc(client, "tasks/cancel", {"id": task_id})
         assert canceled.status_code == 200, canceled.text
+        cancel_body = canceled.json()
+        assert "error" not in cancel_body, cancel_body
+        assert (cancel_body.get("result") or {}).get("status", {}).get("state") == WIRE_CANCELED
         body = _wait(client, task_id)
         assert body["status"]["state"] == WIRE_CANCELED
         # Identity canceled->canceled is allowed by validate_transition; the

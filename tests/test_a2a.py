@@ -248,16 +248,25 @@ def _wait(
 ) -> dict[str, Any]:
     deadline = time.monotonic() + 12
     last: dict[str, Any] | None = None
+    last_error: Any = None
     while time.monotonic() < deadline:
         resp = _rpc(client, "tasks/get", {"id": task_id}, token=token)
-        body = resp.json()
-        last = body.get("result") if isinstance(body, dict) else None
-        state = ((last or {}).get("status") or {}).get("state")
-        if state in settle:
-            assert last is not None
-            return last
-        time.sleep(0.05)
-    raise AssertionError(f"task {task_id} did not settle {settle}: {last}")
+        body = resp.json() if resp.content else None
+        if not isinstance(body, dict):
+            time.sleep(0.1)
+            continue
+        if body.get("error"):
+            last_error = body.get("error")
+            time.sleep(0.1)
+            continue
+        result = body.get("result")
+        if isinstance(result, dict):
+            last = result
+            state = ((last or {}).get("status") or {}).get("state")
+            if state in settle:
+                return last
+        time.sleep(0.1)
+    raise AssertionError(f"task {task_id} did not settle {settle}: last={last} error={last_error}")
 
 
 @contextmanager
@@ -443,6 +452,9 @@ def test_serve_cancel_and_refuse_terminal_escape(tmp_path: Path, tmp_settings) -
         _wait(client, task_id)
         canceled = _rpc(client, "tasks/cancel", {"id": task_id})
         assert canceled.status_code == 200, canceled.text
+        cancel_body = canceled.json()
+        assert "error" not in cancel_body, cancel_body
+        assert (cancel_body.get("result") or {}).get("status", {}).get("state") == "canceled"
         body = _wait(client, task_id, settle=("canceled", "failed", "completed"))
         assert body["status"]["state"] == "canceled"
     with _a2a_client(tmp_path, tmp_settings, _OK_WF, filename="done.yaml") as (

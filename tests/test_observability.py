@@ -9,7 +9,13 @@ import pytest
 
 from readyagents.errors import BudgetExceeded, CircuitOpen, LLMError, NodeError
 from readyagents.llm.resilience import CircuitBreaker
-from readyagents.logging import JsonLogFormatter, _RunContextFilter, configure_logging, log_event
+from readyagents.logging import (
+    JsonLogFormatter,
+    _RunContextFilter,
+    _SafeStreamHandler,
+    configure_logging,
+    log_event,
+)
 from readyagents.testing import ScriptedLLM, run_workflow_spec
 from readyagents.tools import ToolRegistry
 from readyagents.workflow.engine import run_workflow
@@ -60,6 +66,24 @@ def test_json_log_records_include_run_and_node_and_parse() -> None:
     assert payload["node"] == "gate"
     assert payload["event"] == "node_start"
     assert payload["message"] == "hello"
+
+
+def test_safe_stream_handler_closed_stream_does_not_raise() -> None:
+    buf = io.StringIO()
+    handler = _SafeStreamHandler(buf)
+    handler.setLevel(logging.INFO)
+    buf.close()
+    record = logging.LogRecord(
+        "readyagents.test",
+        logging.INFO,
+        __file__,
+        0,
+        "closed-stream",
+        (),
+        None,
+    )
+    handler.emit(record)
+    handler.handleError(record)
 
 
 def test_configure_json_format_emits_parseable_lines() -> None:

@@ -1038,13 +1038,17 @@ class RunCoordinator:
                 return self._record_payload(state)
             token = self._token_for(run_id)
             token.request(actor=actor, reason=reason)
-            state.status = "cancel_requested"
-            self._persist(state)
+            # A paused run has already left the engine. Finish even if the
+            # worker is still in `_active` (finally not run yet). Otherwise A2A
+            # cancel sits in working, tests poll at 20 Hz, and the 120/min cap
+            # returns JSON-RPC errors with no result.
             with self._lock:
-                active = run_id in self._active
-            if not active:
+                still_running = run_id in self._active and state.status != "paused"
+            if not still_running:
                 self._finish_cancelled(run_id)
                 return self._record_payload(self._load_exact(run_id))
+            state.status = "cancel_requested"
+            self._persist(state)
             snapshot = self._record_payload(state)
             snapshot["status"] = "cancel_requested"
             return snapshot

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 from datetime import UTC, datetime
 from typing import Any
 
@@ -18,6 +19,27 @@ _RECORD_SKIP = set(logging.makeLogRecord({}).__dict__) | {
     "args",
     "exc_text",
 }
+
+
+class _SafeStreamHandler(logging.StreamHandler):
+    """StreamHandler that does not raise when pytest or the runtime closed the stream.
+
+    Background run workers log after a test has replaced or closed stderr. Python's
+    default handleError then writes a traceback to that same closed stream and can
+    stall or kill the worker (seen on Windows 3.14 A2A cancel waits).
+    """
+
+    def handleError(self, record: logging.LogRecord) -> None:
+        try:
+            stream = getattr(self, "stream", None)
+            if stream is None or getattr(stream, "closed", False):
+                return
+            stderr = sys.stderr
+            if stderr is None or getattr(stderr, "closed", False):
+                return
+            super().handleError(record)
+        except (ValueError, OSError, AttributeError):
+            return
 
 
 class _RunContextFilter(logging.Filter):
@@ -107,7 +129,7 @@ def configure_logging(level: str = "INFO", **kwargs: Any) -> None:
         formatter = JsonLogFormatter() if fmt == "json" else logging.Formatter(_FORMAT)
     redactor = kwargs.pop("redactor", None)
     if not logger.handlers:
-        handler = logging.StreamHandler()
+        handler = _SafeStreamHandler()
         handler.addFilter(_RunContextFilter())
         handler.setFormatter(formatter or logging.Formatter(_FORMAT))
         logger.addHandler(handler)
