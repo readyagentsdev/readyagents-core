@@ -19,6 +19,8 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- JSON run-record reads retry Windows sharing violations, so a poll during
+  persist does not fail with `PermissionError`.
 - Scoped delegation is matched against the gate's `approver_roles` as well as
   the actor's JWT/RBAC roles, so a finance grant still applies when the
   delegate already holds a different role.

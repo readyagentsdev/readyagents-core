@@ -60,6 +60,26 @@ def atomic_write_bytes(
     return dest
 
 
+def read_text_with_retry(
+    path: Path | str,
+    *,
+    encoding: str = "utf-8",
+) -> str:
+    """Read UTF-8 text, retrying Windows sharing violations (file in use)."""
+    dest = Path(path)
+    last: OSError | None = None
+    for attempt in range(_REPLACE_TRIES):
+        try:
+            return dest.read_text(encoding=encoding)
+        except OSError as exc:
+            last = exc
+            if not _is_sharing_violation(exc) or attempt + 1 >= _REPLACE_TRIES:
+                raise
+            time.sleep(_REPLACE_BACKOFF * (attempt + 1))
+    assert last is not None
+    raise last
+
+
 def _replace_with_retry(tmp: Path, dest: Path) -> None:
     last: OSError | None = None
     for attempt in range(_REPLACE_TRIES):

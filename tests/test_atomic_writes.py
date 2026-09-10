@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from readyagents.atomic import atomic_write_text
+from readyagents.atomic import atomic_write_text, read_text_with_retry
 from readyagents.errors import AtomicWriteError
 from readyagents.permissions import FILE_MODE, restrict_file
 from readyagents.workflow.state import RunState, persist_run
@@ -75,6 +75,52 @@ def test_temp_not_world_readable_before_replace(
     if outcome.enforceable:
         assert (seen[0] & 0o177) == 0
         assert (seen[0] & FILE_MODE) == FILE_MODE or seen[0] == FILE_MODE
+
+
+def test_read_retries_sharing_then_succeeds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dest = tmp_path / "run.json"
+    dest.write_text('{"ok": true}\n', encoding="utf-8")
+    calls = {"n": 0}
+    real = Path.read_text
+
+    def flaky(self: Path, *args: object, **kwargs: object) -> str:
+        if self.resolve() == dest.resolve():
+            calls["n"] += 1
+            if calls["n"] < 3:
+                err = PermissionError(13, "Permission denied")
+                err.winerror = 32  # type: ignore[attr-defined]
+                err.errno = 13
+                raise err
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", flaky)
+    monkeypatch.setattr("readyagents.atomic._REPLACE_BACKOFF", 0)
+    assert read_text_with_retry(dest, encoding="utf-8") == '{"ok": true}\n'
+    assert calls["n"] == 3
+
+
+def test_read_sharing_exhausts_then_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    dest = tmp_path / "locked.json"
+    dest.write_text("{}\n", encoding="utf-8")
+    calls = {"n": 0}
+    real = Path.read_text
+
+    def locked(self: Path, *args: object, **kwargs: object) -> str:
+        if self.resolve() == dest.resolve():
+            calls["n"] += 1
+            err = PermissionError(13, "Permission denied")
+            err.winerror = 32  # type: ignore[attr-defined]
+            err.errno = 13
+            raise err
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", locked)
+    monkeypatch.setattr("readyagents.atomic._REPLACE_BACKOFF", 0)
+    with pytest.raises(PermissionError):
+        read_text_with_retry(dest, encoding="utf-8")
+    assert calls["n"] >= 2
 
 
 def test_persist_run_uses_atomic_helper(tmp_path: Path) -> None:
