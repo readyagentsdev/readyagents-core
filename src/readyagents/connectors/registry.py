@@ -101,11 +101,20 @@ def wrap_connector_runner(
     return _run
 
 
-def call_is_write(spec: ConnectorSpec, args: Mapping[str, Any] | None) -> bool:
+def call_is_write(
+    spec: ConnectorSpec,
+    args: Mapping[str, Any] | None,
+    *,
+    workspace: Path | None = None,
+) -> bool:
     if spec.side_effects == "write":
         return True
     if spec.side_effects == "none":
         return False
+    if spec.name == "rest":
+        from readyagents.connectors.rest import rest_operation_is_write
+
+        return rest_operation_is_write(args, workspace=workspace)
     method = str((args or {}).get("method") or (args or {}).get("operation") or "").upper()
     if method in {"POST", "PUT", "PATCH", "DELETE", "SEND", "PUT_OBJECT"}:
         return True

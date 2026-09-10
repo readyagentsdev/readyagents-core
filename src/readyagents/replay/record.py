@@ -255,14 +255,15 @@ def dispatch_tool(
         if spec is not None:
             from readyagents.connectors.context import ConnectorContext
 
+            workspace = getattr(ctx, "workflow_dir", None)
             conn_ctx = ConnectorContext(
                 spec,
-                workspace=getattr(ctx, "workflow_dir", None),
+                workspace=workspace,
                 state=state,
                 node_id=node_id,
                 redactor=redactor,
             )
-            if state is not None and call_is_write(spec, arguments):
+            if state is not None and call_is_write(spec, arguments, workspace=workspace):
                 _gate_write_connector(ctx, state, node_id, name)
             runner = wrap_connector_runner(runner, conn_ctx)
             if ctx.auditor is not None:

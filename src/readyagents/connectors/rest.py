@@ -19,6 +19,32 @@ from readyagents.workflow.templates import interpolate
 _WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
+def rest_operation_is_write(
+    args: Mapping[str, Any] | None, *, workspace: Path | None = None
+) -> bool:
+    """True when connector_config says this operation uses a write HTTP method."""
+    mapping = dict(args or {})
+    operation = str(mapping.get("operation") or "").strip()
+    config_path = str(mapping.get("connector_config") or "").strip()
+    if workspace is not None and config_path and operation:
+        try:
+            cfg = _load_config(Path(workspace), config_path)
+        except (ConfigError, OSError, TypeError, ValueError):
+            cfg = None
+        if isinstance(cfg, dict):
+            op = (cfg.get("operations") or {}).get(operation)
+            if isinstance(op, dict):
+                method = str(op.get("method") or "GET").upper()
+                return method in _WRITE_METHODS
+    method = str(mapping.get("method") or "").upper()
+    if method in _WRITE_METHODS:
+        return True
+    name = operation.lower()
+    return name in {"put", "send", "create", "write", "delete", "post"} or name.startswith(
+        ("create_", "put_", "delete_", "post_", "send_")
+    )
+
+
 class RestConnector:
     spec = ConnectorSpec(
         name="rest",

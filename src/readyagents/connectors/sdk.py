@@ -3,29 +3,20 @@
 from __future__ import annotations
 
 import http.client
-import ipaddress
 import json
 import socket
 import ssl
 import time
 from collections.abc import Callable, Iterator, Mapping
 from typing import Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 from readyagents import __version__
 from readyagents.connectors.spec import HttpResponse
 from readyagents.errors import ConnectorCapError, ToolError
+from readyagents.mcp.builtin import _assert_public_http_url, _resolve_public_ips
 
-_MAX_REDIRECTS = 5
 _TIMEOUT = 20.0
-_METADATA = frozenset(
-    {
-        "metadata.google.internal",
-        "metadata.google.com",
-        "169.254.169.254",
-        "fd00:ec2::254",
-    }
-)
 
 
 def parse_retry_after(raw: str | None) -> float | None:
@@ -122,17 +113,10 @@ def _once(
     headers: Mapping[str, str],
     body: bytes | None,
 ) -> HttpResponse:
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"}:
-        raise ToolError("connector URL must start with http:// or https://")
-    if parsed.username is not None or parsed.password is not None:
-        raise ToolError("connector URLs with userinfo are not allowed")
+    parsed = _assert_public_http_url(url, kind="connector")
     host = parsed.hostname
-    if not host:
-        raise ToolError("connector URL must include a host")
-    if host.lower().rstrip(".") in _METADATA:
-        raise ToolError("connector host is not allowed (metadata)")
-    ips = _resolve_ips(host)
+    assert host is not None
+    ips = _resolve_public_ips(host, kind="connector")
     port = parsed.port or (443 if parsed.scheme == "https" else 80)
     path = parsed.path or "/"
     if parsed.query:
@@ -147,43 +131,6 @@ def _once(
         except (TimeoutError, OSError) as extra:
             last_err = extra
     raise ToolError(f"connector HTTP failed: {last_err}") from last_err
-
-
-def _resolve_ips(host: str) -> list[str]:
-    name = host.strip().lower().rstrip(".")
-    try:
-        ip = ipaddress.ip_address(name)
-        _reject_metadata_ip(ip)
-        return [str(ip)]
-    except ValueError:
-        pass
-    try:
-        infos = socket.getaddrinfo(name, None, type=socket.SOCK_STREAM)
-    except socket.gaierror as extra:
-        raise ToolError(f"connector could not resolve host '{host}'") from extra
-    ips: list[str] = []
-    for info in infos:
-        addr = info[4][0]
-        try:
-            parsed = ipaddress.ip_address(addr)
-        except ValueError:
-            continue
-        _reject_metadata_ip(parsed)
-        text = str(parsed)
-        if text not in ips:
-            ips.append(text)
-    if not ips:
-        raise ToolError(f"connector could not resolve host '{host}'")
-    return ips
-
-
-def _reject_metadata_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> None:
-    if ip.version == 6 and ip.ipv4_mapped is not None:
-        ip = ip.ipv4_mapped
-    if str(ip) in {"169.254.169.254", "fd00:ec2::254"}:
-        raise ToolError("connector host is not allowed (metadata)")
-    if ip.is_link_local and ip.version == 4 and str(ip).startswith("169.254."):
-        raise ToolError("connector host is not allowed (link-local metadata)")
 
 
 def _http_exchange(

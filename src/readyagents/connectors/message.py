@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any
-from urllib.parse import urlparse
 
 from readyagents.connectors.context import ConnectorContext
 from readyagents.connectors.fixtures import FixtureStore
@@ -42,20 +41,6 @@ class MessageConnector:
         payload = args.get("payload")
         if not url or not isinstance(payload, dict):
             raise ToolError("message requires url and payload object")
-        host = (urlparse(url).hostname or "").lower()
-        ctx.spec = ConnectorSpec(
-            name=self.spec.name,
-            version=self.spec.version,
-            description=self.spec.description,
-            input_schema=self.spec.input_schema,
-            output_schema=self.spec.output_schema,
-            auth=self.spec.auth,
-            destinations=(host,) if host else self.spec.destinations,
-            determinism=self.spec.determinism,
-            idempotent=self.spec.idempotent,
-            idempotency_key=self.spec.idempotency_key,
-            side_effects="write",
-        )
         fixtures_dir = args.get("fixtures")
         if fixtures_dir:
             ctx.fixtures = FixtureStore(resolve_within(str(fixtures_dir), ctx.workspace))

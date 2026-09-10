@@ -70,3 +70,50 @@ def test_undeclared_host_refused(tmp_path: Path) -> None:
     ctx = ConnectorContext(_spec(), workspace=tmp_path, fixtures=FixtureStore(tmp_path))
     with pytest.raises(ToolError, match="not declared"):
         ctx.http("GET", "https://evil.example/x")
+
+
+def test_connector_http_refuses_loopback(tmp_path: Path) -> None:
+    spec = ConnectorSpec(
+        name="rest",
+        version="1.0.0",
+        description="t",
+        input_schema={"type": "object"},
+        output_schema={"type": "object"},
+        destinations=("127.0.0.1",),
+        side_effects="read",
+    )
+    ctx = ConnectorContext(spec, workspace=tmp_path)
+    with pytest.raises(ToolError, match="not allowed"):
+        ctx.http("GET", "http://127.0.0.1/")
+
+
+def test_connector_http_refuses_redirect_to_loopback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    spec = ConnectorSpec(
+        name="rest",
+        version="1.0.0",
+        description="t",
+        input_schema={"type": "object"},
+        output_schema={"type": "object"},
+        destinations=("api.example.test", "127.0.0.1"),
+        side_effects="read",
+    )
+    ctx = ConnectorContext(spec, workspace=tmp_path)
+
+    def fake_resolve(host: str, *, kind: str = "http_get") -> list[str]:
+        if host in {"127.0.0.1", "localhost"}:
+            from readyagents.mcp.builtin import _resolve_public_ips
+
+            return _resolve_public_ips(host, kind=kind)
+        return ["203.0.113.1"]
+
+    def fake_exchange(scheme, hostname, ip, port, path, **kwargs):  # noqa: ANN001
+        if hostname in {"127.0.0.1", "localhost"}:
+            raise AssertionError("must not connect to loopback")
+        return 302, b"", {"Location": "http://127.0.0.1/secret"}
+
+    monkeypatch.setattr("readyagents.connectors.sdk._resolve_public_ips", fake_resolve)
+    monkeypatch.setattr("readyagents.connectors.sdk._http_exchange", fake_exchange)
+    with pytest.raises(ToolError, match="not allowed"):
+        ctx.http("GET", "https://api.example.test/x")
