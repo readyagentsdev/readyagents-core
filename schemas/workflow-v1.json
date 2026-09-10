@@ -108,6 +108,47 @@
       "title": "CircuitSpec",
       "type": "object"
     },
+    "ContextSpec": {
+      "additionalProperties": false,
+      "description": "Declared compaction for oversized memory content. Never implicit.",
+      "properties": {
+        "max_tokens": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Token budget for this node's memory payload.",
+          "title": "Max Tokens"
+        },
+        "on_exceed": {
+          "default": "truncate",
+          "description": "truncate, summarize, or fail when the budget is exceeded.",
+          "title": "On Exceed",
+          "type": "string"
+        },
+        "summarize_model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional provider:model used when on_exceed is summarize.",
+          "title": "Summarize Model"
+        }
+      },
+      "title": "ContextSpec",
+      "type": "object"
+    },
     "EdgeSpec": {
       "additionalProperties": false,
       "description": "Optional explicit edge between two nodes.",
@@ -885,6 +926,139 @@
             ],
             "type": "object"
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "memory"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "context": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContextSpec"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Declared compaction budget for this memory node."
+              },
+              "embed": {
+                "default": false,
+                "description": "Request BYOK embedding search/write. Degrades to keyword if unavailable.",
+                "title": "Embed",
+                "type": "boolean"
+              },
+              "limit": {
+                "anyOf": [
+                  {
+                    "maximum": 50,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Max records or hits returned by memory read/search.",
+                "title": "Limit"
+              },
+              "op": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "memory op: write, read, search, or forget.",
+                "title": "Op"
+              },
+              "query": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Search query for memory op=search. Templates allowed.",
+                "title": "Query"
+              },
+              "scope": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Explicit memory scope (workflow:, ns:, or subject:). Templates allowed.",
+                "title": "Scope"
+              },
+              "scope_pattern": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Declared scope pattern the interpolated scope must match.",
+                "title": "Scope Pattern"
+              },
+              "text": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Payload for memory op=write. Templates allowed.",
+                "title": "Text"
+              },
+              "ttl": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Memory TTL duration (30m, 4h, 90d).",
+                "title": "Ttl"
+              }
+            },
+            "required": [
+              "op",
+              "scope"
+            ],
+            "type": "object"
+          }
         }
       ],
       "description": "One node in the workflow graph.",
@@ -972,14 +1146,15 @@
                 "parallel",
                 "include",
                 "foreach",
-                "a2a"
+                "a2a",
+                "memory"
               ]
             },
             {
               "type": "string"
             }
           ],
-          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a. Packs may add additional types.",
+          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory. Packs may add additional types.",
           "title": "Type"
         }
       },
@@ -1177,6 +1352,14 @@
       "description": "Named stdio MCP servers available to this workflow.",
       "title": "Mcp Servers",
       "type": "object"
+    },
+    "memory_scopes": {
+      "description": "Declared memory scope patterns this workflow may use.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Memory Scopes",
+      "type": "array"
     },
     "name": {
       "description": "Workflow name stored on the run record.",

@@ -61,6 +61,17 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
     NodeType.include: ("path", "inputs"),
     NodeType.foreach: ("items", "max_items", "body"),
     NodeType.a2a: ("agent_url", "message", "on_input_required", "token"),
+    NodeType.memory: (
+        "op",
+        "scope",
+        "scope_pattern",
+        "query",
+        "text",
+        "ttl",
+        "limit",
+        "embed",
+        "context",
+    ),
 }
 
 NODE_TYPE_REQUIRED: dict[NodeType, tuple[str, ...]] = {
@@ -72,6 +83,7 @@ NODE_TYPE_REQUIRED: dict[NodeType, tuple[str, ...]] = {
     NodeType.include: ("path",),
     NodeType.foreach: ("items", "body"),
     NodeType.a2a: ("agent_url",),
+    NodeType.memory: ("op", "scope"),
 }
 
 _PYTHON_ONLY_ALIASES: Final[tuple[str, ...]] = ("else_", "from_", "call_inputs")

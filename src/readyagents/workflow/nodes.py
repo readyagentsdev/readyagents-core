@@ -21,6 +21,7 @@ from readyagents.errors import (
     EgressDenied,
     GateExpired,
     LLMError,
+    MemoryError,
     NodeError,
     PolicyDenied,
     ReadyAgentsError,
@@ -310,6 +311,10 @@ def _execute_node_body(node: NodeSpec, state: RunState, ctx: ExecutionContext) -
         from readyagents.a2a.node import run_a2a_node
 
         return run_a2a_node(node, state, ctx)
+    if kind == NodeType.memory.value:
+        from readyagents.memory.node import run_memory_node
+
+        return run_memory_node(node, state, ctx)
     known = ", ".join(t.value for t in NodeType)
     raise WorkflowError(
         f"Unsupported node type '{node.type}' on node '{node.id}'. "
@@ -1196,6 +1201,8 @@ def execute_node_with_policy(
         except PolicyDenied:
             raise
         except A2AError:
+            raise
+        except MemoryError:
             raise
         except (BudgetExceeded, AuthorizationError, CircuitOpen, RunawayGuard):
             raise

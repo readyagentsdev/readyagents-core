@@ -154,6 +154,10 @@ class Settings(BaseSettings):
         default="json",
         validation_alias=AliasChoices("READYAGENTS_RUN_STORE"),
     )
+    memory_store: str = Field(
+        default="json",
+        validation_alias=AliasChoices("READYAGENTS_MEMORY_STORE"),
+    )
     run_db: Path | None = Field(
         default=None,
         validation_alias=AliasChoices("READYAGENTS_RUN_DB"),
@@ -280,12 +284,12 @@ class Settings(BaseSettings):
             return MAX_PENDING_RUNS_HARD
         return value
 
-    @field_validator("run_store", mode="after")
+    @field_validator("run_store", "memory_store", mode="after")
     @classmethod
     def _validate_run_store(cls, value: str) -> str:
         normalized = value.strip().lower()
         if normalized not in {"json", "sqlite"}:
-            raise ValueError(f"Invalid run_store '{value}'. Expected json or sqlite.")
+            raise ValueError(f"Invalid store '{value}'. Expected json or sqlite.")
         return normalized
 
     def workspace_path(self) -> Path:
