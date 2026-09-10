@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from readyagents.errors import LLMError, missing_extra_message
@@ -20,6 +21,48 @@ class OpenAIProvider:
         self._api_key = api_key
         self._base_url = base_url
 
+    def _client_kwargs(self) -> dict[str, Any]:
+        client_kwargs: dict[str, Any] = {"api_key": self._api_key}
+        if self._base_url:
+            client_kwargs["base_url"] = self._base_url
+        return client_kwargs
+
+    def _payload(
+        self,
+        messages: list[Message],
+        *,
+        model: str,
+        tools: list[dict[str, Any]] | None,
+        kwargs: dict[str, Any],
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": messages_to_openai(messages),
+        }
+        openai_tools = openai_tools_payload(tools)
+        if openai_tools:
+            payload["tools"] = openai_tools
+        payload.update({k: v for k, v in kwargs.items() if v is not None})
+        return payload
+
+    def _from_response(self, response: Any, *, model: str) -> CompletionResult:
+        choice = response.choices[0]
+        text = (choice.message.content or "").strip()
+        usage: dict[str, Any] = {}
+        if response.usage:
+            usage = {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens,
+            }
+        return CompletionResult(
+            text=text,
+            model=model,
+            raw=response,
+            usage=usage,
+            tool_calls=tool_calls_from_openai_message(choice.message),
+        )
+
     def complete(
         self,
         messages: list[Message],
@@ -33,35 +76,36 @@ class OpenAIProvider:
         except ImportError as exc:
             raise LLMError(missing_extra_message("OpenAI", "openai")) from exc
         try:
-            client_kwargs: dict[str, Any] = {"api_key": self._api_key}
-            if self._base_url:
-                client_kwargs["base_url"] = self._base_url
-            client = OpenAI(**client_kwargs)
-            payload: dict[str, Any] = {
-                "model": model,
-                "messages": messages_to_openai(messages),
-            }
-            openai_tools = openai_tools_payload(tools)
-            if openai_tools:
-                payload["tools"] = openai_tools
-            payload.update({k: v for k, v in kwargs.items() if v is not None})
-            response = client.chat.completions.create(**payload)
-            choice = response.choices[0]
-            text = (choice.message.content or "").strip()
-            usage: dict[str, Any] = {}
-            if response.usage:
-                usage = {
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens,
-                }
-            return CompletionResult(
-                text=text,
-                model=model,
-                raw=response,
-                usage=usage,
-                tool_calls=tool_calls_from_openai_message(choice.message),
+            client = OpenAI(**self._client_kwargs())
+            response = client.chat.completions.create(
+                **self._payload(messages, model=model, tools=tools, kwargs=kwargs)
             )
+            return self._from_response(response, model=model)
+        except LLMError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise LLMError(f"OpenAI request failed: {exc}") from exc
+
+    async def complete_async(
+        self,
+        messages: list[Message],
+        *,
+        model: str,
+        tools: list[dict[str, Any]] | None = None,
+        **kwargs: Any,
+    ) -> CompletionResult:
+        try:
+            from openai import AsyncOpenAI
+        except ImportError:
+            return await asyncio.to_thread(
+                self.complete, messages, model=model, tools=tools, **kwargs
+            )
+        try:
+            client = AsyncOpenAI(**self._client_kwargs())
+            response = await client.chat.completions.create(
+                **self._payload(messages, model=model, tools=tools, kwargs=kwargs)
+            )
+            return self._from_response(response, model=model)
         except LLMError:
             raise
         except Exception as exc:  # noqa: BLE001
