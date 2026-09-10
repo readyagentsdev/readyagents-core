@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +16,56 @@ from readyagents.atomic import atomic_write_text
 from readyagents.errors import ConfigError
 
 MANIFEST_NAME = "manifest.json"
+_PEP503 = re.compile(r"[-_.]+")
+
+
+def _pep503_name(name: str) -> str:
+    return _PEP503.sub("-", name.strip().lower()).strip("-")
+
+
+def _requirement_name(spec: str) -> str:
+    raw = spec.strip()
+    for sep in ("[", ">", "<", "=", "!", "~", ";", " "):
+        if sep in raw:
+            raw = raw.split(sep, 1)[0]
+    return raw.strip()
+
+
+def _runtime_requirement_names(root: Path) -> list[str]:
+    pyproject = Path(root) / "pyproject.toml"
+    if not pyproject.is_file():
+        raise ConfigError(f"bundle: pyproject.toml not found under {root}")
+    data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    raw = data.get("project", {}).get("dependencies") or []
+    names = [_requirement_name(str(item)) for item in raw if str(item).strip()]
+    if not names:
+        raise ConfigError(f"bundle: no runtime dependencies declared in {pyproject}")
+    return names
+
+
+def _artifact_dist(filename: str) -> str:
+    base = filename
+    lower = base.lower()
+    for suffix in (".tar.gz", ".whl", ".zip", ".tar.bz2"):
+        if lower.endswith(suffix):
+            base = base[: -len(suffix)]
+            break
+    parts = base.split("-")
+    dist: list[str] = []
+    for part in parts:
+        if part and part[0].isdigit():
+            break
+        dist.append(part)
+    return _pep503_name("-".join(dist) if dist else parts[0])
+
+
+def _missing_runtime_wheels(filenames: list[str], requirements: list[str]) -> list[str]:
+    present = {_artifact_dist(name) for name in filenames}
+    missing: list[str] = []
+    for req in requirements:
+        if _pep503_name(req) not in present:
+            missing.append(req)
+    return missing
 
 
 def sha256_file(path: Path) -> str:
@@ -58,12 +110,13 @@ def write_bundle(
         raise ConfigError(
             f"bundle: could not build the project wheel: {proc.stderr or proc.stdout}"
         ) from None
+    requirements = _runtime_requirement_names(root)
     download = [
         sys.executable,
         "-m",
         "pip",
         "download",
-        str(root),
+        *requirements,
         "-d",
         str(dest),
         "--disable-pip-version-check",
@@ -73,9 +126,15 @@ def write_bundle(
     if platform:
         download.extend(["--platform", platform, "--only-binary=:all:"])
     try:
-        subprocess.run(download, check=True, capture_output=True, text=True, timeout=180)
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        pass
+        got = subprocess.run(download, check=False, capture_output=True, text=True, timeout=300)
+    except OSError as extra:
+        raise ConfigError(
+            "bundle: pip is not available (python -m pip). Install pip, then retry."
+        ) from extra
+    except subprocess.TimeoutExpired as extra:
+        raise ConfigError("bundle: pip download timed out") from extra
+    if got.returncode != 0:
+        raise ConfigError(f"bundle: pip download failed: {got.stderr or got.stdout}") from None
     files: list[dict[str, str]] = []
     for path in sorted(dest.iterdir(), key=lambda p: p.name.lower()):
         if not path.is_file() or path.name == MANIFEST_NAME:
@@ -85,6 +144,9 @@ def write_bundle(
         files.append({"name": path.name, "digest": sha256_file(path)})
     if not files:
         raise ConfigError(f"bundle: no wheels written under {dest}")
+    missing = _missing_runtime_wheels([row["name"] for row in files], requirements)
+    if missing:
+        raise ConfigError("bundle: missing runtime dependency wheels: " + ", ".join(missing))
     payload = {
         "version": 1,
         "readyagents_version": __version__,

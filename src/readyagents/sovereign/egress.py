@@ -5,6 +5,7 @@ from __future__ import annotations
 import ipaddress
 import socket
 import threading
+from collections.abc import Sequence
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any
@@ -85,6 +86,38 @@ def parse_allow_spec(spec: str) -> str:
     if raw.startswith("[") and "]" in raw:
         return raw[1 : raw.index("]")].lower()
     return raw.split("/", 1)[0].split(":", 1)[0].strip().lower().rstrip(".")
+
+
+def is_keyless_compat_url(
+    url: str | None,
+    extra_allow: Sequence[str] | None = None,
+) -> bool:
+    """Loopback, or a parsed private allow spec (active guard, else extra_allow)."""
+    if is_loopback_url(url):
+        return True
+    if not url:
+        return False
+    host = (urlparse(str(url).strip()).hostname or "").lower().rstrip(".")
+    if not host:
+        return False
+    guard = active_guard()
+    if guard is not None:
+        if host in guard.allow_hosts:
+            return True
+        try:
+            ip = ipaddress.ip_address(host)
+        except ValueError:
+            return False
+        return str(ip) in guard.allow_ips
+    parsed = {parse_allow_spec(item) for item in (extra_allow or []) if str(item).strip()}
+    parsed.discard("")
+    if host not in parsed:
+        return False
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return is_private_ip(ip)
 
 
 class EgressGuard:

@@ -324,6 +324,16 @@ def run_workflow_file(
     allow = [str(item) for item in list(sovereign_allow or []) if str(item).strip()]
     if not allow:
         allow = settings.sovereign_allow_list()
+    if resume_state is not None:
+        meta = resume_state.metadata if isinstance(resume_state.metadata, dict) else {}
+        if meta.get("sovereign"):
+            want_sovereign = True
+            network = meta.get("network") if isinstance(meta.get("network"), dict) else {}
+            allow = [
+                str(item)
+                for item in list((network or {}).get("allowed_endpoints") or [])
+                if str(item).strip()
+            ]
     if want_sovereign:
         from readyagents.sovereign.egress import install_guard
 
