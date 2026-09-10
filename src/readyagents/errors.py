@@ -50,6 +50,16 @@ class LLMError(ReadyAgentsError):
     """LLM provider, model, or API-key failure."""
 
 
+class EgressDenied(ReadyAgentsError):
+    """Sovereign mode refused a non-loopback, non-allowlisted connect."""
+
+    def __init__(self, destination: str, *, node_id: str | None = None) -> None:
+        self.destination = destination
+        self.node_id = node_id
+        where = f" at node '{node_id}'" if node_id else ""
+        super().__init__(f"Sovereign mode denied egress to {destination}{where}")
+
+
 class MCPError(ReadyAgentsError):
     """MCP client or server failure."""
 

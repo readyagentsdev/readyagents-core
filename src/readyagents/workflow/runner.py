@@ -157,6 +157,8 @@ def run_workflow_file(
     pack_specs: Sequence[str] | None = None,
     vote_reasons: Mapping[str, str] | None = None,
     vote_signature_status: str = "unsigned",
+    sovereign: bool | None = None,
+    sovereign_allow: Sequence[str] | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     source_file = Path(path)
@@ -317,6 +319,15 @@ def run_workflow_file(
 
     mcp = None
     env_guard = None
+    guard = None
+    want_sovereign = settings.sovereign if sovereign is None else bool(sovereign)
+    allow = [str(item) for item in list(sovereign_allow or []) if str(item).strip()]
+    if not allow:
+        allow = settings.sovereign_allow_list()
+    if want_sovereign:
+        from readyagents.sovereign.egress import install_guard
+
+        guard = install_guard(allow)
     if workflow.mcp_servers and not dry_run and not pending_lock_gate:
         from readyagents.mcp.client import MCPClient
 
@@ -590,6 +601,21 @@ def run_workflow_file(
         "workspace": str(workspace),
         "actor": resolved_actor,
     }
+    if want_sovereign:
+        metadata["sovereign"] = True
+        metadata["network"] = {
+            "egress_attempts": guard.attempts if guard is not None else [],
+            "allowed_endpoints": list(allow),
+            "dns": guard.dns if guard is not None else [],
+        }
+    if workflow.mcp_servers:
+        metadata["mcp_servers"] = list(workflow.mcp_servers.keys())
+    if ctx.llm is not None:
+        metadata["model"] = {
+            "provider": getattr(ctx.llm, "name", None),
+            "endpoint": getattr(ctx.llm, "_base_url", None),
+            "model": ctx.default_model,
+        }
     if verified_actor is not None:
         metadata["identity"] = (
             verified_actor.as_dict() if hasattr(verified_actor, "as_dict") else dict(verified_actor)
@@ -665,6 +691,9 @@ def run_workflow_file(
                 closer()
         if env_guard is not None:
             env_guard.restore()
+        closer_guard = locals().get("guard")
+        if closer_guard is not None:
+            closer_guard.close()
 
 
 def _raise_lock_gate(
@@ -869,6 +898,8 @@ def resume_run(
     pack_specs: Sequence[str] | None = None,
     vote_reasons: Mapping[str, str] | None = None,
     vote_signature_status: str = "unsigned",
+    sovereign: bool | None = None,
+    sovereign_allow: Sequence[str] | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     owned_store = False
@@ -918,6 +949,8 @@ def resume_run(
             pack_specs=pack_specs,
             vote_reasons=vote_reasons,
             vote_signature_status=vote_signature_status,
+            sovereign=sovereign,
+            sovereign_allow=sovereign_allow,
         )
     finally:
         if owned_store:

@@ -17,6 +17,7 @@ from readyagents.errors import (
     CancellationRequested,
     CassetteMiss,
     CircuitOpen,
+    EgressDenied,
     GateExpired,
     LLMError,
     NodeError,
@@ -272,6 +273,16 @@ def _maybe_node_gate(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> 
 
 
 def execute_node(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
+    from readyagents.sovereign.egress import reset_node, set_node
+
+    token = set_node(node.id)
+    try:
+        return _execute_node_body(node, state, ctx)
+    finally:
+        reset_node(token)
+
+
+def _execute_node_body(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
     _maybe_node_gate(node, state, ctx)
     kind = node.type if isinstance(node.type, str) else str(node.type)
     handler = ctx.extra_handlers.get(kind)
@@ -1172,6 +1183,8 @@ def execute_node_with_policy(
         except ApprovalRequired:
             raise
         except GateExpired:
+            raise
+        except EgressDenied:
             raise
         except CassetteMiss:
             raise
