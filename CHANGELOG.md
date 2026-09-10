@@ -4,6 +4,25 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Added
+
+- **Agent identity.** Approvers may present an OIDC/JWT assertion verified
+  against a local trust-anchor file (`--token-file`, `--trust-anchors` /
+  `READYAGENTS_TRUST_ANCHORS`). Verification uses the optional `jwt` extra
+  (**not** in `all`): signature, issuer, audience, expiry, skew. `alg: none`,
+  algorithm confusion, and unknown `kid` are refused. Fail closed on a
+  missing/malformed/unreadable anchor when a token is presented. Claims map
+  to `--actor` / RBAC roles; replay of the same token on a gate is refused.
+  *Signed* (HMAC of the decision body) and *identified* (verified subject)
+  stay separate. `--actor NAME` remains the default. See
+  [docs/identity.md](docs/identity.md).
+- **Credential brokering.** Optional `readyagents.credentials.yaml` grants
+  named secrets per tool at the dispatch seam; non-granted tools cannot read
+  them from `os.environ` during the call. `credential_kind` is `static` when
+  the provider cannot mint. See [docs/credentials.md](docs/credentials.md).
+- `readyagents identity verify|whoami|trust`. Workload `whoami` prints a
+  fingerprint, never the private key.
+
 ### Fixed
 
 - Spend meter reserves only the in-flight call's estimated tokens/cost, not

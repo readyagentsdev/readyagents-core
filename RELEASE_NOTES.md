@@ -1,3 +1,21 @@
+# ReadyAgents Core (Unreleased) — Agent identity draft
+
+**Every approval can be identified. Every tool can be granted only its secrets.**
+
+`--actor NAME` is still the default. With `--token-file` and a local trust-anchor
+file, ReadyAgents verifies an OIDC/JWT assertion (optional `jwt` extra, not in
+`all`) and records subject/issuer separately from HMAC *signing*. Replay is
+refused. Optional credential brokering grants named secrets per tool at the
+dispatch seam.
+
+```bash
+readyagents identity verify --token-file ./id.jwt --json
+readyagents decide RUN_ID --node gate --decision approve --token-file ./id.jwt
+readyagents identity whoami --json
+```
+
+See `docs/identity.md` and `docs/credentials.md`. Packs are waitlisted, not for sale.
+
 # ReadyAgents Core 1.4.0
 
 **TokenOps: estimate, spend caps, ledger, and runaway guards.**

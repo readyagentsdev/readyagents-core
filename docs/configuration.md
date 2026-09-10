@@ -65,6 +65,11 @@ If the node has no explicit `model:` and the default provider has no key, the en
 | `READYAGENTS_REDACT_LITERALS` | Comma-separated extra strings to mask |
 | `READYAGENTS_REDACT_PATTERNS` | Comma-separated extra regexes to mask |
 | `READYAGENTS_ACTOR` | Default actor id for RBAC hooks |
+| `READYAGENTS_TRUST_ANCHORS` | Local trust-anchor YAML (issuers + JWKS files). Missing/malformed fails closed when `--token-file` is used. |
+| `READYAGENTS_CREDENTIALS` | Per-tool secret grant file. Without it, tools see the process environment as today. |
+| `READYAGENTS_WORKLOAD_SUBJECT` | Optional workload identity subject |
+| `READYAGENTS_WORKLOAD_KEY` | PEM private key path for workload assertions (never logged) |
+| `READYAGENTS_WORKLOAD_KID` | Key id for workload assertions |
 | `READYAGENTS_PAUSE_NOTIFY_URL` | Outbound POST when an approval node pauses (core does not listen for that webhook) |
 | `READYAGENTS_MCP_TOKEN` | Bearer token for optional MCP Streamable HTTP (`/mcp`) and the ReadyAgents `/runs` extension. Never pass the token as a CLI flag. If empty at HTTP startup, the process generates ≥256 bits and prints it once to stderr (never persisted or logged). |
 | `READYAGENTS_MCP_PROTOCOL_MAX` | Optional cap on advertised MCP protocol versions (default latest honoured). |
