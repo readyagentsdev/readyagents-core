@@ -186,6 +186,7 @@ def test_init_writes_template_when_no_example(tmp_path: Path, monkeypatch) -> No
     assert "sk-" not in text
     assert "Wrote" in result.stdout
     assert "readyagents new" in result.stdout
+    assert "readyagents doctor" in result.stdout
 
 
 def test_init_copies_env_example(tmp_path: Path, monkeypatch) -> None:

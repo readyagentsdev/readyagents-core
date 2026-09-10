@@ -162,13 +162,13 @@ def _print_next_steps() -> None:
     console.print(
         Panel(
             "[bold]Next steps[/bold]\n"
-            "1. Smoke test (no keys):  "
-            "[cyan]readyagents run examples/calc_pipeline.yaml[/cyan]\n"
+            "1. Diagnose (no keys):  [cyan]readyagents doctor[/cyan]\n"
             "2. Scaffold:  [cyan]readyagents new my-flow[/cyan]\n"
-            "3. Edit `.env` and set OPENAI_API_KEY and/or ANTHROPIC_API_KEY\n"
-            "4. With keys:  [cyan]readyagents run examples/research_brief.yaml "
-            "--input topic=your-topic[/cyan]\n"
-            "See docs/getting-started.md",
+            "3. Smoke the scaffold:  [cyan]readyagents run my-flow/workflow.yaml[/cyan]\n"
+            "4. Edit `.env` and set OPENAI_API_KEY and/or ANTHROPIC_API_KEY\n"
+            "The PyPI wheel does not ship `examples/`. From a clone, "
+            "`readyagents run examples/calc_pipeline.yaml` is the same keyless graph.\n"
+            "See docs/first-ten-minutes.md",
             title="ReadyAgents",
         )
     )

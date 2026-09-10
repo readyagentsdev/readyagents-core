@@ -1,8 +1,8 @@
 # A2A interoperability
 
-**Remote content is untrusted. Delegation can exfiltrate.** This page describes
-a served mapping over the durable run record, not A2A certification and not a
-hosted agent directory.
+**Unreleased on this checkout — not on the 1.9.0 tag.** Remote content is
+untrusted. Delegation can exfiltrate. This page describes a served mapping over
+the durable run record, not A2A certification and not a hosted agent directory.
 
 A2A (Agent2Agent) is a projection of an existing ReadyAgents run: the same
 record the CLI, MCP tasks, and `/runs` already use. There is no second state
@@ -62,7 +62,7 @@ prints the card and bind, then serves.
 
 Well-known paths (both served, same document):
 
-- `/.well-known/agent-card.json` (A2A v1.0)
+- `/.well-known/agent-card.json` (A2A well-known path; card `protocolVersion` is `0.3.0`)
 - `/.well-known/agent.json` (TASK alias)
 
 JSON-RPC (polling, not streaming) on `POST /` and `POST /a2a`:
