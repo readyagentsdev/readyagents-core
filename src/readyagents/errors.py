@@ -80,6 +80,18 @@ class ConnectorAuthError(ToolError):
     """Connector requested a secret that was not granted."""
 
 
+class A2AError(ReadyAgentsError):
+    """A2A card, task, or delegation failure. Not a second run store."""
+
+
+class A2ACardError(A2AError):
+    """Remote or local Agent Card is invalid, hostile, or oversized."""
+
+
+class A2ATransitionError(A2AError):
+    """Illegal A2A task state transition."""
+
+
 class ApprovalRequired(ReadyAgentsError):
     """An approval node is waiting for an explicit operator decision."""
 

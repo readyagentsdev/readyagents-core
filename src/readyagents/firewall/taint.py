@@ -215,7 +215,7 @@ def note_node_output(state: RunState, node: Any, output: Any) -> None:
     elif kind == "foreach":
         body = getattr(node, "body", None)
         body_type = str(getattr(body, "type", "") or "")
-        if body_type in {"tool", "agent"}:
+        if body_type in {"tool", "agent", "a2a"}:
             tool = str(getattr(body, "tool", "") or body_type)
             prov = untrusted(source=f"tool:{tool}", node_id=node_id)
         else:
@@ -227,10 +227,12 @@ def note_node_output(state: RunState, node: Any, output: Any) -> None:
             prov = merge([from_items, from_body], node_id=node_id)
     elif kind == "parallel":
         branches = list(getattr(node, "branches", None) or [])
-        if any(str(getattr(branch, "type", "")) in {"tool", "agent"} for branch in branches):
+        if any(str(getattr(branch, "type", "")) in {"tool", "agent", "a2a"} for branch in branches):
             prov = untrusted(source="tool:parallel", node_id=node_id)
         else:
             prov = trusted(source="literal", node_id=node_id)
+    elif kind == "a2a":
+        prov = untrusted(source="a2a", node_id=node_id)
     elif kind == "include":
         flagged = (state.metadata.get("_child_untrusted") or {}).get(node_id)
         if flagged:

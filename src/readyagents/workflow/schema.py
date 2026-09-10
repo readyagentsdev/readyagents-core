@@ -38,6 +38,7 @@ class NodeType(StrEnum):
     parallel = "parallel"
     include = "include"
     foreach = "foreach"
+    a2a = "a2a"
 
 
 class RetrySpec(BaseModel):
@@ -145,7 +146,7 @@ class NodeSpec(BaseModel):
     type: str = Field(
         description=(
             "Node kind. Built-ins: agent, tool, condition, transform, approval, "
-            "parallel, include, foreach. Packs may add types."
+            "parallel, include, foreach, a2a. Packs may add types."
         )
     )
     timeout_seconds: float | None = Field(
@@ -316,6 +317,24 @@ class NodeSpec(BaseModel):
         description="Opt-in file/command/webhook pause notifications.",
     )
 
+    # a2a (remote agent delegation)
+    agent_url: str | None = Field(
+        default=None,
+        description="Remote A2A agent URL (card origin). type: a2a only.",
+    )
+    message: str | None = Field(
+        default=None,
+        description="Message submitted to the remote A2A agent. Templates allowed.",
+    )
+    on_input_required: str | None = Field(
+        default=None,
+        description="When the remote agent pauses: gate (default) or fail.",
+    )
+    token: str | None = Field(
+        default=None,
+        description="Optional bearer for the remote agent. Prefer READYAGENTS_A2A_TOKEN.",
+    )
+
     @field_validator("id")
     @classmethod
     def _id_token(cls, value: str) -> str:
@@ -393,6 +412,13 @@ class NodeSpec(BaseModel):
                 raise ValueError(f"Node '{self.id}': foreach nodes require 'body'")
             if self.body.type == NodeType.foreach.value:
                 raise ValueError(f"Node '{self.id}': nested foreach is not supported")
+        if t == NodeType.a2a.value:
+            if not (self.agent_url or "").strip():
+                raise ValueError(f"Node '{self.id}': a2a nodes require 'agent_url'")
+            mode = (self.on_input_required or "gate").strip().lower()
+            if mode not in {"gate", "fail"}:
+                raise ValueError(f"Node '{self.id}': on_input_required must be 'gate' or 'fail'")
+            self.on_input_required = mode
         return self
 
     def _hitl_declared(self) -> bool:
