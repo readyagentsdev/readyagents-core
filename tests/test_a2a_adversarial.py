@@ -203,6 +203,7 @@ def _a2a_client(
     secret: str | None = None,
     filename: str = "wf.yaml",
     max_body_bytes: int | None = None,
+    canonical_url: str | None = None,
 ) -> Iterator[tuple[Any, Any, Path]]:
     TestClient = _starlette()
     from readyagents.a2a.server import compose_a2a_app
@@ -222,6 +223,8 @@ def _a2a_client(
     }
     if max_body_bytes is not None:
         kwargs["max_body_bytes"] = max_body_bytes
+    if canonical_url is not None:
+        kwargs["canonical_url"] = canonical_url
     app_obj = compose_a2a_app(**kwargs)
     try:
         with TestClient(app_obj, base_url=_BASE_URL) as client:
@@ -568,7 +571,13 @@ def test_remote_input_required_prompt_is_attributed_untrusted(
     tmp_path: Path, tmp_settings, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("READYAGENTS_A2A_TOKEN", _TOKEN)
-    with _a2a_client(tmp_path, tmp_settings, _PHISH_WF, filename="remote.yaml") as (
+    with _a2a_client(
+        tmp_path,
+        tmp_settings,
+        _PHISH_WF,
+        filename="remote.yaml",
+        canonical_url="http://partner.example.com",
+    ) as (
         client,
         _coord,
         _remote,

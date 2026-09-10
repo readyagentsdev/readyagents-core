@@ -80,9 +80,44 @@ def canonical_card_json(card: Mapping[str, Any]) -> str:
 
 
 def card_digest(card: Mapping[str, Any]) -> str:
-    body = {key: value for key, value in card.items() if key not in {"digest", "signature"}}
+    body = {
+        key: value
+        for key, value in card.items()
+        if key not in {"digest", "signature", "signatures"}
+    }
     payload = canonical_card_json(body).encode("utf-8")
     return "sha256:" + hashlib.sha256(payload).hexdigest()
+
+
+def card_signing_body(card: Mapping[str, Any]) -> bytes:
+    """Canonical bytes a card signature covers (excludes digest/signature)."""
+    body = {
+        key: value
+        for key, value in card.items()
+        if key not in {"digest", "signature", "signatures"}
+    }
+    return canonical_card_json(body).encode("utf-8")
+
+
+def card_signature_status(card: Mapping[str, Any], *, secret: str | None = None) -> str:
+    """Return ``unsigned``, ``verified``, or ``invalid``. Fail closed; no secrets."""
+    raw = card.get("signature")
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        extra = card.get("signatures")
+        if extra is None or extra == [] or extra == "":
+            return "unsigned"
+        return "invalid"
+    if not isinstance(raw, str) or not raw.strip():
+        return "invalid"
+    if not secret:
+        return "invalid"
+    from readyagents.decisions.signing import verify_signed_body
+
+    try:
+        verify_signed_body(str(secret), card_signing_body(card), raw)
+    except ValueError:
+        return "invalid"
+    return "verified"
 
 
 def validate_card(raw: Any) -> dict[str, Any]:

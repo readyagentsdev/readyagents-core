@@ -14,6 +14,17 @@ All notable changes to ReadyAgents Core.
   local gate are refused and audited. This is a served mapping, not A2A
   certification. See [docs/a2a.md](docs/a2a.md).
 
+### Fixed
+
+- A2A card pins use the locally computed digest; a hostile `digest` field
+  cannot freeze drift detection.
+- Card-digest `on_description_change: gate` honors `--approve` (stores the new
+  digest and continues), matching MCP pin resume.
+- The A2A bearer is sent only to the operator-supplied `agent_url` host, not to
+  a card `url` on another host.
+- `readyagents a2a probe --json` reports `signatureStatus`
+  (`unsigned` / `verified` / `invalid`) and never prints secret values.
+
 ## 1.9.0 — 2026-09-10
 
 ### Added

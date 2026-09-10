@@ -1003,10 +1003,11 @@ def a2a_probe_cmd(
     """Fetch and validate a remote Agent Card. Read-only. Never prints secret values."""
     import os
 
-    from readyagents.a2a.card import card_digest
+    from readyagents.a2a.card import card_digest, card_signature_status
     from readyagents.a2a.client import fetch_agent_card
 
     token = (os.environ.get("READYAGENTS_A2A_TOKEN") or "").strip() or None
+    card_secret = (os.environ.get("READYAGENTS_A2A_CARD_SECRET") or "").strip() or None
     try:
         card = fetch_agent_card(url, token=token)
     except ReadyAgentsError as extra:
@@ -1043,7 +1044,8 @@ def a2a_probe_cmd(
         "protocolVersion": card.get("protocolVersion"),
         "capabilities": caps,
         "securitySchemes": redacted_schemes,
-        "digest": card.get("digest") or card_digest(card),
+        "digest": card_digest(card),
+        "signatureStatus": card_signature_status(card, secret=card_secret),
         "approvalCapable": extra.get("approvalCapable") if isinstance(extra, dict) else None,
         "streaming": bool(caps.get("streaming")) if isinstance(caps, dict) else False,
     }
@@ -1056,6 +1058,7 @@ def a2a_probe_cmd(
     console.print(f"approvalCapable: {report['approvalCapable']}")
     console.print(f"streaming: {report['streaming']}")
     console.print(f"digest: {report['digest']}")
+    console.print(f"signatureStatus: {report['signatureStatus']}")
 
 
 @connectors_app.command("list")
