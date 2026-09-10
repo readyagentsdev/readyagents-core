@@ -256,6 +256,34 @@ def test_two_sequential_gates_distinct_keys(mrtr_env) -> None:
     assert done["status"] == "completed"
 
 
+def test_second_gate_waits_out_prior_in_flight(mrtr_env) -> None:
+    coord, client, _settings = mrtr_env
+    task_id = _start(client, "multi_gate.yaml")
+    first = _wait_input_required(client, task_id)
+    key1 = next(iter(first["inputRequests"]))
+    _update(client, task_id, key1, "approve")
+    deadline = time.monotonic() + 5
+    key2 = key1
+    while time.monotonic() < deadline:
+        second = _wait_input_required(client, task_id)
+        key2 = next(iter(second["inputRequests"]))
+        if key2 != key1:
+            break
+        time.sleep(0.05)
+    assert key2 != key1
+    coord._in_flight_resume.add(task_id)
+
+    def release() -> None:
+        time.sleep(0.15)
+        coord._in_flight_resume.discard(task_id)
+
+    threading.Thread(target=release, daemon=True).start()
+    second_update = _update(client, task_id, key2, "approve")
+    assert second_update.status_code == 200, second_update.text
+    done = _wait_status(client, task_id, {"completed"}, timeout=15.0)
+    assert done["status"] == "completed"
+
+
 def test_recorded_paused_decision_retries_resume(mrtr_env) -> None:
     """A same-key retry must resume if the first submit never left paused."""
     coord, client, _settings = mrtr_env

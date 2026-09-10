@@ -578,6 +578,14 @@ class RunCoordinator:
                 self._run_locks[run_id] = lock
             return lock
 
+    def _wait_resume_idle(self, run_id: str, *, timeout: float = 5.0) -> None:
+        deadline = time.monotonic() + max(0.0, float(timeout))
+        while time.monotonic() < deadline:
+            with self._lock:
+                if run_id not in self._in_flight_resume:
+                    return
+            time.sleep(0.02)
+
     def _token_for(self, run_id: str) -> Any:
         with self._lock:
             token = self._tokens.get(run_id)
@@ -883,9 +891,27 @@ class RunCoordinator:
             except Exception:
                 raise
             with self._lock:
-                if run_id in self._in_flight_resume:
+                busy = run_id in self._in_flight_resume
+                if not busy:
+                    self._in_flight_resume.add(run_id)
+            if busy:
+                # Durable state can show the next gate before the prior
+                # executor drops in-flight. Wait it out when we are already
+                # paused at the node this decision targets.
+                if state.status == "paused" and state.pending_node == node_id:
+                    self._wait_resume_idle(run_id)
+                    state = self._load_exact(run_id)
+                    if state.status != "paused" or state.pending_node != node_id:
+                        raise RunConflict(
+                            f"Run {run_id} is not paused at node '{node_id}' "
+                            f"(status={state.status}, pending_node={state.pending_node})"
+                        )
+                    with self._lock:
+                        if run_id in self._in_flight_resume:
+                            raise RunConflict(f"Run {run_id} already has a resume in flight")
+                        self._in_flight_resume.add(run_id)
+                else:
                     raise RunConflict(f"Run {run_id} already has a resume in flight")
-                self._in_flight_resume.add(run_id)
             if input_request_key:
                 meta = dict(state.metadata)
                 responses = dict(meta.get("mcp_input_responses") or {})
