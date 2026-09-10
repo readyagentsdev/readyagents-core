@@ -72,6 +72,14 @@ class ToolError(ReadyAgentsError):
     """Builtin or MCP tool invocation failed."""
 
 
+class ConnectorCapError(ToolError):
+    """Connector response, page count, or payload exceeded a declared cap."""
+
+
+class ConnectorAuthError(ToolError):
+    """Connector requested a secret that was not granted."""
+
+
 class ApprovalRequired(ReadyAgentsError):
     """An approval node is waiting for an explicit operator decision."""
 

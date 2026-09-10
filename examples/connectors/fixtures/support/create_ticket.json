@@ -1,0 +1,7 @@
+{
+  "method": "POST",
+  "url": "https://api.example.test/tickets",
+  "status": 200,
+  "headers": { "Content-Type": "application/json" },
+  "body": { "id": "T-2", "ok": true }
+}

@@ -27,6 +27,8 @@ Run:
 readyagents run hello.yaml --input name=Ada
 ```
 
+Connectors appear as ordinary `type: tool` nodes (`tool: rest`, `sql`, …). See [connectors.md](connectors.md).
+
 ## Fields
 
 | Field | Meaning |

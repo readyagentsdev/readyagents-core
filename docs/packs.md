@@ -2,7 +2,9 @@
 
 ReadyAgents is **open-core**. This repository is the free engine. Commercial or extra capability layers are **packs**: installed Python packages that register extra tools, node types, and workflows.
 
-Core runs with **zero packs**.
+Core runs with **zero packs**. First-party connectors (`rest`, `sql`, …) are
+core tools, not packs; they still go through `dispatch_tool`. Existing packs
+do not need to implement the connector contract.
 
 ## Protocol
 
@@ -11,6 +13,7 @@ A pack implements:
 ```python
 from readyagents.packs import BasePack
 from readyagents.tools import FunctionTool
+
 
 class ContinuousPack(BasePack):
     name = "continuous"

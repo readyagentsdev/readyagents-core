@@ -1,0 +1,12 @@
+# Config-driven REST. Host is pinned; templates cannot change it.
+base_url: https://api.example.test
+fixtures: connectors/fixtures/support
+operations:
+  list_tickets:
+    method: GET
+    path: /tickets
+    query:
+      since: "{{ since | default 0 }}"
+  create_ticket:
+    method: POST
+    path: /tickets

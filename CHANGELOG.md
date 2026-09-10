@@ -4,6 +4,18 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Added
+
+- **Connector suite.** Typed contract above the tool registry (`ConnectorSpec` /
+  `ConnectorContext`), SDK with `Retry-After`, pagination and size caps, and a
+  small first-party set (`rest`, `sql`, `object_storage`, `message`, `ingest`).
+  Write-shaped connectors gate by default; idempotency keys de-dupe retries.
+  `readyagents connectors list|show|test` is the catalog. Conformance harness
+  fails own-socket / non-granted-secret / cap-bypass connectors. Catalog is
+  small by design; governance is the differentiator, not certification. See
+  [docs/connectors.md](docs/connectors.md) and
+  [docs/connector-sdk.md](docs/connector-sdk.md).
+
 ## 1.8.1 — 2026-09-10
 
 ### Fixed

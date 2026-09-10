@@ -65,4 +65,9 @@ def default_registry(*, allow_http: bool, workspace: Any) -> ToolRegistry:
     registry = ToolRegistry()
     for tool in builtin_tools(allow_http=allow_http, workspace=workspace):
         registry.register(tool)
+    from readyagents.connectors.registry import connector_tools
+
+    for tool in connector_tools(workspace=workspace):
+        if tool.name not in registry.as_dict():
+            registry.register(tool)
     return registry

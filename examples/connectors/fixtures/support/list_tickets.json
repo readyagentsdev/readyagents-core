@@ -1,0 +1,7 @@
+{
+  "method": "GET",
+  "url": "https://api.example.test/tickets?since=0",
+  "status": 200,
+  "headers": { "Content-Type": "application/json" },
+  "body": { "tickets": [ { "id": "T-1", "title": "printer" } ] }
+}

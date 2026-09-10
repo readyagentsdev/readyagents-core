@@ -13,6 +13,9 @@ This is defence in depth, not a solution to prompt injection.
 4. `readyagents.policy.yaml` beside the workflow
 5. none (identity: 1.0 behaviour)
 
+Write-shaped connectors gate by default even with no policy file. An explicit
+`tools.<name>` rule opts out of that default. See [connectors.md](connectors.md).
+
 A malformed, unreadable, or **referenced-but-missing** file is a hard error.
 Failing open is not allowed. A gated run records the resolved policy path on
 the run record and reloads it on every resume or decide.
