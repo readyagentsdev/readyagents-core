@@ -88,6 +88,7 @@ If the node has no explicit `model:` and the default provider has no key, the en
 | `READYAGENTS_MCP_MAX_PENDING_RUNS` | Queue cap for `/runs`; extra starts return `429` (default `32`). |
 | `READYAGENTS_APPROVAL_UI_SECRET` | Optional HMAC secret for `readyagents approvals serve`. If unset, the process generates one for that lifetime. Never pass the secret as a CLI flag. Restart invalidates UI tokens. |
 | `READYAGENTS_RUN_STORE` | `json` (default) or `sqlite`. JSON files stay under `$READYAGENTS_HOME/runs/`. SQLite is a local optional file, not hosted recovery. |
+| `READYAGENTS_MEMORY_STORE` | `json` (default) or `sqlite` for `type: memory`. Files stay under `$READYAGENTS_HOME/memory/`. |
 | `READYAGENTS_RUN_DB` | SQLite file when `READYAGENTS_RUN_STORE=sqlite` (default `$READYAGENTS_HOME/runs.sqlite3`). Relative paths resolve under `READYAGENTS_HOME`. Directories, special files, and unsafe symlink targets are rejected. Network filesystems are unsupported. |
 | `READYAGENTS_SQLITE_BUSY_TIMEOUT_MS` | SQLite busy timeout (default 5000). |
 

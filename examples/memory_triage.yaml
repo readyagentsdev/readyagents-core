@@ -1,0 +1,31 @@
+name: memory_triage
+version: "1"
+description: >
+  Keyless memory smoke. Write a ticket note into a subject scope, then search
+  it back. Memory is untrusted. No LLM, no network.
+  Run twice with the same ticket_id to recall prior notes.
+
+inputs:
+  ticket_id: T-1
+  note: "first contact: printer jam"
+
+start: remember
+nodes:
+  - id: remember
+    type: memory
+    op: write
+    scope: "subject:{{ticket_id}}"
+    scope_pattern: "subject:*"
+    text: "{{note}}"
+    ttl: 90d
+    output_key: stored
+    next: recall
+
+  - id: recall
+    type: memory
+    op: search
+    scope: "subject:{{ticket_id}}"
+    scope_pattern: "subject:*"
+    query: "{{note}}"
+    limit: 5
+    output_key: prior

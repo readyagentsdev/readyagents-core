@@ -101,6 +101,15 @@ most sensitive artifact Core writes.
   an approval or bypass the authorizer.
 - Offline replay never falls through to a live provider call.
 
+## Memory is untrusted
+
+`type: memory` is a persistent, cross-run store. Content written on one run is
+retrieved on another — delayed prompt injection. Memory output is always
+untrusted. Templated scopes that expand into another subject, `..`, `/`, or
+`*` are refused. `forget` must remove records, search hits, and vectors.
+`memory export` is confined and requires `--yes`. See
+[docs/memory.md](docs/memory.md).
+
 ## Optional A2A door
 
 `readyagents a2a serve PATH` is an explicit foreground command. It is not
