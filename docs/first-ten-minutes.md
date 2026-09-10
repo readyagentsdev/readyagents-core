@@ -40,7 +40,12 @@ From a clone:
 readyagents run examples/approval_gate.yaml
 ```
 
-From PyPI, `readyagents new my-flow --template gated` then run that workflow.
+From PyPI (a **different** directory than `my-flow` — `new` refuses to overwrite):
+
+```bash
+readyagents new demo --template gated
+readyagents run demo/workflow.yaml
+```
 
 The CLI exits **2** and the run status is `paused`. That means a human gate is
 waiting — a decision is pending — not that the install crashed.
@@ -75,9 +80,12 @@ shipped (not Unreleased). It is not a hosted dashboard.
 
 ## 3. Start your own file
 
+If you already ran section 1, pick a new directory name (`new` will not overwrite
+`my-flow` or `demo`):
+
 ```bash
-readyagents new my-flow
-readyagents run my-flow/workflow.yaml
+readyagents new starter
+readyagents run starter/workflow.yaml
 ```
 
 `pipeline` is keyless. The scaffold writes `workflow.schema.json` next to
