@@ -39,6 +39,14 @@ def classify_tool(name: str, *, seals: Mapping[str, str] | None = None) -> str:
         return "sealable"
     if name in CORE_BUILTIN_TOOLS:
         return "unsealable"
+    try:
+        from readyagents.connectors.registry import spec_for
+
+        spec = spec_for(name)
+        if spec is not None and spec.determinism in SEAL_CLASSES:
+            return spec.determinism
+    except Exception:  # noqa: BLE001
+        pass
     declared = (seals or {}).get(name)
     if declared in SEAL_CLASSES:
         return declared

@@ -248,6 +248,34 @@ def dispatch_tool(
                     )
                 )
             runner = wrap_runner(runner, granted=granted, managed=policy.managed_names())
+    if ctx is not None:
+        from readyagents.connectors.registry import call_is_write, spec_for, wrap_connector_runner
+
+        spec = spec_for(name)
+        if spec is not None:
+            from readyagents.connectors.context import ConnectorContext
+
+            conn_ctx = ConnectorContext(
+                spec,
+                workspace=getattr(ctx, "workflow_dir", None),
+                state=state,
+                node_id=node_id,
+                redactor=redactor,
+            )
+            if state is not None and call_is_write(spec, arguments):
+                _gate_write_connector(ctx, state, node_id, name)
+            runner = wrap_connector_runner(runner, conn_ctx)
+            if ctx.auditor is not None:
+                ctx.auditor(
+                    "connector_call",
+                    run_id=getattr(state, "run_id", None),
+                    node_id=node_id,
+                    tool=name,
+                    destinations=list(spec.destinations),
+                    side_effects=spec.side_effects,
+                    idempotent=spec.idempotent,
+                    actor=getattr(ctx, "actor", None),
+                )
     seals = cassette.tool_seals if cassette is not None else None
     klass = classify_tool(name, seals=seals)
     if offline:
@@ -362,6 +390,29 @@ def _enforce_firewall(
 
 
 _PIN_APPROVE = {"approve", "approved", "yes", "true", "accept", "ok"}
+
+
+def _gate_write_connector(ctx: Any, state: Any, node_id: str, name: str) -> None:
+    """Write-shaped connectors pause unless approved or explicitly allowed."""
+    from readyagents.errors import ApprovalRequired
+
+    decided = None
+    decision_fn = getattr(ctx, "decision_for", None)
+    if callable(decision_fn):
+        decided = decision_fn(node_id)
+    if decided and str(decided).strip().lower() in _PIN_APPROVE:
+        return
+    policy = getattr(ctx, "policy", None)
+    tools = getattr(policy, "tools", None) if policy is not None else None
+    if isinstance(tools, dict) and name in tools:
+        return
+    run_id = getattr(state, "run_id", "") or ""
+    raise ApprovalRequired(
+        node_id,
+        run_id,
+        f"Write connector {name!r} is gated by default",
+        state=state,
+    )
 
 
 def _pin_status(ctx: Any, state: Any, name: str, node_id: str) -> tuple[bool, str | None]:

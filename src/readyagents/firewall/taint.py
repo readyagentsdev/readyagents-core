@@ -169,6 +169,14 @@ def note_node_output(state: RunState, node: Any, output: Any) -> None:
             source = "http"
         elif tool in {"read_file", "list_dir", "write_file"}:
             source = "file"
+        else:
+            try:
+                from readyagents.connectors.registry import spec_for
+
+                if spec_for(tool) is not None:
+                    source = f"connector:{tool}"
+            except Exception:  # noqa: BLE001
+                pass
         prov = untrusted(source=source, node_id=node_id)
     elif kind == "agent":
         prompt = str(getattr(node, "prompt", "") or "")
