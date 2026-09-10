@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from readyagents.errors import ApprovalRequired, TrustError
+from readyagents.errors import TrustError
 from readyagents.trust.digest import (
     DIGEST_ALGORITHM,
     DIGEST_VERSION,
@@ -16,6 +16,7 @@ from readyagents.trust.digest import (
     KIND_PACK,
     KIND_WORKFLOW,
     digest_pack_bytes,
+    include_source_map,
     inspect_workflow,
     prefixed,
 )
@@ -25,6 +26,10 @@ from readyagents.trust.lock import (
     diff_lockfile,
     load_lockfile,
 )
+
+LOCK_GATE_NODE = "supply_chain_lock"
+FILE_LOCK_KINDS = (KIND_WORKFLOW, KIND_INCLUDE, KIND_PACK)
+_APPROVE = {"approve", "approved", "yes", "true", "accept", "ok"}
 
 
 @dataclass
@@ -55,6 +60,8 @@ class TrustReport:
     frozen: bool = False
     lock_mismatches: list[dict[str, str]] = field(default_factory=list)
     pack_buffers: dict[str, bytes] = field(default_factory=dict)
+    include_buffers: dict[str, str] = field(default_factory=dict)
+    workflow_source: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -108,16 +115,25 @@ def evaluate_workflow(
     mcp_surfaces: dict[str, str] | None = None,
     run_id: str | None = None,
     check_lock: bool = True,
+    source_text: str | None = None,
+    require_resolved_includes: bool = False,
 ) -> TrustReport:
     source = Path(workflow_path)
-    report = inspect_workflow(source)
+    enforce = bool(require_signed or frozen)
+    report = inspect_workflow(
+        source,
+        source=source_text,
+        require_resolved_includes=require_resolved_includes or enforce,
+    )
     statuses: list[ArtifactStatus] = [
         ArtifactStatus(kind=KIND_WORKFLOW, path=source.name, digest=report.digest)
     ]
     for include in report.includes:
         statuses.append(ArtifactStatus(kind=KIND_INCLUDE, path=include.path, digest=include.digest))
     if require_signed:
-        statuses[0].signature = _verify_or_raise(source, kind=KIND_WORKFLOW, keyring=keyring)
+        statuses[0].signature = _verify_or_raise(
+            source, kind=KIND_WORKFLOW, keyring=keyring, digest=report.digest
+        )
     else:
         statuses[0].signature = _peek_signature(source, kind=KIND_WORKFLOW)
 
@@ -151,6 +167,8 @@ def evaluate_workflow(
         require_signed=require_signed,
         frozen=frozen,
         pack_buffers=pack_buffers,
+        include_buffers=include_source_map(report),
+        workflow_source=report.source_text,
     )
     if check_lock:
         apply_lock(
@@ -159,7 +177,6 @@ def evaluate_workflow(
             frozen=frozen,
             on_lock_mismatch=on_lock_mismatch,
             lock_path=lock_path,
-            run_id=run_id,
         )
     return result
 
@@ -171,7 +188,7 @@ def apply_lock(
     frozen: bool = False,
     on_lock_mismatch: str = "allow",
     lock_path: Path | str | None = None,
-    run_id: str | None = None,
+    kinds: Sequence[str] | None = None,
 ) -> None:
     dest = Path(lock_path) if lock_path is not None else default_lock_path(source)
     if frozen and not dest.is_file():
@@ -184,6 +201,20 @@ def apply_lock(
         return
     expected = load_lockfile(dest)
     actual = _lock_from_report(result, generated_at=expected.generated_at)
+    if kinds is not None:
+        allowed = set(kinds)
+        expected = Lockfile(
+            artifacts=[item for item in expected.artifacts if item.kind in allowed],
+            version=expected.version,
+            digest_algorithm=expected.digest_algorithm,
+            digest_version=expected.digest_version,
+            generated_at=expected.generated_at,
+            path=expected.path,
+        )
+        actual = Lockfile(
+            artifacts=[item for item in actual.artifacts if item.kind in allowed],
+            generated_at=expected.generated_at,
+        )
     mismatches = diff_lockfile(expected, actual)
     if not mismatches:
         return
@@ -195,12 +226,18 @@ def apply_lock(
             artifact=str(source),
             reason="digest_mismatch",
         )
-    if on_lock_mismatch == "gate":
-        raise ApprovalRequired(
-            "supply_chain_lock",
-            run_id or "unassigned",
-            f"Lockfile mismatch: {summary}. Re-approve after reviewing artifact drift.",
-        )
+
+
+def lock_gate_pending(
+    result: TrustReport,
+    *,
+    on_lock_mismatch: str,
+    decisions: Mapping[str, str] | None = None,
+) -> bool:
+    if not result.lock_mismatches or on_lock_mismatch != "gate":
+        return False
+    raw = str((decisions or {}).get(LOCK_GATE_NODE) or "").strip().lower()
+    return raw not in _APPROVE
 
 
 def _verify_or_raise(
@@ -209,10 +246,11 @@ def _verify_or_raise(
     kind: str,
     keyring: Any,
     data: bytes | None = None,
+    digest: str | None = None,
 ) -> str:
     from readyagents.trust.sign import verify_artifact
 
-    verified = verify_artifact(path, kind=kind, data=data, keyring=keyring)
+    verified = verify_artifact(path, kind=kind, data=data, keyring=keyring, digest=digest)
     return str(verified.get("signature") or "verified")
 
 

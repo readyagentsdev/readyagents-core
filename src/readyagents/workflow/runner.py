@@ -12,7 +12,13 @@ from pydantic import ValidationError
 
 from readyagents.audit import audit_dir_for, make_auditor
 from readyagents.config import Settings, get_settings
-from readyagents.errors import ConfigError, SourceMapBoundError, TrustError, WorkflowError
+from readyagents.errors import (
+    ApprovalRequired,
+    ConfigError,
+    SourceMapBoundError,
+    TrustError,
+    WorkflowError,
+)
 from readyagents.llm.base import LLMProvider
 from readyagents.llm.cache import LLMCache
 from readyagents.llm.resilience import CircuitBreaker, usd_to_micros
@@ -43,12 +49,22 @@ log = get_logger("runner")
 _APPROVE = {"approve", "approved", "yes", "true", "accept", "ok"}
 
 
-def load_workflow(path: Path | str, *, display_path: str | None = None) -> WorkflowSpec:
+def load_workflow(
+    path: Path | str,
+    *,
+    display_path: str | None = None,
+    source: str | None = None,
+) -> WorkflowSpec:
     file = Path(path)
     shown = display_path if display_path is not None else str(path)
-    if not file.is_file():
-        raise ConfigError(f"Workflow file not found: {file}")
-    text = file.read_text(encoding="utf-8")
+    if source is None:
+        if not file.is_file():
+            raise ConfigError(f"Workflow file not found: {file}")
+        text = file.read_text(encoding="utf-8")
+    else:
+        text = source
+    if text.startswith("\ufeff"):
+        text = text[1:]
     try:
         if file.suffix.lower() in {".json"}:
             data = json.loads(text)
@@ -141,7 +157,13 @@ def run_workflow_file(
     pack_specs: Sequence[str] | None = None,
 ) -> RunState:
     settings = settings or get_settings()
-    workflow = load_workflow(path)
+    source_file = Path(path)
+    if not source_file.is_file():
+        raise ConfigError(f"Workflow file not found: {source_file}")
+    workflow_text = source_file.read_text(encoding="utf-8")
+    if workflow_text.startswith("\ufeff"):
+        workflow_text = workflow_text[1:]
+    workflow = load_workflow(source_file, source=workflow_text)
     if initial_state is not None and resume_state is not None:
         raise WorkflowError("initial_state and resume_state are mutually exclusive")
     merged_decisions: dict[str, str] = {}
@@ -176,10 +198,13 @@ def run_workflow_file(
 
     from readyagents.firewall.policy_file import load_resolved
     from readyagents.trust.enforce import (
+        FILE_LOCK_KINDS,
+        LOCK_GATE_NODE,
         ArtifactStatus,
         TrustReport,
         apply_lock,
         evaluate_workflow,
+        lock_gate_pending,
         resolve_enforcement,
     )
 
@@ -215,26 +240,39 @@ def run_workflow_file(
             keyring=keyring,
             run_id=resume_state.run_id if resume_state is not None else run_id,
             check_lock=False,
+            source_text=workflow_text,
         )
     except TrustError:
         if required or lock_frozen:
             raise
         trust_report = TrustReport()
 
+    apply_lock(
+        trust_report,
+        source_path,
+        frozen=lock_frozen,
+        on_lock_mismatch=on_mismatch,
+        kinds=FILE_LOCK_KINDS,
+    )
+    pending_lock_gate = lock_gate_pending(
+        trust_report, on_lock_mismatch=on_mismatch, decisions=merged_decisions
+    )
+
     tools = default_registry(allow_http=allow_http, workspace=workspace)
     packs = list(discover_packs())
     if extra_packs:
         packs.extend(list(extra_packs))
-    for spec in pack_specs or ():
-        pack_path = confine_pack_path(spec, pack_root)
-        packs.append(
-            load_pack_file(
-                spec,
-                root=pack_root,
-                require_signed=False,
-                source=trust_report.pack_buffers.get(str(pack_path)),
+    if not pending_lock_gate:
+        for spec in pack_specs or ():
+            pack_path = confine_pack_path(spec, pack_root)
+            packs.append(
+                load_pack_file(
+                    spec,
+                    root=pack_root,
+                    require_signed=False,
+                    source=trust_report.pack_buffers.get(str(pack_path)),
+                )
             )
-        )
     tools.merge(collect_pack_tools(packs))
     if extra_tools:
         tools.merge(extra_tools)
@@ -270,7 +308,7 @@ def run_workflow_file(
 
     mcp = None
     env_guard = None
-    if workflow.mcp_servers and not dry_run:
+    if workflow.mcp_servers and not dry_run and not pending_lock_gate:
         from readyagents.mcp.client import MCPClient
 
         mcp = MCPClient(workflow.mcp_servers, workspace)
@@ -294,13 +332,13 @@ def run_workflow_file(
                     signature="n/a",
                 )
             )
-    apply_lock(
-        trust_report,
-        source_path,
-        frozen=lock_frozen,
-        on_lock_mismatch=on_mismatch,
-        run_id=resume_state.run_id if resume_state is not None else run_id,
-    )
+    if not pending_lock_gate:
+        apply_lock(
+            trust_report,
+            source_path,
+            frozen=lock_frozen,
+            on_lock_mismatch=on_mismatch,
+        )
 
     runs_dir = settings.runs_dir()
     auditor = None
@@ -322,6 +360,23 @@ def run_workflow_file(
             store.save(state, redactor=redactor)
         else:
             persist_run(state, runs_dir, redactor=redactor)
+
+    if pending_lock_gate:
+        _raise_lock_gate(
+            workflow,
+            merged,
+            source_path=source_path,
+            trust_report=trust_report,
+            persist=persist,
+            save=_save if persist else None,
+            auditor=auditor,
+            actor=resolved_actor,
+            run_id=resume_state.run_id if resume_state is not None else run_id,
+            workspace=workspace,
+            allow_http=allow_http,
+            dry_run=dry_run,
+            loaded_policy=loaded_policy,
+        )
 
     budget = workflow.budget
     if budget and budget.max_tokens is not None:
@@ -513,6 +568,9 @@ def run_workflow_file(
         verified_actor=verified_actor,
         credential_policy=cred_policy,
         credential_env=env_guard.saved if env_guard is not None else None,
+        include_buffers=trust_report.include_buffers,
+        require_signed=required,
+        frozen=lock_frozen,
     )
     metadata = {
         "source": str(source_path),
@@ -534,6 +592,14 @@ def run_workflow_file(
     if want_record:
         metadata["recorded"] = True
     metadata["supply_chain"] = trust_report.as_dict()
+    if (
+        resume_state is not None
+        and resume_state.pending_node == LOCK_GATE_NODE
+        and str(merged_decisions.get(LOCK_GATE_NODE) or "").strip().lower() in _APPROVE
+    ):
+        resume_state.pending_node = None
+        resume_state.pending = None
+        resume_state.status = "running"
     try:
         state = run_workflow(
             workflow,
@@ -588,6 +654,53 @@ def run_workflow_file(
                 closer()
         if env_guard is not None:
             env_guard.restore()
+
+
+def _raise_lock_gate(
+    workflow: WorkflowSpec,
+    inputs: Mapping[str, Any],
+    *,
+    source_path: Path,
+    trust_report: Any,
+    persist: bool,
+    save: Any,
+    auditor: Any,
+    actor: str | None,
+    run_id: str | None,
+    workspace: Path,
+    allow_http: bool,
+    dry_run: bool,
+    loaded_policy: Any,
+) -> None:
+    from readyagents.trust.enforce import LOCK_GATE_NODE
+
+    summary = ", ".join(item["artifact"] for item in trust_report.lock_mismatches)
+    prompt = f"Lockfile mismatch: {summary}. Re-approve after reviewing artifact drift."
+    metadata: dict[str, Any] = {
+        "source": str(source_path),
+        "allow_http": allow_http,
+        "dry_run": dry_run,
+        "workspace": str(workspace),
+        "actor": actor,
+        "supply_chain": trust_report.as_dict(),
+    }
+    if loaded_policy is not None and getattr(loaded_policy, "source", None):
+        metadata["policy"] = loaded_policy.source
+    state = RunState.start(workflow.name, inputs, metadata=metadata, run_id=run_id)
+    state.pending_node = LOCK_GATE_NODE
+    state.pending = {
+        "node_id": LOCK_GATE_NODE,
+        "type": "approval",
+        "prompt": prompt,
+        "resume": f"readyagents resume {state.run_id} --approve {LOCK_GATE_NODE}",
+        "decide": (f"readyagents decide {state.run_id} --node {LOCK_GATE_NODE} --decision approve"),
+    }
+    state.finish("paused")
+    if persist and save is not None:
+        save(state)
+    if auditor is not None:
+        auditor("paused", run_id=state.run_id, node_id=LOCK_GATE_NODE, actor=actor)
+    raise ApprovalRequired(LOCK_GATE_NODE, state.run_id, prompt, state=state)
 
 
 def _load_credentials(explicit: Path | str | None, workflow_dir: Path) -> Any:

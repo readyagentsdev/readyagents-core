@@ -65,26 +65,47 @@ def digest_mcp_surface(server: str, tools: Mapping[str, Any]) -> str:
     return prefixed(snap.digest)
 
 
-def digest_workflow(path: Path | str, *, root: Path | None = None) -> str:
+def digest_workflow(
+    path: Path | str,
+    *,
+    root: Path | None = None,
+    source: str | None = None,
+    require_resolved_includes: bool = False,
+) -> str:
     """SHA-256 of the resolved include graph. Changing an include changes this."""
-    report = inspect_workflow(path, root=root)
+    report = inspect_workflow(
+        path,
+        root=root,
+        source=source,
+        require_resolved_includes=require_resolved_includes,
+    )
     return report.digest
 
 
 class IncludeEntry:
-    __slots__ = ("path", "resolved", "digest")
+    __slots__ = ("path", "resolved", "digest", "source_text", "includes")
 
-    def __init__(self, path: str, resolved: Path, digest: str) -> None:
+    def __init__(
+        self,
+        path: str,
+        resolved: Path,
+        digest: str,
+        *,
+        source_text: str = "",
+        includes: list[IncludeEntry] | None = None,
+    ) -> None:
         self.path = path
         self.resolved = resolved
         self.digest = digest
+        self.source_text = source_text
+        self.includes = list(includes or [])
 
     def as_dict(self) -> dict[str, str]:
         return {"path": self.path, "digest": self.digest}
 
 
 class WorkflowDigest:
-    __slots__ = ("path", "digest", "kind", "document", "includes")
+    __slots__ = ("path", "digest", "kind", "document", "includes", "source_text")
 
     def __init__(
         self,
@@ -94,12 +115,14 @@ class WorkflowDigest:
         kind: str,
         document: dict[str, Any],
         includes: list[IncludeEntry],
+        source_text: str = "",
     ) -> None:
         self.path = path
         self.digest = digest
         self.kind = kind
         self.document = document
         self.includes = includes
+        self.source_text = source_text
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -110,29 +133,49 @@ class WorkflowDigest:
         }
 
 
+def include_source_map(report: WorkflowDigest) -> dict[str, str]:
+    """Resolved include path → source text that was hashed. Nested includes included."""
+    out: dict[str, str] = {}
+
+    def _walk(entries: list[IncludeEntry]) -> None:
+        for item in entries:
+            out[str(item.resolved)] = item.source_text
+            _walk(item.includes)
+
+    _walk(report.includes)
+    return out
+
+
 def inspect_workflow(
     path: Path | str,
     *,
     root: Path | None = None,
     kind: str = KIND_WORKFLOW,
+    source: str | None = None,
+    require_resolved_includes: bool = False,
     _stack: tuple[Path, ...] = (),
     _top: Path | None = None,
 ) -> WorkflowDigest:
     file = Path(path)
-    if not file.is_file():
-        raise TrustError(
-            f"workflow artifact not found: {file}",
-            artifact=str(file),
-            reason="missing",
-        )
     try:
-        resolved = file.resolve()
-    except OSError as exc:
+        resolved = file.expanduser().resolve()
+    except OSError as extra:
         raise TrustError(
             f"workflow artifact unreadable: {file}",
             artifact=str(file),
             reason="unreadable",
-        ) from exc
+        ) from extra
+    if source is None:
+        target = resolved if resolved.is_file() else file
+        if not target.is_file():
+            raise TrustError(
+                f"workflow artifact not found: {file}",
+                artifact=str(file),
+                reason="missing",
+            )
+        text = _read_text(target)
+    else:
+        text = source[1:] if source.startswith("\ufeff") else source
     if resolved in _stack:
         cycle = " -> ".join(str(p) for p in (*_stack, resolved))
         raise TrustError(
@@ -146,13 +189,17 @@ def inspect_workflow(
             artifact=str(resolved),
             reason="depth",
         )
-    document = _load_mapping(resolved)
+    document = _parse_mapping(text, resolved)
     top = _top or resolved.parent
     parent_dir = resolved.parent
     include_root = root if root is not None else parent_dir
     entries: list[IncludeEntry] = []
     seen: set[Path] = set()
-    for raw_path in _include_paths(document):
+    for raw_path in _include_paths(
+        document,
+        require_resolved=require_resolved_includes,
+        artifact=str(resolved),
+    ):
         child = _confine_include(raw_path, include_root, artifact=str(resolved))
         if child in seen:
             continue
@@ -161,11 +208,20 @@ def inspect_workflow(
             child,
             root=child.parent,
             kind=KIND_INCLUDE,
+            require_resolved_includes=require_resolved_includes,
             _stack=_stack + (resolved,),
             _top=top,
         )
         rel = _relpath(child, top)
-        entries.append(IncludeEntry(rel, child, nested.digest))
+        entries.append(
+            IncludeEntry(
+                rel,
+                child,
+                nested.digest,
+                source_text=nested.source_text,
+                includes=list(nested.includes),
+            )
+        )
     entries.sort(key=lambda item: item.path)
     payload = {
         "algorithm": DIGEST_ALGORITHM,
@@ -175,40 +231,51 @@ def inspect_workflow(
         "includes": [item.as_dict() for item in entries],
     }
     digest = digest_canonical(payload)
-    return WorkflowDigest(resolved, digest, kind=kind, document=document, includes=entries)
+    return WorkflowDigest(
+        resolved,
+        digest,
+        kind=kind,
+        document=document,
+        includes=entries,
+        source_text=text,
+    )
 
 
-def _load_mapping(path: Path) -> dict[str, Any]:
+def _read_text(path: Path) -> str:
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except OSError as extra:
         raise TrustError(
             f"artifact unreadable: {path}",
             artifact=str(path),
             reason="unreadable",
-        ) from exc
+        ) from extra
     if text.startswith("\ufeff"):
-        text = text[1:]
+        return text[1:]
+    return text
+
+
+def _parse_mapping(text: str, path: Path) -> dict[str, Any]:
     if path.suffix.lower() == ".json":
         try:
             data = json.loads(text)
-        except json.JSONDecodeError as exc:
+        except json.JSONDecodeError as extra:
             raise TrustError(
-                f"could not parse {path}: {exc}",
+                f"could not parse {path}: {extra}",
                 artifact=str(path),
                 reason="malformed",
-            ) from exc
+            ) from extra
     else:
         import yaml
 
         try:
             data = yaml.safe_load(text)
-        except yaml.YAMLError as exc:
+        except yaml.YAMLError as extra:
             raise TrustError(
-                f"could not parse {path}: {exc}",
+                f"could not parse {path}: {extra}",
                 artifact=str(path),
                 reason="malformed",
-            ) from exc
+            ) from extra
     if not isinstance(data, dict):
         raise TrustError(
             f"workflow {path} must be a mapping",
@@ -218,7 +285,16 @@ def _load_mapping(path: Path) -> dict[str, Any]:
     return data
 
 
-def _include_paths(document: Mapping[str, Any]) -> list[str]:
+def _is_template(text: str) -> bool:
+    return "{{" in text or "{%" in text
+
+
+def _include_paths(
+    document: Mapping[str, Any],
+    *,
+    require_resolved: bool = False,
+    artifact: str = "",
+) -> list[str]:
     found: list[str] = []
     for node in _iter_nodes(document):
         kind = str(node.get("type") or "").strip().lower()
@@ -228,7 +304,15 @@ def _include_paths(document: Mapping[str, Any]) -> list[str]:
         if not isinstance(raw, str):
             continue
         text = raw.strip()
-        if not text or "{{" in text or "{%" in text:
+        if not text:
+            continue
+        if _is_template(text):
+            if require_resolved:
+                raise TrustError(
+                    f"templated include path cannot be resolved: {raw} (from {artifact})",
+                    artifact=artifact,
+                    reason="unresolved_include",
+                )
             continue
         found.append(text)
     return found
