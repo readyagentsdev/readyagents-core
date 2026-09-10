@@ -91,6 +91,51 @@ def _pause_resume(env: dict[str, str]) -> None:
     _run(["resume", str(run_id), "--approve", "gate"], env=env, expect=0)
 
 
+def _batch(env: dict[str, str]) -> None:
+    rows = Path(env["READYAGENTS_HOME"]) / "batch-rows.jsonl"
+    rows.write_text('{"n": 1}\n{"n": 2}\n', encoding="utf-8")
+    proc = _run(
+        [
+            "batch",
+            str(EXAMPLES / "batch_echo.yaml"),
+            "--input-file",
+            str(rows),
+            "--concurrency",
+            "2",
+            "--no-persist",
+            "--json",
+        ],
+        env=env,
+        expect=0,
+    )
+    start = proc.stdout.find("{")
+    if start < 0:
+        raise SystemExit(f"FAIL batch: no JSON\n{proc.stdout}\n{proc.stderr}")
+    data = json.loads(proc.stdout[start:])
+    if data.get("succeeded") != 2 or data.get("failed") != 0:
+        raise SystemExit(f"FAIL batch summary: {data!r}")
+    bad = Path(env["READYAGENTS_HOME"]) / "batch-rows-fail.jsonl"
+    bad.write_text('{"n": 1}\n{}\n{"n": 3}\n', encoding="utf-8")
+    proc = _run(
+        [
+            "batch",
+            str(EXAMPLES / "batch_echo.yaml"),
+            "--input-file",
+            str(bad),
+            "--concurrency",
+            "2",
+            "--no-persist",
+            "--json",
+        ],
+        env=env,
+        expect=1,
+    )
+    start = proc.stdout.find("{")
+    data = json.loads(proc.stdout[start:])
+    if data.get("succeeded") != 2 or data.get("failed") != 1:
+        raise SystemExit(f"FAIL batch continue-on-error: {data!r}")
+
+
 def main() -> int:
     home = Path(tempfile.mkdtemp(prefix="readyagents-smoke-"))
     env = os.environ.copy()
@@ -102,6 +147,8 @@ def main() -> int:
             _run(args, env=env)
         print("SMOKE pause-resume", flush=True)
         _pause_resume(env)
+        print("SMOKE batch", flush=True)
+        _batch(env)
     except SystemExit as extra:
         print(str(extra), file=sys.stderr)
         failed = True

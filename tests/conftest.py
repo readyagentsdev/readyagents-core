@@ -6,6 +6,7 @@ import pytest
 
 from readyagents.config import Settings, clear_settings_cache
 from readyagents.llm.base import CompletionResult, Message
+from readyagents.workflow.governor import reset_governor_for_tests
 
 
 class MockLLM:
@@ -20,6 +21,13 @@ class MockLLM:
     ) -> CompletionResult:
         self.calls.append(messages)
         return CompletionResult(text=self.text, model=model)
+
+
+@pytest.fixture(autouse=True)
+def _reset_governor() -> None:
+    reset_governor_for_tests()
+    yield
+    reset_governor_for_tests()
 
 
 @pytest.fixture

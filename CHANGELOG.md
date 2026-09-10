@@ -6,6 +6,16 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Opt-in batch and concurrency governor.** `readyagents batch` runs one
+  workflow over JSONL or CSV rows with a declared `--concurrency`, per-row
+  isolation, `--continue-on-error` (default), a spend cap across rows, a
+  progress stream, and `--out results.jsonl`. Failed rows are recorded and do
+  not stop the batch. A process-local governor enforces global / per-workflow /
+  per-provider limits, interactive-before-batch scheduling, `Retry-After`
+  back-pressure, and a bounded queue. The synchronous engine is unchanged; the
+  async path is `asyncio.to_thread` over it. Batch persistence defaults to
+  SQLite WAL; JSON remains the `run` default. Not a distributed worker. See
+  [docs/scale.md](docs/scale.md).
 - **Scoped local memory.** JSON default store and opt-in SQLite (`type: memory`
   with `write|read|search|forget`), explicit `workflow:` / `ns:` / `subject:`
   scopes, stdlib BM25, optional BYOK embeddings that degrade to keyword search,

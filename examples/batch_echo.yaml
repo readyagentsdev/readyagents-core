@@ -1,0 +1,13 @@
+name: batch_echo
+version: "1"
+description: >
+  Keyless per-row echo for `readyagents batch`. No LLM, no API keys, no network.
+  Run: readyagents batch examples/batch_echo.yaml --input-file examples/batch_rows.jsonl --out results.jsonl
+required_inputs:
+  - n
+start: echo
+nodes:
+  - id: echo
+    type: transform
+    template: "n={{n}}"
+    output_key: msg

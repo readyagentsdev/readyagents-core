@@ -692,6 +692,135 @@ def run(
     _emit_run(state, as_json=as_json, command="run")
 
 
+@app.command("batch")
+def batch_cmd(
+    path: Path = _WORKFLOW_ARG,
+    input_file: Path = typer.Option(
+        ...,
+        "--input-file",
+        help="JSONL (one object per line, or a JSON array) or CSV of per-row inputs.",
+    ),
+    concurrency: int = typer.Option(
+        8,
+        "--concurrency",
+        min=1,
+        help="Max in-flight rows. Capped by READYAGENTS_MAX_CONCURRENCY.",
+    ),
+    continue_on_error: bool = typer.Option(
+        True,
+        "--continue-on-error/--no-continue-on-error",
+        help="Record a failed row and keep going (default). A failed row never aborts the others.",
+    ),
+    max_spend: float | None = typer.Option(
+        None,
+        "--max-spend",
+        help="Hard USD cap across all rows, consulted before each model call.",
+    ),
+    out: Path | None = typer.Option(
+        None,
+        "--out",
+        help="Write per-row JSONL results (sorted by index). Workspace-confined.",
+    ),
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Print the batch summary as JSON on stdout (no tables).",
+    ),
+    no_persist: bool = typer.Option(False, "--no-persist", help="Do not write run records."),
+    run_store: str = typer.Option(
+        "sqlite",
+        "--run-store",
+        help="json or sqlite. Batch defaults to sqlite (WAL). JSON remains the run default.",
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+    pack: list[str] = typer.Option([], "--pack", help=_PACK_HELP),
+    actor: str | None = typer.Option(
+        None,
+        "--actor",
+        help="Actor id for RBAC hooks (env: READYAGENTS_ACTOR).",
+        envvar="READYAGENTS_ACTOR",
+    ),
+    policy: Path | None = typer.Option(
+        None,
+        "--policy",
+        help="Firewall policy file (env: READYAGENTS_POLICY).",
+        envvar="READYAGENTS_POLICY",
+    ),
+) -> None:
+    """Run one workflow over many input rows. Foreground; ends when the file is done."""
+    persist = not no_persist
+    backend = (run_store or "sqlite").strip().lower()
+    if backend not in {"json", "sqlite"}:
+        _fail(ConfigError("Invalid --run-store. Expected json or sqlite."))
+        return
+    from readyagents.config import get_settings
+    from readyagents.run_store import open_run_store
+    from readyagents.workflow.batch import run_batch
+    from readyagents.workflow.governor import get_governor
+
+    settings = get_settings()
+    root = settings.workspace_path()
+    dest = confine_under(out, root, what="batch results") if out is not None else None
+    store = None
+    owned_store = False
+    governor = get_governor()
+    pack_specs = collect_pack_specs(pack)
+
+    def _progress(row: Any, done: int, total: int) -> None:
+        extra = f" run_id={row.run_id}" if row.run_id else ""
+        err_console.print(f"batch {done}/{total} row={row.index} {row.status}{extra}")
+
+    try:
+        if persist:
+            store = open_run_store(settings, backend=backend)
+            owned_store = True
+        report = run_batch(
+            path,
+            input_file,
+            concurrency=concurrency,
+            continue_on_error=continue_on_error,
+            max_spend=max_spend,
+            out=dest,
+            governor=governor,
+            persist=persist,
+            store=store,
+            settings=settings,
+            on_progress=_progress,
+            run_kwargs={
+                "dry_run": dry_run,
+                "pack_specs": pack_specs,
+                "actor": actor,
+                "policy": policy,
+            },
+        )
+    except KeyboardInterrupt:
+        governor.request_shutdown()
+        if as_json:
+            _print_json(_json_envelope("batch", ok=False, error="cancelled", status="cancelled"))
+        else:
+            err_console.print("[yellow]cancelled[/yellow]")
+        raise typer.Exit(code=1) from None
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "batch",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    finally:
+        if owned_store and store is not None:
+            closer = getattr(store, "close", None)
+            if callable(closer):
+                closer()
+    _emit_batch(report, as_json=as_json)
+
+
 @app.command("resume")
 def resume_cmd(
     run_id: str = typer.Argument(..., help="Run id (or unique prefix)."),
@@ -3200,6 +3329,38 @@ def _node_routing(node: Any) -> str:
 def _state_from_exc(exc: BaseException) -> RunState | None:
     state = getattr(exc, "state", None)
     return state if isinstance(state, RunState) else None
+
+
+def _emit_batch(report: Any, *, as_json: bool) -> None:
+    payload = report.as_dict()
+    ok = report.failed == 0 and report.cancelled == 0 and report.skipped == 0
+    if as_json:
+        _print_json(_json_envelope("batch", ok=ok and report.paused == 0, **payload))
+    else:
+        table = Table(title=f"Batch {report.workflow}")
+        table.add_column("index")
+        table.add_column("status")
+        table.add_column("run_id")
+        table.add_column("error", overflow="fold")
+        for row in report.results:
+            table.add_row(
+                str(row.index),
+                row.status,
+                row.run_id or "",
+                escape(row.error or ""),
+            )
+        console.print(table)
+        console.print(
+            f"succeeded={report.succeeded} failed={report.failed} "
+            f"paused={report.paused} skipped={report.skipped} "
+            f"cancelled={report.cancelled} total={report.total}"
+        )
+        if report.out:
+            console.print(f"results: {report.out}")
+    if report.paused and report.failed == 0 and report.cancelled == 0:
+        raise typer.Exit(code=2)
+    if not ok:
+        raise typer.Exit(code=1)
 
 
 def _emit_run(

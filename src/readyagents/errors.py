@@ -227,6 +227,14 @@ class CancellationRequested(ReadyAgentsError):
         self.run_id = run_id
 
 
+class GovernorBackpressure(ReadyAgentsError):
+    """Bounded concurrency queue is full, or acquire timed out. Not a retry storm."""
+
+
+class GovernorShutdown(ReadyAgentsError):
+    """The concurrency governor is draining; new runs are refused."""
+
+
 class RunConflict(ReadyAgentsError):
     """Run cannot accept this mutation (wrong status, in-flight resume, idempotency mismatch)."""
 

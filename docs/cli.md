@@ -238,6 +238,30 @@ State is persisted after **each** successful node (unless `--no-persist`).
 `--estimate` prints a floor–ceiling range and the assumption list. See
 [cost.md](cost.md). The provider invoice is authoritative.
 
+## `readyagents batch PATH`
+
+Foreground: one workflow, many input rows. Ends when the file is done. Not a
+worker, broker, or cluster. See [scale.md](scale.md).
+
+```bash
+readyagents batch examples/batch_echo.yaml --input-file examples/batch_rows.jsonl --concurrency 4 --out results.jsonl --json
+readyagents batch examples/batch_echo.yaml --input-file examples/batch_rows.csv --no-persist
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--input-file PATH` | JSONL (object per line or a JSON array) or CSV. Each row is that run's inputs. |
+| `--concurrency N` | Max in-flight rows (default 8). Capped by `READYAGENTS_MAX_CONCURRENCY`. |
+| `--continue-on-error` | Default on. A failed row is recorded; others continue. |
+| `--max-spend USD` | Hard cap across rows, consulted before each model call. |
+| `--out PATH` | Per-row JSONL sorted by `index`. Workspace-confined. |
+| `--json` | Summary envelope (`command` is `batch`). Progress on stderr. |
+| `--run-store sqlite\|json` | Batch defaults to sqlite. `run` still defaults to JSON. |
+| `--no-persist` | Skip run records. |
+| `--dry-run` / `--pack` / `--actor` / `--policy` | Same meaning as `run`. |
+
+Exit `0` if every row succeeded, `2` if some paused and none failed, `1` otherwise. Existing `run` flags, exit codes, and `--json` keys are unchanged.
+
 ## `readyagents spend`
 
 Aggregate the local append-only spend ledger (`$READYAGENTS_HOME/ledger/spend.jsonl`).

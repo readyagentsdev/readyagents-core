@@ -1,0 +1,5 @@
+{
+  "method": "scripts/bench_batch.py --rows 20 --concurrency 4, keyless transform workflow, CPython wall clock of the process. Not a marketing throughput claim. Hardware varies by GitHub-hosted runner.",
+  "rows": 20,
+  "concurrency": 4
+}

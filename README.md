@@ -88,6 +88,7 @@ flowchart LR
 | `readyagents schema` | Print/write/check the generated workflow JSON Schema |
 | `readyagents eval PATH` | Score a keyless fixture suite (exit 0/1) |
 | `readyagents run PATH [--input KEY=VALUE] [--dry-run] [--approve NODE] [--reject NODE] [--decision-file FILE] [--actor NAME] [--pack PATH] [--policy PATH] [--estimate] [--max-spend USD] [--max-tokens N] [--label KEY=VALUE] [--sovereign]` | Execute (or `--estimate` without running) |
+| `readyagents batch PATH --input-file FILE [--concurrency N] [--max-spend USD] [--out FILE]` | Foreground: one workflow, many JSONL/CSV rows (opt-in; Unreleased) |
 | `readyagents attest RUN_ID` | Data-residency attestation (technical evidence, not legal compliance) |
 | `readyagents bundle --out DIR` | Offline wheel set for `pip install --no-index --find-links` |
 | `readyagents resume RUN_ID [--approve NODE] [--reject NODE] [--decision-file FILE] [--policy PATH]` | Resume a paused or failed run |
@@ -149,6 +150,7 @@ flowchart LR
 | `examples/eval/pass.yaml` | Keyless `readyagents eval` fixture suite |
 | `examples/a2a_delegate.yaml` | `type: a2a` dry-run (no network) |
 | `examples/memory_triage.yaml` | `type: memory` write then search (keyless) |
+| `examples/batch_echo.yaml` | Keyless `readyagents batch` row echo (`batch_rows.jsonl` / `.csv`) |
 | `examples/connector_rest.yaml` | Keyless `rest` connector against a local fixture |
 | `examples/connector_demo.yaml` | Local `--pack` connector (`examples/packs/connector_pack.py`) |
 | `examples/gated_write.yaml` | Approval then `write_file` (no keys) |
@@ -169,6 +171,7 @@ flowchart LR
 - [MCP](docs/mcp.md)
 - [A2A](docs/a2a.md) (untrusted remote content; delegation can exfiltrate; not certification)
 - [Memory](docs/memory.md) (untrusted; delayed injection and scope escape; not a quality claim)
+- [Scale and batch](docs/scale.md) (opt-in; Unreleased; not a distributed worker; benchmarks are not a marketing claim)
 - [Packs](docs/packs.md)
 - [Supply-chain trust](docs/supply-chain.md) (signatures prove origin, not safety)
 - [Continuous pack](docs/continuous-pack.md) (optional, separate distribution)
