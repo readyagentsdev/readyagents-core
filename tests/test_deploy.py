@@ -64,8 +64,10 @@ def test_m4_outbound_copies_exist() -> None:
 # and is not an always-on worker, scheduler, or hosted control plane.
 # The approval UI is the same class of door: explicit `approvals serve`, stdlib
 # HTTP, loopback only, stops when the foreground command stops.
+# A2A serve is the same class: explicit `a2a serve`, stops when the process stops.
 _ALLOWED_RUNTIME = {
     ("src/readyagents/mcp/http.py", "uvicorn"),
+    ("src/readyagents/a2a/server.py", "uvicorn"),
     ("src/readyagents/approvals/server.py", "HTTPServer"),
     ("src/readyagents/approvals/server.py", "BaseHTTPRequestHandler"),
     ("src/readyagents/approvals/server.py", "ThreadingHTTPServer"),
