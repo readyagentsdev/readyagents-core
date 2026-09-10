@@ -14,8 +14,10 @@ from urllib.parse import urlparse
 from readyagents.errors import EgressDenied
 
 _current_node: ContextVar[str | None] = ContextVar("sovereign_node", default=None)
+_lease: ContextVar[_GuardLease | None] = ContextVar("sovereign_lease", default=None)
 _lock = threading.RLock()
 _guard: EgressGuard | None = None
+_refs = 0
 _orig_connect: Any = None
 _orig_connect_ex: Any = None
 _orig_create: Any = None
@@ -155,7 +157,7 @@ class EgressGuard:
         try:
             infos = resolver(host, None, type=socket.SOCK_STREAM)
         except OSError as extra:
-            self.dns.append({"host": host, "ok": False, "at": utc_stamp()})
+            self.note_dns({"host": host, "ok": False, "at": utc_stamp()})
             raise EgressDenied(host, node_id=current_node()) from extra
         ips: list[str] = []
         for info in infos:
@@ -172,9 +174,9 @@ class EgressGuard:
             self.allow_ips.add(text)
             ips.append(text)
         if not ips:
-            self.dns.append({"host": host, "ok": False, "at": utc_stamp()})
+            self.note_dns({"host": host, "ok": False, "at": utc_stamp()})
             raise EgressDenied(host, node_id=current_node())
-        self.dns.append({"host": host, "ips": ips, "ok": True, "at": utc_stamp()})
+        self.note_dns({"host": host, "ips": ips, "ok": True, "at": utc_stamp()})
 
     def snapshot(self) -> dict[str, Any]:
         return {
@@ -183,19 +185,27 @@ class EgressGuard:
             "dns": list(self.dns),
         }
 
+    def note_dns(self, entry: dict[str, Any]) -> None:
+        self.dns.append(entry)
+        held = _lease.get()
+        if held is not None and held is not self:
+            held.dns.append(entry)
+
     def record(
         self, destination: str, *, allowed: bool, reason: str, host: str | None = None
     ) -> None:
-        self.attempts.append(
-            {
-                "at": utc_stamp(),
-                "destination": destination,
-                "host": host,
-                "allowed": allowed,
-                "reason": reason,
-                "node_id": current_node(),
-            }
-        )
+        row = {
+            "at": utc_stamp(),
+            "destination": destination,
+            "host": host,
+            "allowed": allowed,
+            "reason": reason,
+            "node_id": current_node(),
+        }
+        self.attempts.append(row)
+        held = _lease.get()
+        if held is not None and held is not self:
+            held.attempts.append(row)
 
     def check(self, address: Any) -> None:
         host, port = _split_address(address)
@@ -220,7 +230,7 @@ class EgressGuard:
             try:
                 infos = resolver(host_s, port, type=socket.SOCK_STREAM)
             except OSError as extra:
-                self.dns.append({"host": host_s, "ok": False, "at": utc_stamp()})
+                self.note_dns({"host": host_s, "ok": False, "at": utc_stamp()})
                 self.record(dest, allowed=False, reason="unresolved", host=host_s)
                 raise EgressDenied(dest, node_id=current_node()) from extra
             ips = []
@@ -231,7 +241,7 @@ class EgressGuard:
             if not ips:
                 self.record(dest, allowed=False, reason="unresolved", host=host_s)
                 raise EgressDenied(dest, node_id=current_node())
-            self.dns.append({"host": host_s, "ips": ips, "ok": True, "at": utc_stamp()})
+            self.note_dns({"host": host_s, "ips": ips, "ok": True, "at": utc_stamp()})
             return
         self._check_ip(host_s, dest, host=host_s)
 
@@ -256,12 +266,7 @@ class EgressGuard:
         raise EgressDenied(dest, node_id=current_node())
 
     def close(self) -> None:
-        global _guard
-        with _lock:
-            if self._closed:
-                return
-            self._closed = True
-            _uninstall(self)
+        _release_handle(self)
 
 
 def _split_address(address: Any) -> tuple[Any, int | None]:
@@ -276,12 +281,42 @@ def _split_address(address: Any) -> tuple[Any, int | None]:
     return address, None
 
 
-def install_guard(allowlist: list[str] | None = None) -> EgressGuard:
-    """Install process-wide connect wrappers. Caller must ``close()``."""
-    global _guard, _orig_connect, _orig_connect_ex, _orig_create, _orig_getaddrinfo
+class _GuardLease:
+    """Per-caller handle. close() is refcounted; attempts/dns are this handle's."""
+
+    def __init__(self, owner: EgressGuard) -> None:
+        self._owner = owner
+        self.attempts: list[dict[str, Any]] = []
+        self.dns: list[dict[str, Any]] = []
+        self.allow_specs = owner.allow_specs
+        self.allow_hosts = owner.allow_hosts
+        self.allow_ips = owner.allow_ips
+        self._closed = False
+        self._token = _lease.set(self)
+
+    def snapshot(self) -> dict[str, Any]:
+        return {
+            "egress_attempts": list(self.attempts),
+            "allowed_endpoints": list(self.allow_specs),
+            "dns": list(self.dns),
+        }
+
+    def close(self) -> None:
+        _release_handle(self)
+
+
+def install_guard(allowlist: list[str] | None = None) -> EgressGuard | _GuardLease:
+    """Install process-wide connect wrappers. Caller must ``close()``.
+
+    Concurrent installs share the process guard (refcount). Each handle records
+    its own attempts so one run does not inherit another's destinations.
+    The first installer's allowlist is kept; later installs never widen it.
+    """
+    global _guard, _refs, _orig_connect, _orig_connect_ex, _orig_create, _orig_getaddrinfo
     with _lock:
         if _guard is not None:
-            raise RuntimeError("sovereign egress guard already installed")
+            _refs += 1
+            return _GuardLease(_guard)
         guard = EgressGuard(allowlist)
         _orig_connect = socket.socket.connect
         _orig_connect_ex = socket.socket.connect_ex
@@ -305,7 +340,7 @@ def install_guard(allowlist: list[str] | None = None) -> EgressGuard:
 
         def _gai(host: Any, port: Any, *args: Any, **kwargs: Any) -> Any:
             if host:
-                guard.dns.append({"host": str(host), "at": utc_stamp(), "event": "getaddrinfo"})
+                guard.note_dns({"host": str(host), "at": utc_stamp(), "event": "getaddrinfo"})
             return _orig_getaddrinfo(host, port, *args, **kwargs)
 
         socket.socket.connect = _connect  # type: ignore[method-assign]
@@ -313,7 +348,24 @@ def install_guard(allowlist: list[str] | None = None) -> EgressGuard:
         socket.create_connection = _create  # type: ignore[assignment]
         socket.getaddrinfo = _gai  # type: ignore[assignment]
         _guard = guard
-        return guard
+        _refs = 1
+        return _GuardLease(guard)
+
+
+def _release_handle(handle: EgressGuard | _GuardLease) -> None:
+    global _refs
+    with _lock:
+        if getattr(handle, "_closed", False):
+            return
+        handle._closed = True
+        current = _lease.get()
+        token = getattr(handle, "_token", None)
+        if token is not None and current is handle:
+            _lease.reset(token)
+        owner = getattr(handle, "_owner", handle)
+        _refs = max(0, _refs - 1)
+        if _refs == 0 and isinstance(owner, EgressGuard):
+            _uninstall(owner)
 
 
 def _uninstall(guard: EgressGuard) -> None:
