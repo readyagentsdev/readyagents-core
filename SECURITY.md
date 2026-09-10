@@ -101,6 +101,21 @@ most sensitive artifact Core writes.
   an approval or bypass the authorizer.
 - Offline replay never falls through to a live provider call.
 
+## Optional A2A door
+
+`readyagents a2a serve PATH` is an explicit foreground command. It is not
+started on install or import. Bind is loopback by default. `--allow-public-bind`
+prints a warning; you own the exposure. Do not reverse-proxy this door onto
+the public internet.
+
+- Bearer auth (`READYAGENTS_A2A_TOKEN`) on every path, including the Agent Card.
+- Host/Origin rebinding checks, body limits, and `Cache-Control: no-store` reuse the MCP HTTP middleware.
+- Task id is the run id. Unknown and unauthorized ids share `Task not found`.
+- An A2A answer to a local approval travels the existing signed-decision / RBAC / audit path. Unsigned or unauthorized answers are refused, audited, and leave the run paused.
+- `type: a2a` treats the remote agent as untrusted input. SSRF public-IP pinning applies. Credentials never follow a cross-host redirect. Delegation can exfiltrate; policy can deny `a2a` and pin card digests.
+
+This is a served mapping, not A2A certification. See [docs/a2a.md](docs/a2a.md).
+
 ## Optional MCP HTTP door
 
 v0.10 Streamable HTTP is an explicit foreground command (`readyagents mcp serve --transport streamable-http`). It is not started on install or import.

@@ -8,7 +8,7 @@ system prompt, decides whether a tool runs.
 ## What the firewall stops
 
 - A denied tool, even if the model emits a call for it.
-- Tainted data (tool/HTTP/file/MCP/model-from-untrusted) reaching a tool that
+- Tainted data (tool/HTTP/file/MCP/A2A/model-from-untrusted) reaching a tool that
   policy marks `on_tainted: deny` or `gate`.
 - Hosts outside an egress allowlist (`http_get` and policy `allow_hosts`),
   layered on the existing public-IP SSRF pin.
@@ -53,4 +53,5 @@ decisions, RBAC hooks, cassette redaction, and append-only audit remain in
 force. Policy gates reuse the existing approval pause (exit 2, `decide`,
 decision files, localhost approval UI). Enterprise HITL (quorum, roles, lazy
 deadlines, delegation) is opt-in and uses that same decision object;
-[approvals.md](approvals.md).
+[approvals.md](approvals.md). `type: a2a` output is untrusted (`source=a2a`);
+see [a2a.md](a2a.md).

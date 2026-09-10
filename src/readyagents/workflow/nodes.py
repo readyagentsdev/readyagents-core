@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from readyagents.errors import (
+    A2AError,
     ApprovalRequired,
     AuthorizationError,
     BudgetExceeded,
@@ -305,6 +306,10 @@ def _execute_node_body(node: NodeSpec, state: RunState, ctx: ExecutionContext) -
         return _run_include(node, state, ctx)
     if kind == NodeType.foreach.value:
         return _run_foreach(node, state, ctx)
+    if kind == NodeType.a2a.value:
+        from readyagents.a2a.node import run_a2a_node
+
+        return run_a2a_node(node, state, ctx)
     known = ", ".join(t.value for t in NodeType)
     raise WorkflowError(
         f"Unsupported node type '{node.type}' on node '{node.id}'. "
@@ -1189,6 +1194,8 @@ def execute_node_with_policy(
         except CassetteMiss:
             raise
         except PolicyDenied:
+            raise
+        except A2AError:
             raise
         except (BudgetExceeded, AuthorizationError, CircuitOpen, RunawayGuard):
             raise

@@ -58,6 +58,12 @@ allows it. Detection defaults to `gate`, not `deny`.
 `nodes.<id>.require_approval: true` pauses until a signed approve. Reject is a
 policy deny (the node does not run).
 
+`type: a2a` is governed as tool name `a2a`. `default: deny` without a
+`tools.a2a` rule refuses delegation. `tools.a2a.allow_hosts` and
+`egress.allow_hosts` restrict destination hosts. When a policy file exists,
+the remote Agent Card digest is pinned (`$READYAGENTS_HOME/a2a-pins/`);
+`on_description_change` defaults to **gate**. See [a2a.md](a2a.md).
+
 MCP pins persist under `$READYAGENTS_HOME/mcp-pins/` so a description change
 is detected on a later run, not only inside the run that first saw the server.
 

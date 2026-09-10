@@ -57,7 +57,7 @@ Connectors appear as ordinary `type: tool` nodes (`tool: rest`, `sql`, …). See
 | Field | Meaning |
 | --- | --- |
 | `id` | Unique id |
-| `type` | `agent` \| `tool` \| `condition` \| `transform` \| `approval` \| `parallel` \| `include` \| `foreach` |
+| `type` | `agent` \| `tool` \| `condition` \| `transform` \| `approval` \| `parallel` \| `include` \| `foreach` \| `a2a` |
 | `next` | Default successor if no edges |
 | `output_key` | Alias for templates (`{{brief}}` instead of `{{write}}`) |
 | `timeout_seconds` | Soft timeout |
@@ -224,6 +224,25 @@ Includes are depth-limited (8) so cycles fail with a typed error. Nested runs do
 
 The body runs once per item (`{{item}}` and `{{index}}`). Nested foreach is rejected. Resume skips items already stored as `ok`. Exceeding `max_items` raises `NodeError`.
 
+## A2A (`type: a2a`)
+
+Delegate a step to a remote A2A agent. Remote content is untrusted. What you
+send in `message` can leave the building. See [a2a.md](a2a.md).
+
+```yaml
+- id: delegate
+  type: a2a
+  agent_url: "https://partner.example.com"
+  message: "Summarise {{ document }}"
+  timeout_seconds: 120
+  on_input_required: gate      # gate (default) | fail
+  output_key: summary
+```
+
+`--dry-run` does not open a network connection. Agent URLs use the same
+public-IP SSRF pin as `http_get`. Remote `input-required` becomes a local
+approval pause.
+
 ## Transform
 
 ```yaml
@@ -288,6 +307,7 @@ readyagents runs replay <run_id>
 | `examples/code_review.yaml` | Yes | Builtin `read_file` + review |
 | `examples/agent_tools.yaml` | Yes (dry-run: no) | Agent `tools: [calc]` allowlist |
 | `examples/foreach_calc.yaml` | No | Sequential `foreach` + `calc` |
+| `examples/a2a_delegate.yaml` | No | `type: a2a` dry-run (no network) |
 | `examples/json_mutate.yaml` | No | `json_set` / `json_merge` |
 | `examples/list_dir.yaml` | No | Builtin `list_dir` (no MCP / no Node) |
 | `examples/eval/pass.yaml` | No | Keyless `readyagents eval` fixture suite |

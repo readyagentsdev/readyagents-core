@@ -812,6 +812,79 @@
             ],
             "type": "object"
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "a2a"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "agent_url": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Remote A2A agent URL (card origin). type: a2a only.",
+                "title": "Agent Url"
+              },
+              "message": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Message submitted to the remote A2A agent. Templates allowed.",
+                "title": "Message"
+              },
+              "on_input_required": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "When the remote agent pauses: gate (default) or fail.",
+                "title": "On Input Required"
+              },
+              "token": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional bearer for the remote agent. Prefer READYAGENTS_A2A_TOKEN.",
+                "title": "Token"
+              }
+            },
+            "required": [
+              "agent_url"
+            ],
+            "type": "object"
+          }
         }
       ],
       "description": "One node in the workflow graph.",
@@ -898,14 +971,15 @@
                 "approval",
                 "parallel",
                 "include",
-                "foreach"
+                "foreach",
+                "a2a"
               ]
             },
             {
               "type": "string"
             }
           ],
-          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach. Packs may add additional types.",
+          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a. Packs may add additional types.",
           "title": "Type"
         }
       },

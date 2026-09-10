@@ -38,7 +38,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 ## What it does
 
 - Define agent workflows as YAML or JSON (nodes + edges)
-- Run **agent**, **tool**, **condition**, **transform**, **approval**, **parallel**, **include**, and **foreach** nodes. Agent nodes may declare a `tools:` allowlist for a bounded tool-use loop.
+- Run **agent**, **tool**, **condition**, **transform**, **approval**, **parallel**, **include**, **foreach**, and **a2a** nodes. Agent nodes may declare a `tools:` allowlist for a bounded tool-use loop.
 - Persist after every node and **resume** a paused or failed run from the last successful node
 - Inspect past runs: `readyagents runs list` / `show` / `replay` / `report` (local HTML)
 - Record, replay offline, fork, diff, and freeze a run into an eval fixture ([time machine](docs/time-machine.md))
@@ -47,6 +47,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Builtin tools with **zero extra servers**: `now`, `calc`, `json_get`, `list_dir`, `read_file`, `write_file`, optional `http_get`
 - Small governed connector set (`rest`, `sql`, `object_storage`, `message`, `ingest`) plus `readyagents connectors` catalog — [connectors](docs/connectors.md)
 - Optional [MCP](https://modelcontextprotocol.io) client and server (`readyagents mcp serve`, `readyagents mcp probe`) with official tasks and MRTR approvals
+- Optional [A2A](docs/a2a.md) serve/probe and `type: a2a` delegation (projection over the run record; remote content untrusted; not certification)
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -109,6 +110,9 @@ flowchart LR
 | `readyagents runs gc --yes` | Prune succeeded/failed/cancelled runs (paused kept; in-window records refused unless `--override-retention`) |
 | `readyagents mcp serve` | Stdio MCP server (builtin tools); `--json` prints protocol versions |
 | `readyagents mcp probe URL` | Read-only `server/discover` diagnostic (never calls a tool) |
+| `readyagents a2a serve PATH` | Foreground A2A door for one workflow (loopback by default) |
+| `readyagents a2a card PATH` | Deterministic Agent Card (no network) |
+| `readyagents a2a probe URL` | Read-only remote card diagnostic (no secret values) |
 | `readyagents packs [--pack PATH]` | List installed / local packs |
 | `readyagents doctor` | Read-only platform / extras / permissions / loopback / run-store / sovereign diagnostic |
 | `readyagents version` | Print version |
@@ -137,6 +141,7 @@ flowchart LR
 | `examples/json_mutate.yaml` | `json_set` / `json_merge` (no keys) |
 | `examples/list_dir.yaml` | Builtin `list_dir` (no keys, no MCP, no Node) |
 | `examples/eval/pass.yaml` | Keyless `readyagents eval` fixture suite |
+| `examples/a2a_delegate.yaml` | `type: a2a` dry-run (no network) |
 | `examples/connector_demo.yaml` | Local `--pack` connector (`examples/packs/connector_pack.py`) |
 | `examples/gated_write.yaml` | Approval then `write_file` (no keys) |
 
@@ -150,6 +155,7 @@ flowchart LR
 - [Workflows](docs/workflows.md)
 - [Authoring (JSON Schema, editors, located errors)](docs/authoring.md)
 - [MCP](docs/mcp.md)
+- [A2A](docs/a2a.md) (untrusted remote content; delegation can exfiltrate; not certification)
 - [Packs](docs/packs.md)
 - [Supply-chain trust](docs/supply-chain.md) (signatures prove origin, not safety)
 - [Continuous pack](docs/continuous-pack.md) (optional, separate distribution)

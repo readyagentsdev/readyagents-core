@@ -1,0 +1,17 @@
+name: a2a_delegate
+version: "1"
+description: >
+  Dry-run / validate only. A type: a2a node that would delegate to a remote
+  agent. --dry-run and readyagents validate do not open a network connection.
+  A live run would fetch the Agent Card, submit a task, and mark the result
+  untrusted. Delegation can exfiltrate whatever you put in message.
+
+start: delegate
+nodes:
+  - id: delegate
+    type: a2a
+    agent_url: "https://partner.example.invalid"
+    message: "Summarise the local note: hello"
+    timeout_seconds: 120
+    on_input_required: gate
+    output_key: summary
