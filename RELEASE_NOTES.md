@@ -1,3 +1,28 @@
+# ReadyAgents Core 1.8.1
+
+**Sovereign patch: honest bundle, resume restore, keyless allowlist.**
+
+`readyagents bundle` fails if `pip download` cannot collect declared runtime
+wheels (a `--no-index` install needs those wheels, not only the project).
+Resuming a sovereign run restores the socket guard and stored allowlist from
+the run record even when `resume` is invoked without `--sovereign`. Keyless
+OpenAI-compat for allowlisted private bases uses the same parsed CLI/env
+allowlist as the egress guard (`--sovereign-allow 10.0.0.8`).
+
+Packs are waitlisted, not for sale.
+
+## Try it
+
+```bash
+pip install readyagentsdev==1.8.1
+readyagents bundle --out ./offline-wheels
+readyagents resume RUN
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
+
+
 # ReadyAgents Core 1.8.0
 
 **Sovereign mode: process-level egress refuse, attest, bundle, doctor.**

@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 1.8.1 — 2026-09-10
+
 ### Fixed
 
 - `readyagents bundle` fails if `pip download` cannot collect declared runtime
