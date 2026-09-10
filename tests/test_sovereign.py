@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import json
 import socket
+import subprocess
+import sys
 import threading
+import venv
 from pathlib import Path
 
 import pytest
@@ -12,13 +15,13 @@ from typer.testing import CliRunner
 
 from readyagents.cli import app
 from readyagents.config import Settings, clear_settings_cache
-from readyagents.errors import EgressDenied, LLMError
+from readyagents.errors import ApprovalRequired, EgressDenied, LLMError
 from readyagents.llm.registry import get_provider
 from readyagents.sovereign.attest import build_attestation
 from readyagents.sovereign.bundle import sha256_file, verify_manifest, write_bundle
 from readyagents.sovereign.egress import install_guard
 from readyagents.tools import FunctionTool, ToolRegistry
-from readyagents.workflow.runner import run_workflow_file
+from readyagents.workflow.runner import resume_run, run_workflow_file
 
 runner = CliRunner()
 
@@ -177,6 +180,53 @@ def test_loopback_compat_needs_no_key_remote_still_does() -> None:
         get_provider("openai-compat:llama-3.1-8b-instant", settings=remote)
 
 
+def test_keyless_private_allow_from_settings_url_and_host() -> None:
+    settings = Settings(  # type: ignore[call-arg]
+        openai_api_key=None,
+        anthropic_api_key=None,
+        openai_compat_api_key=None,
+        openai_compat_base_url="http://10.0.0.8:8000/v1",
+        sovereign_allow="http://10.0.0.8:8000/v1",
+        _env_file=(),
+    )
+    provider, _model = get_provider("openai-compat:mistral", settings=settings)
+    assert provider.name == "openai-compat"
+    assert "10.0.0.8" in getattr(provider, "_base_url", "")
+
+    host_only = Settings(  # type: ignore[call-arg]
+        openai_api_key=None,
+        anthropic_api_key=None,
+        openai_compat_api_key=None,
+        openai_compat_base_url="http://10.0.0.8:8000/v1",
+        sovereign_allow="10.0.0.8",
+        _env_file=(),
+    )
+    provider, _model = get_provider("openai-compat:mistral", settings=host_only)
+    assert provider.name == "openai-compat"
+
+
+def test_keyless_private_allow_from_active_guard_cli_path() -> None:
+    settings = Settings(  # type: ignore[call-arg]
+        openai_api_key=None,
+        anthropic_api_key=None,
+        openai_compat_api_key=None,
+        openai_compat_base_url="http://10.0.0.8:8000/v1",
+        sovereign_allow=None,
+        _env_file=(),
+    )
+    with pytest.raises(LLMError, match="API key"):
+        get_provider("openai-compat:mistral", settings=settings)
+    guard = install_guard(["10.0.0.8"])
+    try:
+        provider, _model = get_provider("openai-compat:mistral", settings=settings)
+        assert provider.name == "openai-compat"
+        assert "10.0.0.8" in getattr(provider, "_base_url", "")
+    finally:
+        guard.close()
+    with pytest.raises(LLMError, match="API key"):
+        get_provider("openai-compat:mistral", settings=settings)
+
+
 def test_attest_marks_mcp_stdio_uncontrolled(tmp_settings) -> None:
     path = tmp_settings.workspace_path() / "mcp.yaml"
     path.write_text(
@@ -296,3 +346,161 @@ def test_write_bundle_local_project(tmp_path: Path) -> None:
     payload = write_bundle(dest, project=root)
     assert payload["files"]
     verify_manifest(dest)
+
+
+def test_write_bundle_no_index_installs_with_runtime_deps(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    dest = tmp_path / "offline"
+    payload = write_bundle(dest, project=root)
+    names = [str(row["name"]) for row in payload["files"]]
+    assert any(item.startswith("readyagentsdev-") and item.endswith(".whl") for item in names)
+    lowered = [item.lower().replace("_", "-") for item in names]
+    for token in (
+        "pydantic-",
+        "pydantic-settings-",
+        "typer-",
+        "rich-",
+        "pyyaml-",
+        "python-dotenv-",
+    ):
+        assert any(token in item for item in lowered), (token, names)
+    verify_manifest(dest)
+    clean = tmp_path / "clean"
+    venv.create(clean, with_pip=True)
+    py = clean / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+    installed = subprocess.run(
+        [
+            str(py),
+            "-m",
+            "pip",
+            "install",
+            "--no-index",
+            "--no-cache-dir",
+            "--find-links",
+            str(dest),
+            "readyagentsdev",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert installed.returncode == 0, installed.stdout + installed.stderr
+    imported = subprocess.run(
+        [str(py), "-c", "import readyagents, pydantic, typer, yaml, dotenv; print('ok')"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert imported.returncode == 0, imported.stdout + imported.stderr
+    assert "ok" in imported.stdout
+
+
+def test_write_bundle_fails_when_pip_download_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = Path(__file__).resolve().parents[1]
+    dest = tmp_path / "offline"
+    real = subprocess.run
+
+    def fake(cmd, *args, **kwargs):  # noqa: ANN001, ANN002
+        if isinstance(cmd, (list, tuple)) and "download" in cmd:
+            return subprocess.CompletedProcess(list(cmd), 1, stdout="", stderr="download exploded")
+        return real(cmd, *args, **kwargs)
+
+    monkeypatch.setattr("readyagents.sovereign.bundle.subprocess.run", fake)
+    with pytest.raises(Exception, match="pip download|timed out|not available"):
+        write_bundle(dest, project=root)
+
+
+def test_resume_without_sovereign_flag_reinstalls_guard(tmp_settings) -> None:
+    def poke() -> str:
+        socket.create_connection(("1.1.1.1", 80), timeout=0.2)
+        return "reached"
+
+    extra = ToolRegistry()
+    extra.register(FunctionTool(name="poke", description="poke", handler=poke, schema={}))
+    path = tmp_settings.workspace_path() / "gate_poke.yaml"
+    path.write_text(
+        """
+name: gate_poke
+start: gate
+nodes:
+  - id: gate
+    type: approval
+    prompt: go?
+    then: g
+    else: deny
+  - id: g
+    type: tool
+    tool: poke
+  - id: deny
+    type: transform
+    template: "denied"
+    output_key: summary
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(ApprovalRequired) as paused:
+        run_workflow_file(
+            path, settings=tmp_settings, persist=True, sovereign=True, extra_tools=extra
+        )
+    run_id = paused.value.run_id
+    meta = getattr(paused.value.state, "metadata", {}) or {}
+    assert meta.get("sovereign") is True
+    with pytest.raises(EgressDenied) as denied:
+        resume_run(
+            run_id,
+            settings=tmp_settings,
+            persist=True,
+            extra_tools=extra,
+            decisions={"gate": "approve"},
+            sovereign=False,
+            sovereign_allow=[],
+        )
+    assert "1.1.1.1" in str(denied.value)
+    assert denied.value.node_id == "g"
+
+
+def test_resume_restores_stored_allowlist(tmp_settings) -> None:
+    path = tmp_settings.workspace_path() / "gate_priv.yaml"
+    path.write_text(
+        """
+name: gate_priv
+start: gate
+nodes:
+  - id: gate
+    type: approval
+    prompt: go?
+    then: g
+    else: deny
+  - id: g
+    type: transform
+    template: "ok"
+    output_key: summary
+  - id: deny
+    type: transform
+    template: "denied"
+    output_key: summary
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(ApprovalRequired) as paused:
+        run_workflow_file(
+            path,
+            settings=tmp_settings,
+            persist=True,
+            sovereign=True,
+            sovereign_allow=["10.0.0.8"],
+        )
+    stored = ((paused.value.state.metadata or {}).get("network") or {}).get("allowed_endpoints")
+    assert "10.0.0.8" in list(stored or [])
+    state = resume_run(
+        paused.value.run_id,
+        settings=tmp_settings,
+        persist=True,
+        decisions={"gate": "approve"},
+        sovereign=False,
+        sovereign_allow=[],
+    )
+    assert state.status == "succeeded"
+    assert "10.0.0.8" in list((state.metadata.get("network") or {}).get("allowed_endpoints") or [])
