@@ -1202,5 +1202,5 @@
   ],
   "title": "ReadyAgents workflow",
   "type": "object",
-  "x-readyagents-version": "1.5.1"
+  "x-readyagents-version": "1.6.0"
 }

@@ -16,6 +16,11 @@ All notable changes to ReadyAgents Core.
   starts no timer; expiry is evaluated on resume, decide, and status query.
   A gate with none of the new fields is unchanged. See
   [docs/approvals.md](docs/approvals.md).
+
+## 1.6.0 — 2026-09-10
+
+### Added
+
 - **Supply-chain trust.** Canonical SHA-256 digests (algorithm v1) for
   workflows including every resolved `include`, pack file bytes, and MCP
   advertised tool surfaces. `readyagents sign` / `verify` write a detached
