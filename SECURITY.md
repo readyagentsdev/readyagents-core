@@ -34,6 +34,14 @@ model requests. Gates reuse the existing signed approval path. See
 [docs/security-model.md](docs/security-model.md) and [docs/policy.md](docs/policy.md).
 Without a policy file the 1.0 behaviour is unchanged.
 
+## Connectors
+
+Connectors are ordinary tools. Write-shaped ones gate by default. HTTP goes
+through `ConnectorContext` (declared destinations + SSRF pin). The conformance
+harness fails Python-level own-socket and `os.environ` reads; it is not an OS
+sandbox. Catalog commands never print secret values. See
+[docs/connectors.md](docs/connectors.md).
+
 ## Supply-chain signatures prove origin, not safety
 
 `readyagents sign` / `verify` and `--require-signed` check that a workflow or

@@ -1,0 +1,7 @@
+{
+  "method": "POST",
+  "url": "https://hooks.example.test/hook",
+  "status": 200,
+  "headers": { "Content-Type": "application/json" },
+  "body": { "ok": true }
+}

@@ -1,0 +1,22 @@
+name: connector_rest
+version: "1"
+description: >
+  Config-driven REST against offline fixtures. No network.
+  readyagents run examples/connector_rest.yaml
+
+start: fetch
+nodes:
+  - id: fetch
+    type: tool
+    tool: rest
+    arguments:
+      connector_config: connectors/support.yaml
+      operation: list_tickets
+      since: "0"
+    output_key: tickets
+    next: wrap
+
+  - id: wrap
+    type: transform
+    template: "connector_rest ok: {{ tickets.tickets.0.id }}"
+    output_key: summary
