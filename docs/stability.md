@@ -31,6 +31,7 @@ __all__ = [
     "StructuredOutputError",
     "TemplateError",
     "ToolError",
+    "TrustError",
     "WorkflowError",
 ]
 ```

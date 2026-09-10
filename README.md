@@ -142,6 +142,7 @@ flowchart LR
 - [Authoring (JSON Schema, editors, located errors)](docs/authoring.md)
 - [MCP](docs/mcp.md)
 - [Packs](docs/packs.md)
+- [Supply-chain trust](docs/supply-chain.md) (signatures prove origin, not safety)
 - [Continuous pack](docs/continuous-pack.md) (optional, separate distribution)
 - [Platform support](docs/platform-support.md)
 - [CLI](docs/cli.md)
@@ -163,6 +164,8 @@ pip install "readyagentsdev[all]"
 
 From a clone, the same extras are `pip install -e ".[openai]"` (and `anthropic` / `mcp` / `all`).
 The optional `[otel]` extra is **not** included in `[all]`; it starts no collector (see [observability.md](docs/observability.md)).
+The optional `[sign]` extra (Ed25519 artifact signatures) and `[jwt]` extra are
+also **not** in `[all]`. Unsigned default runs never import them.
 
 Then `cp .env.example .env` and paste your own keys. Core workflows that only use builtin tools do **not** need extras, keys, or Node.js.
 

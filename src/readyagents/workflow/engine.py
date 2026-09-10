@@ -80,7 +80,19 @@ def run_workflow(
         status=state.status,
     )
     if ctx.auditor is not None:
-        ctx.auditor("run_started", run_id=state.run_id, workflow=workflow.name, actor=ctx.actor)
+        supply = None
+        if isinstance(state.metadata, dict):
+            supply = state.metadata.get("supply_chain")
+        if supply:
+            ctx.auditor(
+                "run_started",
+                run_id=state.run_id,
+                workflow=workflow.name,
+                actor=ctx.actor,
+                supply_chain=supply,
+            )
+        else:
+            ctx.auditor("run_started", run_id=state.run_id, workflow=workflow.name, actor=ctx.actor)
     _observe(
         ctx,
         "run.started",

@@ -36,7 +36,10 @@ Install extras to talk to a provider:
 pip install -e ".[openai]"
 pip install -e ".[anthropic]"
 pip install -e ".[all]"
+pip install -e ".[sign]"   # Ed25519 artifact signatures; not in all
 ```
+
+`[sign]` is opt-in and unused on the unsigned default path. See [supply-chain.md](supply-chain.md).
 
 If an agent node runs with no key, the CLI exits with a short `LLMError` telling you which variable to set — not a traceback dump.
 

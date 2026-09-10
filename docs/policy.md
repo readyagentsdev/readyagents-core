@@ -40,6 +40,9 @@ detection:
 nodes:
   publish:
     require_approval: true
+require_signed: false     # opt-in: refuse unsigned artifacts
+frozen: false             # opt-in: refuse lockfile drift
+on_lock_mismatch: allow   # allow | gate | deny
 ```
 
 Unknown keys are rejected. `default: deny` means a tool runs only if a rule
@@ -54,6 +57,11 @@ policy deny (the node does not run).
 
 MCP pins persist under `$READYAGENTS_HOME/mcp-pins/` so a description change
 is detected on a later run, not only inside the run that first saw the server.
+
+`require_signed`, `frozen`, and `on_lock_mismatch` are the supply-chain
+controls. They are inert at their defaults. See [supply-chain.md](supply-chain.md).
+Signing proves origin, not safety; this policy file is still the control for
+tool behaviour.
 
 ## Commands
 

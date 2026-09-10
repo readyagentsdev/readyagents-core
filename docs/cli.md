@@ -159,6 +159,10 @@ readyagents run examples/research_brief.yaml --no-persist
 | `--max-model-calls N` | Runaway guard: maximum `complete()` attempts |
 | `--max-run-tool-rounds N` | Runaway guard: maximum agent tool rounds across the run |
 | `--max-wall-seconds N` | Runaway guard: maximum wall-clock seconds |
+| `--require-signed` | Refuse unsigned or untrusted workflow and pack artifacts. Opt-in. |
+| `--frozen` | Refuse to run when `readyagents.lock` digests do not match. |
+
+Signing proves origin, not safety. See [supply-chain.md](supply-chain.md).
 
 Exit code `1` on validation or execution errors, including a missing workflow file (`ConfigError`). Exit code `2` is reserved for an **approval** node pausing for a decision. The CLI prints `ErrorClass: message` rather than a full traceback. Logs include `run=<id>` and `node=<id>`.
 
@@ -198,7 +202,48 @@ readyagents identity trust list
 ```
 
 `whoami` prints subject, key id, and fingerprint — never the private key. See
-[identity.md](identity.md).
+[identity.md](identity.md). Publisher keys for signed workflows/packs are a
+different command: `readyagents trust` ([supply-chain.md](supply-chain.md)).
+
+## `readyagents sign PATH` / `verify PATH`
+
+```bash
+readyagents sign flow.yaml --key publisher.pem
+readyagents verify flow.yaml --json
+```
+
+Detached Ed25519 signature beside the artifact (`flow.yaml.sig`). Requires the
+optional `sign` extra. Private keys are only read from `--key`.
+
+## `readyagents trust add|list|remove`
+
+Local publisher keyring under `$READYAGENTS_HOME/keyring.json`. No
+default-trusted key. A malformed keyring fails closed.
+
+```bash
+readyagents trust add publisher.pub.pem --name ops
+readyagents trust list --json
+readyagents trust remove KEY_ID
+```
+
+## `readyagents lock PATH`
+
+Write `readyagents.lock` pinning workflow, include, pack, and MCP surface
+digests (`digest_version: 1`). `--pack` is the same as on `run`.
+
+```bash
+readyagents lock examples/include_demo.yaml
+readyagents run examples/include_demo.yaml --frozen
+```
+
+## `readyagents sbom PATH`
+
+Deterministic CycloneDX-shaped JSON inventory. No network, no secrets.
+
+```bash
+readyagents sbom examples/include_demo.yaml --json
+readyagents sbom examples/include_demo.yaml --out sbom.json
+```
 
 ## `readyagents resume RUN_ID`
 

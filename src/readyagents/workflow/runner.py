@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from readyagents.audit import audit_dir_for, make_auditor
 from readyagents.config import Settings, get_settings
-from readyagents.errors import ConfigError, SourceMapBoundError, WorkflowError
+from readyagents.errors import ConfigError, SourceMapBoundError, TrustError, WorkflowError
 from readyagents.llm.base import LLMProvider
 from readyagents.llm.cache import LLMCache
 from readyagents.llm.resilience import CircuitBreaker, usd_to_micros
@@ -25,7 +25,9 @@ from readyagents.packs.loader import (
     collect_pack_seals,
     collect_pack_secrets,
     collect_pack_tools,
+    confine_pack_path,
     discover_packs,
+    load_pack_file,
 )
 from readyagents.policy import redactor_from_settings, resolve_authorizer
 from readyagents.tools import ToolRegistry, default_registry
@@ -134,6 +136,9 @@ def run_workflow_file(
     max_wall_seconds: float | None = None,
     verified_actor: Any | None = None,
     credentials: Path | str | None = None,
+    require_signed: bool = False,
+    frozen: bool = False,
+    pack_specs: Sequence[str] | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     workflow = load_workflow(path)
@@ -169,10 +174,67 @@ def run_workflow_file(
     workspace = confine_under(declared, root, what="workspace") if declared else root
     allow_http = bool(workflow.allow_http or settings.allow_http)
 
+    from readyagents.firewall.policy_file import load_resolved
+    from readyagents.trust.enforce import (
+        ArtifactStatus,
+        TrustReport,
+        apply_lock,
+        evaluate_workflow,
+        resolve_enforcement,
+    )
+
+    stored_policy = None
+    stored_meta = resume_state.metadata if resume_state is not None else None
+    if resume_state is not None:
+        raw_stored = resume_state.metadata.get("policy")
+        if isinstance(raw_stored, str) and raw_stored.strip():
+            stored_policy = raw_stored.strip()
+    loaded_policy = load_resolved(
+        explicit=policy, workflow_dir=source_path.parent, stored=stored_policy
+    )
+    required, lock_frozen, on_mismatch = resolve_enforcement(
+        require_signed=require_signed,
+        frozen=frozen,
+        policy=loaded_policy,
+        stored=stored_meta,
+    )
+    pack_root = settings.workspace_path()
+    keyring = None
+    if required:
+        from readyagents.trust.keyring import load_keyring
+
+        keyring = load_keyring(home=settings.home_path())
+    try:
+        trust_report = evaluate_workflow(
+            source_path,
+            workspace=pack_root,
+            pack_specs=pack_specs,
+            require_signed=required,
+            frozen=lock_frozen,
+            on_lock_mismatch=on_mismatch,
+            keyring=keyring,
+            run_id=resume_state.run_id if resume_state is not None else run_id,
+            check_lock=False,
+        )
+    except TrustError:
+        if required or lock_frozen:
+            raise
+        trust_report = TrustReport()
+
     tools = default_registry(allow_http=allow_http, workspace=workspace)
     packs = list(discover_packs())
     if extra_packs:
         packs.extend(list(extra_packs))
+    for spec in pack_specs or ():
+        pack_path = confine_pack_path(spec, pack_root)
+        packs.append(
+            load_pack_file(
+                spec,
+                root=pack_root,
+                require_signed=False,
+                source=trust_report.pack_buffers.get(str(pack_path)),
+            )
+        )
     tools.merge(collect_pack_tools(packs))
     if extra_tools:
         tools.merge(extra_tools)
@@ -214,25 +276,31 @@ def run_workflow_file(
         mcp = MCPClient(workflow.mcp_servers, workspace)
         tools.merge(mcp.tools())
 
-    from readyagents.firewall.policy_file import load_resolved
-
-    stored_policy = None
-    if resume_state is not None:
-        raw_stored = resume_state.metadata.get("policy")
-        if isinstance(raw_stored, str) and raw_stored.strip():
-            stored_policy = raw_stored.strip()
-    loaded_policy = load_resolved(
-        explicit=policy, workflow_dir=source_path.parent, stored=stored_policy
-    )
     pin_digests: dict[str, str] = {}
     mcp_descriptions: dict[str, str] = {}
     if mcp is not None:
         from readyagents.firewall.mcp_pin import grouped_snapshots
+        from readyagents.trust.digest import KIND_MCP, prefixed
 
         for server, snap in grouped_snapshots(mcp.tools()).items():
             pin_digests[server] = snap.digest
             for tname, desc in snap.tools:
                 mcp_descriptions[tname] = desc
+            trust_report.artifacts.append(
+                ArtifactStatus(
+                    kind=KIND_MCP,
+                    name=server,
+                    digest=prefixed(snap.digest),
+                    signature="n/a",
+                )
+            )
+    apply_lock(
+        trust_report,
+        source_path,
+        frozen=lock_frozen,
+        on_lock_mismatch=on_mismatch,
+        run_id=resume_state.run_id if resume_state is not None else run_id,
+    )
 
     runs_dir = settings.runs_dir()
     auditor = None
@@ -465,6 +533,7 @@ def run_workflow_file(
         metadata["replay"] = True
     if want_record:
         metadata["recorded"] = True
+    metadata["supply_chain"] = trust_report.as_dict()
     try:
         state = run_workflow(
             workflow,
@@ -671,6 +740,9 @@ def resume_run(
     max_wall_seconds: float | None = None,
     verified_actor: Any | None = None,
     credentials: Path | str | None = None,
+    require_signed: bool = False,
+    frozen: bool = False,
+    pack_specs: Sequence[str] | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     owned_store = False
@@ -715,6 +787,9 @@ def resume_run(
             max_wall_seconds=max_wall_seconds,
             verified_actor=verified_actor,
             credentials=credentials,
+            require_signed=require_signed,
+            frozen=frozen,
+            pack_specs=pack_specs,
         )
     finally:
         if owned_store:
@@ -739,6 +814,9 @@ def replay_run(
     decision_file: Path | str | None = None,
     no_cache: bool = False,
     offline: bool = False,
+    pack_specs: Sequence[str] | None = None,
+    require_signed: bool = False,
+    frozen: bool = False,
 ) -> RunState:
     """Start a new run with the stored workflow path and inputs."""
     settings = settings or get_settings()
@@ -773,6 +851,9 @@ def replay_run(
             offline=offline,
             cassette_path=cassette_path,
             record=False,
+            pack_specs=pack_specs,
+            require_signed=require_signed,
+            frozen=frozen,
         )
         state.metadata["replayed_from"] = previous.run_id
         if offline:

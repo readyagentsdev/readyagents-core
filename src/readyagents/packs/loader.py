@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import os
 import sys
 from collections.abc import Sequence
@@ -190,17 +189,40 @@ def confine_pack_path(raw: str | Path, root: Path) -> Path:
     return resolved
 
 
-def load_pack_file(raw: str | Path, *, root: Path) -> Pack:
-    """Import a local pack module confined under ``root``."""
+def load_pack_file(
+    raw: str | Path,
+    *,
+    root: Path,
+    require_signed: bool = False,
+    keyring: Any | None = None,
+    source: bytes | None = None,
+) -> Pack:
+    """Import a local pack module confined under ``root``.
+
+    Bytes are read once and executed from that buffer so a swap between
+    digest and import cannot change what runs. Verification, when requested,
+    happens before ``exec``.
+    """
     path = confine_pack_path(raw, root)
+    data = source if source is not None else path.read_bytes()
+    if require_signed:
+        from readyagents.trust.sign import verify_artifact
+
+        verify_artifact(path, kind="pack", data=data, keyring=keyring)
+    return _exec_pack_bytes(data, path)
+
+
+def _exec_pack_bytes(data: bytes, path: Path) -> Pack:
+    """Compile and exec ``data`` as ``path``. Never re-reads the file."""
+    import types
+
     mod_name = f"_readyagents_pack_{path.stem}_{uuid4().hex[:8]}"
-    spec = importlib.util.spec_from_file_location(mod_name, path)
-    if spec is None or spec.loader is None:
-        raise ConfigError(f"Could not load pack {path}")
-    module = importlib.util.module_from_spec(spec)
+    module = types.ModuleType(mod_name)
+    module.__file__ = str(path)
     sys.modules[mod_name] = module
     try:
-        spec.loader.exec_module(module)
+        code = compile(data, str(path), "exec", dont_inherit=True)
+        exec(code, module.__dict__)
     except Exception as extra:
         sys.modules.pop(mod_name, None)
         raise ConfigError(f"Failed to load pack '{path}': {extra}") from extra

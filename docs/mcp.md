@@ -27,6 +27,10 @@ descriptions, and schemas are hashed on first use and stored under
 `$READYAGENTS_HOME/mcp-pins/`. A later change — including on a fresh run — is
 a policy event (`on_description_change`, default gate). See [policy.md](policy.md).
 
+The same surface hash is the MCP digest in `readyagents.lock` and
+`readyagents sbom` (algorithm v1). `--frozen` refuses a description-only
+rug-pull that drifted from the lockfile. See [supply-chain.md](supply-chain.md).
+
 ## List a workspace without MCP
 
 Builtin `list_dir` is Python and needs no Node.js and no MCP filesystem server:

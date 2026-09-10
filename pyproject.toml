@@ -48,6 +48,7 @@ otel = [
 ]
 tokenizer = ["tiktoken>=0.7"]
 jwt = ["PyJWT>=2.8", "cryptography>=42"]
+sign = ["cryptography>=42"]
 all = ["openai>=1.40", "anthropic>=0.34", "mcp>=1.2,<3"]
 dev = [
     "pytest>=8.0",

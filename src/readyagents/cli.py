@@ -61,12 +61,17 @@ identity_app = typer.Typer(
     help="Verify approver assertions and inspect workload identity.", no_args_is_help=True
 )
 identity_trust_app = typer.Typer(help="Manage local trust-anchor issuers.", no_args_is_help=True)
+trust_app = typer.Typer(
+    help="Manage the local publisher keyring for signed artifacts.",
+    no_args_is_help=True,
+)
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(runs_app, name="runs")
 app.add_typer(approvals_app, name="approvals")
 app.add_typer(policy_app, name="policy")
 app.add_typer(audit_app, name="audit")
 app.add_typer(identity_app, name="identity")
+app.add_typer(trust_app, name="trust")
 identity_app.add_typer(identity_trust_app, name="trust")
 
 console = Console()
@@ -487,6 +492,16 @@ def run(
         "--max-wall-seconds",
         help="Runaway guard: maximum wall-clock seconds.",
     ),
+    require_signed: bool = typer.Option(
+        False,
+        "--require-signed",
+        help="Refuse unsigned or untrusted workflow and pack artifacts.",
+    ),
+    frozen: bool = typer.Option(
+        False,
+        "--frozen",
+        help="Refuse to run when readyagents.lock digests do not match.",
+    ),
 ) -> None:
     """Execute a workflow."""
     if log_level or log_format:
@@ -495,7 +510,7 @@ def run(
     try:
         parsed = parse_input_pairs(inputs)
         decisions = build_decisions(approve, reject)
-        extra_packs = _load_extra_packs(pack)
+        pack_specs = collect_pack_specs(pack)
         from readyagents.cost.ledger import parse_labels
 
         labels = parse_labels(label) if label else None
@@ -509,7 +524,7 @@ def run(
                 inputs=parsed or None,
                 dry_run=dry_run,
                 persist=persist,
-                extra_packs=extra_packs,
+                pack_specs=pack_specs,
                 decisions=decisions,
                 decision_file=decision_file,
                 actor=actor,
@@ -522,6 +537,8 @@ def run(
                 max_model_calls=max_model_calls,
                 max_run_tool_rounds=max_run_tool_rounds,
                 max_wall_seconds=max_wall_seconds,
+                require_signed=require_signed,
+                frozen=frozen,
             )
         else:
             state = run_workflow_file(
@@ -529,7 +546,7 @@ def run(
                 inputs=parsed,
                 dry_run=dry_run,
                 persist=persist,
-                extra_packs=extra_packs,
+                pack_specs=pack_specs,
                 decisions=decisions,
                 decision_file=decision_file,
                 actor=actor,
@@ -543,6 +560,8 @@ def run(
                 max_model_calls=max_model_calls,
                 max_run_tool_rounds=max_run_tool_rounds,
                 max_wall_seconds=max_wall_seconds,
+                require_signed=require_signed,
+                frozen=frozen,
             )
     except KeyboardInterrupt:
         if as_json:
@@ -603,6 +622,16 @@ def resume_cmd(
     max_model_calls: int | None = typer.Option(None, "--max-model-calls"),
     max_run_tool_rounds: int | None = typer.Option(None, "--max-run-tool-rounds"),
     max_wall_seconds: float | None = typer.Option(None, "--max-wall-seconds"),
+    require_signed: bool = typer.Option(
+        False,
+        "--require-signed",
+        help="Refuse unsigned or untrusted workflow and pack artifacts.",
+    ),
+    frozen: bool = typer.Option(
+        False,
+        "--frozen",
+        help="Refuse to run when readyagents.lock digests do not match.",
+    ),
 ) -> None:
     """Resume a paused or failed run from the last successful node."""
     persist = not no_persist
@@ -617,7 +646,7 @@ def resume_cmd(
             inputs=parsed or None,
             dry_run=dry_run,
             persist=persist,
-            extra_packs=_load_extra_packs(pack),
+            pack_specs=collect_pack_specs(pack),
             decisions=build_decisions(approve, reject),
             decision_file=decision_file,
             actor=actor,
@@ -630,6 +659,8 @@ def resume_cmd(
             max_model_calls=max_model_calls,
             max_run_tool_rounds=max_run_tool_rounds,
             max_wall_seconds=max_wall_seconds,
+            require_signed=require_signed,
+            frozen=frozen,
         )
     except KeyboardInterrupt:
         if as_json:
@@ -722,7 +753,7 @@ def decide_cmd(
         state = resume_run(
             run_id,
             persist=persist,
-            extra_packs=_load_extra_packs(pack),
+            pack_specs=collect_pack_specs(pack),
             decisions=decisions,
             actor=resolved_actor,
             verified_actor=verified,
@@ -900,7 +931,7 @@ def runs_replay(
             run_id,
             dry_run=dry_run,
             persist=persist,
-            extra_packs=_load_extra_packs(pack),
+            pack_specs=collect_pack_specs(pack),
             decisions=build_decisions(approve, reject),
             decision_file=decision_file,
             actor=actor,
@@ -937,7 +968,7 @@ def runs_fork(
             from_node,
             occurrence=occurrence,
             overrides=parse_input_pairs(sets) if sets else None,
-            extra_packs=_load_extra_packs(pack),
+            pack_specs=collect_pack_specs(pack),
             actor=actor,
             offline=offline,
         )
@@ -1990,6 +2021,268 @@ def identity_trust_remove(
         _fail(extra)
         return
     console.print(f"removed issuer {issuer}")
+
+
+@app.command("sign")
+def sign_cmd(
+    path: Path = typer.Argument(..., help="Workflow or pack path."),
+    key: Path = typer.Option(..., "--key", help="Operator-supplied Ed25519 private key."),
+    out: Path | None = typer.Option(None, "--out", help="Signature path (default: PATH.sig)."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Write a detached Ed25519 signature beside the artifact. Private keys are not stored."""
+    from readyagents.trust.sign import sign_artifact
+
+    try:
+        payload = sign_artifact(path, key=key, out=out)
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "sign",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                    artifact=getattr(extra, "artifact", str(path)),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(_json_envelope("sign", ok=True, **payload, path=str(path)))
+        return
+    console.print(
+        f"signed {path} kind={payload['kind']} "
+        f"digest={payload['digest']} key_id={payload['key_id']}"
+    )
+
+
+@app.command("verify")
+def verify_cmd(
+    path: Path = typer.Argument(..., help="Workflow or pack path."),
+    as_json: bool = typer.Option(False, "--json"),
+    sig: Path | None = typer.Option(None, "--sig", help="Detached signature path."),
+) -> None:
+    """Verify a detached signature against the local publisher keyring."""
+    from readyagents.trust.sign import verify_artifact
+
+    try:
+        payload = verify_artifact(path, sig_path=sig)
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "verify",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                    artifact=getattr(extra, "artifact", str(path)),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        body = {k: v for k, v in payload.items() if k != "ok"}
+        _print_json(_json_envelope("verify", ok=True, **body))
+        return
+    console.print(
+        f"ok kind={payload['kind']} digest={payload['digest']} key_id={payload['key_id']}"
+    )
+
+
+@trust_app.command("add")
+def trust_add_cmd(
+    pubkey: Path = typer.Argument(..., help="Ed25519 public key (PEM, raw, hex, or base64)."),
+    name: str = typer.Option(..., "--name", help="Human-meaningful publisher name."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Trust a publisher public key. Fail closed on a malformed keyring."""
+    from readyagents.config import get_settings
+    from readyagents.trust.keyring import add_key
+
+    try:
+        entry = add_key(pubkey, name=name, home=get_settings().home_path())
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "trust add",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(_json_envelope("trust add", ok=True, **entry.as_dict()))
+        return
+    console.print(f"trusted {entry.name} key_id={entry.key_id}")
+
+
+@trust_app.command("list")
+def trust_list_cmd(
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """List trusted publisher keys."""
+    from readyagents.config import get_settings
+    from readyagents.trust.keyring import load_keyring
+
+    try:
+        ring = load_keyring(home=get_settings().home_path())
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "trust list",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    rows = [item.as_dict() for item in ring.keys]
+    if as_json:
+        _print_json(_json_envelope("trust list", ok=True, keys=rows))
+        return
+    if not rows:
+        console.print("no trusted publishers")
+        return
+    for row in rows:
+        console.print(f"{row['key_id']} name={row['name']} added_at={row['added_at']}")
+
+
+@trust_app.command("remove")
+def trust_remove_cmd(
+    key_id: str = typer.Argument(..., help="Key id from `readyagents trust list`."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Remove a trusted publisher key. Fail closed on a malformed keyring."""
+    from readyagents.config import get_settings
+    from readyagents.trust.keyring import remove_key
+
+    try:
+        entry = remove_key(key_id, home=get_settings().home_path())
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "trust remove",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(_json_envelope("trust remove", ok=True, **entry.as_dict()))
+        return
+    console.print(f"removed {entry.name} key_id={entry.key_id}")
+
+
+@app.command("lock")
+def lock_cmd(
+    path: Path = _WORKFLOW_ARG,
+    out: Path | None = typer.Option(
+        None, "--out", help="Lockfile path (default: readyagents.lock beside the workflow)."
+    ),
+    pack: list[str] = typer.Option([], "--pack", help=_PACK_HELP),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Write readyagents.lock pinning workflow, include, pack, and MCP surface digests."""
+    from readyagents.config import get_settings
+    from readyagents.trust.lock import (
+        build_lockfile,
+        default_lock_path,
+        snapshot_mcp_surfaces,
+        write_lockfile,
+    )
+    from readyagents.workflow.runner import confine_under, load_workflow
+
+    try:
+        settings = get_settings()
+        spec = load_workflow(path)
+        source = path.resolve()
+        pack_root = settings.workspace_path()
+        root = pack_root if settings.workspace is not None else source.parent
+        declared = (spec.workspace or "").strip()
+        workspace = confine_under(declared, root, what="workspace") if declared else root
+        surfaces = snapshot_mcp_surfaces(spec, workspace) if spec.mcp_servers else {}
+        lock = build_lockfile(
+            source,
+            pack_specs=collect_pack_specs(pack),
+            workspace=pack_root,
+            mcp_surfaces=surfaces,
+        )
+        dest = out if out is not None else default_lock_path(source)
+        write_lockfile(lock, dest)
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "lock",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(_json_envelope("lock", ok=True, path=str(dest), **lock.as_dict()))
+        return
+    console.print(f"wrote {dest} artifacts={len(lock.artifacts)}")
+
+
+@app.command("sbom")
+def sbom_cmd(
+    path: Path = _WORKFLOW_ARG,
+    out: Path | None = typer.Option(None, "--out", help="Write the SBOM JSON to this path."),
+    pack: list[str] = typer.Option([], "--pack", help=_PACK_HELP),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Emit a deterministic CycloneDX-shaped inventory. No network, no secrets."""
+    from readyagents.config import get_settings
+    from readyagents.trust.sbom import build_sbom, dumps_sbom, write_sbom
+
+    try:
+        settings = get_settings()
+        source = path.resolve()
+        pack_root = settings.workspace_path()
+        bom = build_sbom(source, pack_specs=collect_pack_specs(pack), workspace=pack_root)
+        written = write_sbom(bom, out) if out is not None else None
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "sbom",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        payload = dict(bom)
+        if written is not None:
+            payload["path"] = str(written)
+        _print_json(_json_envelope("sbom", ok=True, **payload))
+        return
+    text = dumps_sbom(bom)
+    if written is not None:
+        console.print(f"wrote {written}")
+        return
+    console.print(text, end="")
 
 
 def _show_run(run_id: str, *, as_json: bool = False) -> None:
