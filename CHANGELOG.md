@@ -21,6 +21,8 @@ All notable changes to ReadyAgents Core.
 
 - JSON run-record reads retry Windows sharing violations, so a poll during
   persist does not fail with `PermissionError`.
+- Sequential HITL resume waits out a prior in-flight executor when the run is
+  already paused at the next gate, instead of returning "resume in flight".
 - Scoped delegation is matched against the gate's `approver_roles` as well as
   the actor's JWT/RBAC roles, so a finance grant still applies when the
   delegate already holds a different role.
