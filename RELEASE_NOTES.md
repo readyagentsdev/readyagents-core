@@ -1,20 +1,36 @@
-# ReadyAgents Core (Unreleased) — Agent identity draft
+# ReadyAgents Core 1.5.0
 
-**Every approval can be identified. Every tool can be granted only its secrets.**
+**Agent identity and credential brokering.**
 
-`--actor NAME` is still the default. With `--token-file` and a local trust-anchor
-file, ReadyAgents verifies an OIDC/JWT assertion (optional `jwt` extra, not in
-`all`) and records subject/issuer separately from HMAC *signing*. Replay is
-refused. Optional credential brokering grants named secrets per tool at the
-dispatch seam.
+Approvers may present an OIDC/JWT assertion verified against a local trust-anchor
+file (`--token-file`, `--trust-anchors` / `READYAGENTS_TRUST_ANCHORS`). Verification
+uses the optional `jwt` extra (not in `all`): signature, issuer, audience, expiry,
+skew. `alg: none`, algorithm confusion, and unknown `kid` are refused. Fail closed
+on a missing/malformed/unreadable anchor when a token is presented. Claims map to
+`--actor` / RBAC roles; replay of the same token on a gate is refused. Signed
+(HMAC of the decision body) and identified (verified subject) stay separate;
+`--actor NAME` remains the default.
+
+Optional `readyagents.credentials.yaml` grants named secrets per tool at the
+dispatch seam; non-granted tools cannot read them from `os.environ` during the
+call. `credential_kind` is `static` when the provider cannot mint.
+
+Also: `readyagents identity verify|whoami|trust` (workload `whoami` prints a
+fingerprint, never the private key), plus TokenOps spend-meter/ledger fixes for
+parallel reserves and unpriced `cost_micros`.
+
+Packs are waitlisted, not for sale.
+
+## Try it
 
 ```bash
-readyagents identity verify --token-file ./id.jwt --json
-readyagents decide RUN_ID --node gate --decision approve --token-file ./id.jwt
-readyagents identity whoami --json
+pip install readyagentsdev==1.5.0
+readyagents identity trust
+readyagents identity whoami
 ```
 
-See `docs/identity.md` and `docs/credentials.md`. Packs are waitlisted, not for sale.
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
 
 # ReadyAgents Core 1.4.0
 

@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 1.5.0 — 2026-09-10
+
 ### Added
 
 - **Agent identity.** Approvers may present an OIDC/JWT assertion verified
