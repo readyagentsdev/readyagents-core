@@ -885,7 +885,7 @@ def _run_approval(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dic
         home = getattr(ctx, "pin_home", None) or get_settings().home_path()
         grant = find_delegation(
             actor=ctx.actor,
-            roles=roles or pause.approver_roles,
+            roles=list(pause.approver_roles or []) + list(roles),
             home=home,
             now=now,
         )

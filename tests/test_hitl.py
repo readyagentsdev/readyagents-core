@@ -533,6 +533,34 @@ def test_delegation_at_decide_time(tmp_settings) -> None:
     assert grant.id
 
 
+def test_scoped_delegation_succeeds_when_actor_holds_other_roles(tmp_settings) -> None:
+    """A finance grant still matches a finance gate when bob's RBAC role is ops."""
+    from readyagents.approvals.delegate import add_delegation
+
+    home = tmp_settings.home_path()
+    until = (datetime.now(UTC) + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    add_delegation(from_actor="alice", to_actor="bob", until=until, scope="finance", home=home)
+    path = _gate_wf(
+        tmp_settings.workspace_path(),
+        extra="    approver_roles: [finance]\n",
+        name="delops",
+    )
+    auth = _RoleAuth({"bob": ["ops"]})
+    with pytest.raises(ApprovalRequired) as started:
+        run_workflow_file(path, settings=tmp_settings, persist=True)
+    state = resume_run(
+        started.value.run_id,
+        settings=tmp_settings,
+        decisions={"g": "approve"},
+        actor="bob",
+        authorizer=auth,
+    )
+    assert state.status == "succeeded"
+    vote = state.node_outputs["g"]["approvals_received"][0]
+    assert vote["delegated_from"] == "alice"
+    assert vote["actor"] == "bob"
+
+
 def test_unauthorized_stays_paused(tmp_settings) -> None:
     path = _gate_wf(
         tmp_settings.workspace_path(), extra="    require_reason: true\n", name="unauth"
