@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 1.7.0 — 2026-09-10
+
 ### Added
 
 - **Enterprise HITL.** Opt-in quorum (`approvals_required`), distinct actors,
@@ -16,6 +18,11 @@ All notable changes to ReadyAgents Core.
   starts no timer; expiry is evaluated on resume, decide, and status query.
   A gate with none of the new fields is unchanged. See
   [docs/approvals.md](docs/approvals.md).
+
+### Fixed
+
+- MCP decide can resume a recorded decision that is still paused, so sequential
+  approval resumes do not stall after the first decide.
 
 ## 1.6.0 — 2026-09-10
 

@@ -1,3 +1,32 @@
+# ReadyAgents Core 1.7.0
+
+**Enterprise HITL: quorum, roles, deadlines, delegation.**
+
+Opt-in quorum (`approvals_required`), distinct actors, `deny_actor` (including
+`$initiator`), role routing (`approver_roles` / `require: any|all`), lazy
+deadlines (`expires_in` with `on_expire: reject | escalate | fail` — `approve`
+is refused at validation), time-bounded revocable single-hop delegation
+(`readyagents delegate` / `delegations list|revoke`), `require_reason` and
+override recording, file / command / webhook notify channels, and
+`readyagents approvals list`. Core starts no timer; expiry is evaluated on
+resume, decide, and status query. A gate with none of the new fields is
+unchanged.
+
+Also: MCP decide can resume a recorded decision that is still paused, so
+sequential approval resumes do not stall after the first decide.
+
+Packs are waitlisted, not for sale.
+
+## Try it
+
+```bash
+pip install readyagentsdev==1.7.0
+readyagents approvals list
+readyagents delegate --help
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
 # Unreleased — enterprise HITL (draft, not a release)
 
 Opt-in quorum, role routing, lazy deadlines (`reject` / `escalate` / `fail`;
