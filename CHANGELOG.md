@@ -23,6 +23,9 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- README CLI table lists shipped `connectors`, `sign`/`verify`/`lock`/`sbom`/`trust`,
+  `runs fork|diff|freeze|migrate`, and `approvals serve`. Optional OTel emits
+  `readyagents.total_tokens` instead of a non-registry `gen_ai.usage.total_tokens`.
 - First-ten-minutes and getting-started versions match the package; the
   first-ten-minutes path documents `pip install readyagentsdev` (the wheel
   does not ship `examples/`). Extra-missing OpenAI/Anthropic errors name

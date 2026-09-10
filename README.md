@@ -95,7 +95,7 @@ flowchart LR
 | `readyagents policy explain PATH [--policy PATH]` | Show which tools each node may call and why |
 | `readyagents evidence RUN_ID [--out DIR]` | Local evidence pack (not a compliance certificate) |
 | `readyagents audit verify [--file PATH]` | Walk the hash-chained audit trail |
-| `readyagents spend [--since DATE] [--by day\|workflow\|model\|actor\|label]` | Aggregate the local spend ledger |
+| `readyagents spend [--since DATE] [--by day\|workflow\|model\|actor\|label]` | TokenOps: aggregate the local spend ledger (informational vs the provider invoice) |
 | `readyagents graph PATH` | Deterministic Mermaid routing (executes nothing) |
 | `readyagents decide RUN_ID [--file FILE \| --node ID --decision approve] [--token-file JWT] [--actor NAME] [--reason TEXT]` | Inject an approval; `--actor` stays the default, `--token-file` identifies |
 | `readyagents approvals list [--role ROLE] [--actor NAME] [--expiring-within 1h]` | Queue of paused gates the caller may see |
@@ -109,6 +109,10 @@ flowchart LR
 | `readyagents runs replay RUN_ID` | New run from stored inputs |
 | `readyagents runs delete RUN_ID --yes` | Delete one local run record |
 | `readyagents runs gc --yes` | Prune succeeded/failed/cancelled runs (paused kept; in-window records refused unless `--override-retention`) |
+| `readyagents runs fork` / `diff` / `freeze` / `migrate` | Time machine: fork a run, diff two, freeze a cassette, migrate JSON→SQLite |
+| `readyagents connectors list` / `show` / `test` | Small governed catalog (`rest`, `sql`, `object_storage`, `message`, `ingest`) — not 500 SaaS |
+| `readyagents sign` / `verify` / `lock` / `sbom` / `trust` | Supply-chain: signatures prove origin, not safety |
+| `readyagents approvals serve` | Foreground localhost approval page (not a hosted dashboard) |
 | `readyagents mcp serve` | Stdio MCP server (builtin tools); `--json` prints protocol versions |
 | `readyagents mcp probe URL` | Read-only `server/discover` diagnostic (never calls a tool) |
 | `readyagents a2a serve PATH` | Foreground A2A door for one workflow (loopback by default) |
@@ -145,6 +149,7 @@ flowchart LR
 | `examples/eval/pass.yaml` | Keyless `readyagents eval` fixture suite |
 | `examples/a2a_delegate.yaml` | `type: a2a` dry-run (no network) |
 | `examples/memory_triage.yaml` | `type: memory` write then search (keyless) |
+| `examples/connector_rest.yaml` | Keyless `rest` connector against a local fixture |
 | `examples/connector_demo.yaml` | Local `--pack` connector (`examples/packs/connector_pack.py`) |
 | `examples/gated_write.yaml` | Approval then `write_file` (no keys) |
 
@@ -157,6 +162,10 @@ flowchart LR
 - [Configuration (BYOK)](docs/configuration.md)
 - [Workflows](docs/workflows.md)
 - [Authoring (JSON Schema, editors, located errors)](docs/authoring.md)
+- [Connectors](docs/connectors.md) (small catalog; write-shaped ops gate by default)
+- [Sovereign mode](docs/sovereign.md) (in-process egress refuse, not an OS sandbox)
+- [Cost / TokenOps](docs/cost.md) (informational vs the provider invoice)
+- [Time machine](docs/time-machine.md) (record / replay / fork / diff / freeze)
 - [MCP](docs/mcp.md)
 - [A2A](docs/a2a.md) (untrusted remote content; delegation can exfiltrate; not certification)
 - [Memory](docs/memory.md) (untrusted; delayed injection and scope escape; not a quality claim)
