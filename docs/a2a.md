@@ -15,7 +15,8 @@ explicit foreground command. Stopping it stops the listener.
 - Not a public bind by default. Loopback only unless you pass
   `--allow-public-bind` (you then own the exposure).
 - Not a registry, marketplace, crawler, or hosted directory.
-- Not streaming. The card advertises `streaming: false`. Callers poll.
+- Opt-in SSE at `GET /tasks/{id}/stream` (same bearer as JSON-RPC). The card
+  advertises `streaming: true`. Callers may still poll `tasks/get`.
 - Not an OAuth authorization server. Bearer token from the environment, as
   with MCP HTTP.
 

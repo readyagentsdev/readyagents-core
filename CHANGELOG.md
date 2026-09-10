@@ -6,6 +6,13 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Opt-in streaming.** `readyagents run --stream` and `--stream --json`
+  (newline-delimited events). Provider `stream()` assembles the same complete
+  result as `complete()`. Bounded partials, incremental redaction with a
+  lookback window, output-schema nodes buffer, mid-stream cancel is resumable.
+  SSE on MCP `GET /runs/{id}/events` and A2A `GET /tasks/{id}/stream` (capped,
+  authorised). TTFT/latency on streamed node results. Not audio. See
+  [docs/streaming.md](docs/streaming.md).
 - **Opt-in batch and concurrency governor.** `readyagents batch` runs one
   workflow over JSONL or CSV rows with a declared `--concurrency`, per-row
   isolation, `--continue-on-error` (default), a spend cap across rows, a

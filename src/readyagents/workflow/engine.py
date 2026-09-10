@@ -448,6 +448,10 @@ def _execute_with_policy(node: NodeSpec, state: RunState, ctx: ExecutionContext)
     usage = state.take_node_usage()
     rounds = list(ctx.last_tool_rounds or [])
     ctx.last_tool_rounds = []
+    latency: dict[str, Any] = {}
+    stream = getattr(ctx, "stream", None)
+    if stream is not None:
+        latency = stream.latency_for(node.id)
     state.record(
         node.id,
         output,
@@ -458,6 +462,9 @@ def _execute_with_policy(node: NodeSpec, state: RunState, ctx: ExecutionContext)
         finished_at=utc_now(),
         usage=usage,
         tool_rounds=rounds,
+        ttft_ms=latency.get("ttft_ms"),
+        total_ms=latency.get("total_ms"),
+        inter_token_ms=latency.get("inter_token_ms"),
     )
     from readyagents.firewall.taint import note_node_output
 

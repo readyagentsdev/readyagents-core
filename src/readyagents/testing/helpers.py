@@ -74,6 +74,23 @@ class ScriptedLLM:
             item.model = model
         return item
 
+    def stream(
+        self,
+        messages: list[Message],
+        *,
+        model: str,
+        tools: Any = None,
+        on_token: Any = None,
+        **kwargs: Any,
+    ) -> CompletionResult:
+        result = self.complete(messages, model=model, tools=tools, **kwargs)
+        text = result.text or ""
+        if on_token is not None and text:
+            step = 4 if len(text) > 4 else 1
+            for i in range(0, len(text), step):
+                on_token(text[i : i + step])
+        return result
+
 
 def run_workflow_spec(
     spec: Mapping[str, Any] | WorkflowSpec,

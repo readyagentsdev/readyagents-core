@@ -161,12 +161,67 @@ def compose_a2a_app(
             )
         return JSONResponse({"jsonrpc": "2.0", "id": rpc_id, "result": result})
 
+    async def task_stream(request: Any) -> Any:
+        from starlette.responses import StreamingResponse
+
+        from readyagents.workflow.stream import format_sse, get_stream_hub, snapshot_events
+
+        task_id = str(request.path_params.get("task_id") or "")
+        try:
+            state = surface._load(task_id)
+        except ReadyAgentsError as extra:
+            return JSONResponse({"error": str(extra)}, status_code=404)
+        hub = get_stream_hub()
+        queue = hub.try_subscribe(state.run_id)
+        if queue is None:
+            return JSONResponse({"error": "stream cap exceeded"}, status_code=429)
+
+        async def _gen():
+            try:
+                for item in snapshot_events(state):
+                    yield format_sse(item)
+                if getattr(state, "status", "") in {"succeeded", "failed", "cancelled", "paused"}:
+                    return
+                import asyncio
+
+                idle = 0
+                while idle < 200:
+                    if queue:
+                        yield format_sse(queue.popleft())
+                        idle = 0
+                        continue
+                    await asyncio.sleep(0.05)
+                    idle += 1
+                    try:
+                        latest = surface._load(task_id)
+                    except ReadyAgentsError:
+                        break
+                    if getattr(latest, "status", "") in {
+                        "succeeded",
+                        "failed",
+                        "cancelled",
+                        "paused",
+                    }:
+                        for item in snapshot_events(latest):
+                            if item.get("event") in {"run.finished", "run.cancelled"}:
+                                yield format_sse(item)
+                        break
+            finally:
+                hub.unsubscribe(state.run_id, queue)
+
+        return StreamingResponse(
+            _gen(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-store"},
+        )
+
     app = Starlette(
         routes=[
             Route(WELL_KNOWN_CARD, well_known, methods=["GET"]),
             Route(WELL_KNOWN_ALIAS, well_known, methods=["GET"]),
             Route("/", rpc, methods=["POST"]),
             Route("/a2a", rpc, methods=["POST"]),
+            Route("/tasks/{task_id}/stream", task_stream, methods=["GET"]),
         ]
     )
     return CacheControlMiddleware(

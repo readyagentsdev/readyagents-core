@@ -113,6 +113,61 @@ class OpenAIProvider:
             self._note_rate_limit(exc)
             raise LLMError(f"OpenAI request failed: {exc}") from exc
 
+    def stream(
+        self,
+        messages: list[Message],
+        *,
+        model: str,
+        tools: list[dict[str, Any]] | None = None,
+        on_token: Any = None,
+        **kwargs: Any,
+    ) -> CompletionResult:
+        try:
+            from openai import OpenAI
+        except ImportError as exc:
+            raise LLMError(missing_extra_message("OpenAI", "openai")) from exc
+        try:
+            client = OpenAI(**self._client_kwargs())
+            payload = self._payload(messages, model=model, tools=tools, kwargs=kwargs)
+            payload["stream"] = True
+            payload.setdefault("stream_options", {"include_usage": True})
+            parts: list[str] = []
+            usage: dict[str, Any] = {}
+            tool_acc: list[Any] = []
+            for chunk in client.chat.completions.create(**payload):
+                if getattr(chunk, "usage", None):
+                    usage = {
+                        "prompt_tokens": chunk.usage.prompt_tokens,
+                        "completion_tokens": chunk.usage.completion_tokens,
+                        "total_tokens": chunk.usage.total_tokens,
+                    }
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                piece = getattr(delta, "content", None) or ""
+                if piece:
+                    parts.append(piece)
+                    if on_token is not None:
+                        on_token(piece)
+                calls = getattr(delta, "tool_calls", None)
+                if calls:
+                    tool_acc.extend(calls)
+            text = "".join(parts)
+            from readyagents.llm.tool_calls import tool_calls_from_openai_message
+
+            fake = type("Msg", (), {"content": text, "tool_calls": tool_acc or None})()
+            return CompletionResult(
+                text=text,
+                model=model,
+                raw=None,
+                usage=usage,
+                tool_calls=tool_calls_from_openai_message(fake),
+            )
+        except LLMError:
+            raise
+        except Exception:
+            return self.complete(messages, model=model, tools=tools, **kwargs)
+
     def _note_rate_limit(self, exc: BaseException) -> None:
         from readyagents.workflow.governor import (
             looks_like_rate_limit,

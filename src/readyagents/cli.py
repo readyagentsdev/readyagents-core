@@ -616,6 +616,11 @@ def run(
         "--sovereign-allow",
         help="Private endpoint allowlisted under --sovereign (repeatable).",
     ),
+    stream_flag: bool = typer.Option(
+        False,
+        "--stream",
+        help="Emit incremental run events (tokens, partials, node start/finish).",
+    ),
 ) -> None:
     """Execute a workflow."""
     if log_level or log_format:
@@ -631,6 +636,17 @@ def run(
         if estimate:
             _emit_estimate(path, inputs=parsed, as_json=as_json)
             return
+        session = None
+        if stream_flag:
+            from readyagents.workflow.stream import StreamSession
+
+            def _write_stream(line: str) -> None:
+                if as_json:
+                    typer.echo(line, nl=False)
+                else:
+                    err_console.print(line.rstrip("\n"), markup=False)
+
+            session = StreamSession(ndjson=as_json, write=_write_stream)
         if resume:
             state = resume_run(
                 resume,
@@ -655,6 +671,7 @@ def run(
                 frozen=frozen,
                 sovereign=sovereign,
                 sovereign_allow=sovereign_allow,
+                stream=session,
             )
         else:
             state = run_workflow_file(
@@ -680,15 +697,39 @@ def run(
                 frozen=frozen,
                 sovereign=sovereign,
                 sovereign_allow=sovereign_allow,
+                stream=session,
             )
     except KeyboardInterrupt:
+        if stream_flag and as_json:
+            typer.echo(
+                json.dumps({"event": "run.cancelled", "status": "cancelled"}) + "\n",
+                nl=False,
+            )
+            raise typer.Exit(code=1) from None
         if as_json:
             _print_json(_json_envelope("run", ok=False, error="cancelled", status="cancelled"))
         else:
             err_console.print("[yellow]cancelled[/yellow]")
         raise typer.Exit(code=1) from None
     except ReadyAgentsError as extra:
+        if stream_flag and as_json:
+            payload = {
+                "event": "run.finished",
+                "status": "paused" if type(extra).__name__ == "ApprovalRequired" else "failed",
+                "error": type(extra).__name__,
+            }
+            rid = getattr(extra, "run_id", None)
+            if rid:
+                payload["run_id"] = rid
+            typer.echo(json.dumps(payload) + "\n", nl=False)
+            if isinstance(extra, ApprovalRequired):
+                raise typer.Exit(code=2) from extra
+            raise typer.Exit(code=1) from extra
         _emit_run_exception(extra, as_json=as_json, persist=persist, command="run")
+    if stream_flag and as_json:
+        if state.status != "succeeded":
+            raise typer.Exit(code=2 if state.status == "paused" else 1)
+        return
     _emit_run(state, as_json=as_json, command="run")
 
 

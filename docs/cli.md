@@ -197,6 +197,7 @@ readyagents run examples/research_brief.yaml --input topic="mcp servers"
 readyagents run examples/support_triage.yaml -i message="billing question"
 readyagents run examples/code_review.yaml --dry-run
 readyagents run examples/research_brief.yaml --no-persist
+readyagents run examples/calc_pipeline.yaml --stream --json
 ```
 
 | Flag | Meaning |
@@ -208,6 +209,7 @@ readyagents run examples/research_brief.yaml --no-persist
 | `--reject NODE` | Reject an approval node (repeatable) |
 | `--resume RUN_ID` | Continue a paused/failed run instead of starting fresh |
 | `--json` | Print the run record as JSON on stdout (no tables; scripts/CI) |
+| `--stream` | Incremental events. Combined with `--json`: newline-delimited events, no Rich |
 | `--log-level` | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
 | `--log-format` | `text` (default) or `json` (machine-parseable events with `run` / `node`) |
 | `--decision-file PATH` | JSON approval decisions (same shapes as `readyagents decide --file`) |

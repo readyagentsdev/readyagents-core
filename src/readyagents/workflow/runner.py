@@ -162,6 +162,7 @@ def run_workflow_file(
     shared_budget: Any | None = None,
     governor: Any | None = None,
     priority: Any | None = None,
+    stream: Any | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     source_file = Path(path)
@@ -609,7 +610,12 @@ def run_workflow_file(
         frozen=lock_frozen,
         vote_reasons=vote_reasons,
         vote_signature_status=vote_signature_status,
+        stream=stream,
     )
+    if stream is not None:
+        stream._on_persist = _save if persist else None
+        if getattr(stream, "_redactor", None) is None:
+            stream._redactor = redactor
     metadata = {
         "source": str(source_path),
         "allow_http": allow_http,
@@ -932,6 +938,7 @@ def resume_run(
     vote_signature_status: str = "unsigned",
     sovereign: bool | None = None,
     sovereign_allow: Sequence[str] | None = None,
+    stream: Any | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     owned_store = False
@@ -983,6 +990,7 @@ def resume_run(
             vote_signature_status=vote_signature_status,
             sovereign=sovereign,
             sovereign_allow=sovereign_allow,
+            stream=stream,
         )
     finally:
         if owned_store:

@@ -87,7 +87,7 @@ flowchart LR
 | `readyagents validate PATH` | Schema-validate a workflow (source-located errors on failure) |
 | `readyagents schema` | Print/write/check the generated workflow JSON Schema |
 | `readyagents eval PATH` | Score a keyless fixture suite (exit 0/1) |
-| `readyagents run PATH [--input KEY=VALUE] [--dry-run] [--approve NODE] [--reject NODE] [--decision-file FILE] [--actor NAME] [--pack PATH] [--policy PATH] [--estimate] [--max-spend USD] [--max-tokens N] [--label KEY=VALUE] [--sovereign]` | Execute (or `--estimate` without running) |
+| `readyagents run PATH [--input KEY=VALUE] [--dry-run] [--approve NODE] [--reject NODE] [--decision-file FILE] [--actor NAME] [--pack PATH] [--policy PATH] [--estimate] [--max-spend USD] [--max-tokens N] [--label KEY=VALUE] [--sovereign] [--stream]` | Execute (or `--estimate` without running). `--stream` is opt-in Unreleased |
 | `readyagents batch PATH --input-file FILE [--concurrency N] [--max-spend USD] [--out FILE]` | Foreground: one workflow, many JSONL/CSV rows (opt-in; Unreleased) |
 | `readyagents attest RUN_ID` | Data-residency attestation (technical evidence, not legal compliance) |
 | `readyagents bundle --out DIR` | Offline wheel set for `pip install --no-index --find-links` |
@@ -172,6 +172,7 @@ flowchart LR
 - [A2A](docs/a2a.md) (untrusted remote content; delegation can exfiltrate; not certification)
 - [Memory](docs/memory.md) (untrusted; delayed injection and scope escape; not a quality claim)
 - [Scale and batch](docs/scale.md) (opt-in; Unreleased; not a distributed worker; benchmarks are not a marketing claim)
+- [Streaming](docs/streaming.md) (opt-in `--stream`; Unreleased; not audio)
 - [Packs](docs/packs.md)
 - [Supply-chain trust](docs/supply-chain.md) (signatures prove origin, not safety)
 - [Continuous pack](docs/continuous-pack.md) (optional, separate distribution)
