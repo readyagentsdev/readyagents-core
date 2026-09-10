@@ -207,6 +207,43 @@ def dispatch_tool(
             raw_arguments=raw_arguments if raw_arguments is not None else arguments,
             prompt_tainted=prompt_tainted,
         )
+    if ctx is not None:
+        ctx.last_credential_kind = None
+        policy = getattr(ctx, "credential_policy", None)
+        if policy is not None:
+            from readyagents.credentials.broker import (
+                audit_payload,
+                credential_kind,
+                materialise,
+                wrap_runner,
+            )
+
+            grant = policy.grant_for(name)
+            granted = materialise(grant, getattr(ctx, "secrets", None))
+            kind = credential_kind(granted)
+            ctx.last_credential_kind = kind
+            if state is not None and isinstance(getattr(state, "metadata", None), dict):
+                bucket = state.metadata.setdefault("credentials", {})
+                if isinstance(bucket, dict):
+                    bucket[node_id] = {
+                        "kind": kind,
+                        "secrets": [item.name for item in granted],
+                    }
+            auditor = getattr(ctx, "auditor", None)
+            run_id = getattr(state, "run_id", None) if state is not None else None
+            if auditor is not None:
+                auditor(
+                    **audit_payload(
+                        "credential_use" if granted else "credential_deny",
+                        tool=name,
+                        node_id=node_id,
+                        run_id=run_id,
+                        names=[item.name for item in granted] or list(grant.secrets),
+                        kind=kind,
+                        decision="allow" if granted or not grant.secrets else "deny",
+                    )
+                )
+            runner = wrap_runner(runner, granted=granted, managed=policy.managed_names())
     seals = cassette.tool_seals if cassette is not None else None
     klass = classify_tool(name, seals=seals)
     if offline:

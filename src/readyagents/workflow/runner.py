@@ -132,6 +132,8 @@ def run_workflow_file(
     max_model_calls: int | None = None,
     max_run_tool_rounds: int | None = None,
     max_wall_seconds: float | None = None,
+    verified_actor: Any | None = None,
+    credentials: Path | str | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     workflow = load_workflow(path)
@@ -186,6 +188,8 @@ def run_workflow_file(
         pack_authorizers = [authorizer, *pack_authorizers]
     resolved_authorizer = resolve_authorizer(pack_authorizers)
     resolved_actor = actor if actor is not None else settings.actor
+    if verified_actor is not None and getattr(verified_actor, "actor", None):
+        resolved_actor = verified_actor.actor
     action = "resume" if resume_state is not None else "run"
     resource = resume_state.run_id if resume_state is not None else workflow.name
     resolved_authorizer.check(resolved_actor, action, resource)
@@ -431,6 +435,8 @@ def run_workflow_file(
         observers=collect_pack_observers(packs),
         spend_meter=spend_meter,
         labels=resolved_labels,
+        verified_actor=verified_actor,
+        credential_policy=_load_credentials(credentials, source_path.parent),
     )
     metadata = {
         "source": str(source_path),
@@ -439,6 +445,10 @@ def run_workflow_file(
         "workspace": str(workspace),
         "actor": resolved_actor,
     }
+    if verified_actor is not None:
+        metadata["identity"] = (
+            verified_actor.as_dict() if hasattr(verified_actor, "as_dict") else dict(verified_actor)
+        )
     if resolved_labels:
         metadata["labels"] = dict(resolved_labels)
     if loaded_policy is not None and loaded_policy.source:
@@ -499,6 +509,15 @@ def run_workflow_file(
             closer = getattr(store, "close", None)
             if callable(closer):
                 closer()
+
+
+def _load_credentials(explicit: Path | str | None, workflow_dir: Path) -> Any:
+    from readyagents.credentials.policy import load_credentials_policy, resolve_credentials_path
+
+    path = resolve_credentials_path(explicit=explicit, workflow_dir=workflow_dir)
+    if path is None:
+        return None
+    return load_credentials_policy(path)
 
 
 _TERMINAL_LEDGER = frozenset({"succeeded", "failed", "paused", "cancelled"})
@@ -640,6 +659,8 @@ def resume_run(
     max_model_calls: int | None = None,
     max_run_tool_rounds: int | None = None,
     max_wall_seconds: float | None = None,
+    verified_actor: Any | None = None,
+    credentials: Path | str | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     owned_store = False
@@ -682,6 +703,8 @@ def resume_run(
             max_model_calls=max_model_calls,
             max_run_tool_rounds=max_run_tool_rounds,
             max_wall_seconds=max_wall_seconds,
+            verified_actor=verified_actor,
+            credentials=credentials,
         )
     finally:
         if owned_store:

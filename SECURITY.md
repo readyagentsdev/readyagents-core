@@ -27,6 +27,16 @@ model requests. Gates reuse the existing signed approval path. See
 [docs/security-model.md](docs/security-model.md) and [docs/policy.md](docs/policy.md).
 Without a policy file the 1.0 behaviour is unchanged.
 
+## Identity and credentials
+
+Approver JWTs are verified against a local trust-anchor file with a real JWT
+library (`readyagentsdev[jwt]`, not in `all`). Fail closed on a bad anchor
+when a token is presented. `--actor NAME` stays the default. Signed (HMAC of
+the decision body) is not the same as identified (verified subject). Optional
+credential brokering grants named secrets per tool at the dispatch seam; a
+non-granted tool cannot read them from `os.environ` during the call. See
+[docs/identity.md](docs/identity.md) and [docs/credentials.md](docs/credentials.md).
+
 ## Scope notes
 
 - `read_file` / `write_file` / `list_dir` are sandboxed by a single helper (`resolve_within`): both sides are fully resolved (symlinks, junctions, macOS `/tmp` → `/private/tmp`), then compared with `Path.is_relative_to` plus case-aware equality from a **runtime probe** of the root filesystem (not `sys.platform`). Windows reserved names, alternate data streams, trailing dots/spaces, UNC/`\\?\` (unless the root is one), drive-relative `C:file.txt`, and 8.3 names that resolve outside are refused. Writes are atomic (temp file in the destination dir, restrictive mode on the temp **before** `os.replace`).

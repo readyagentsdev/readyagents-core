@@ -47,6 +47,7 @@ otel = [
     "opentelemetry-exporter-otlp-proto-http>=1.20",
 ]
 tokenizer = ["tiktoken>=0.7"]
+jwt = ["PyJWT>=2.8", "cryptography>=42"]
 all = ["openai>=1.40", "anthropic>=0.34", "mcp>=1.2,<3"]
 dev = [
     "pytest>=8.0",
@@ -56,6 +57,8 @@ dev = [
     "anthropic>=0.34",
     "mcp>=1.2,<3",
     "jsonschema>=4.18",
+    "PyJWT>=2.8",
+    "cryptography>=42",
 ]
 
 [project.scripts]

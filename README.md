@@ -92,7 +92,9 @@ flowchart LR
 | `readyagents audit verify [--file PATH]` | Walk the hash-chained audit trail |
 | `readyagents spend [--since DATE] [--by day\|workflow\|model\|actor\|label]` | Aggregate the local spend ledger |
 | `readyagents graph PATH` | Deterministic Mermaid routing (executes nothing) |
-| `readyagents decide RUN_ID [--file FILE \| --node ID --decision approve]` | Inject an external approval decision and resume |
+| `readyagents decide RUN_ID [--file FILE \| --node ID --decision approve] [--token-file JWT] [--actor NAME]` | Inject an approval; `--actor` stays the default, `--token-file` identifies |
+| `readyagents identity verify --token-file JWT` | Verify an assertion against local trust anchors |
+| `readyagents identity whoami` | Workload fingerprint (never the private key) |
 | `readyagents runs list` | List persisted runs |
 | `readyagents runs show RUN_ID` | Node timeline + stored state (`inspect` is an alias) |
 | `readyagents runs report RUN_ID` | Local HTML summary of a run |

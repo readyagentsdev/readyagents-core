@@ -19,6 +19,7 @@ from readyagents.errors import (
     ApprovalRequired,
     CassetteMiss,
     ConfigError,
+    IdentityError,
     MCPError,
     ReadyAgentsError,
 )
@@ -56,11 +57,17 @@ policy_app = typer.Typer(help="Validate and explain firewall policy files.", no_
 audit_app = typer.Typer(
     help="Inspect the append-only hash-chained audit trail.", no_args_is_help=True
 )
+identity_app = typer.Typer(
+    help="Verify approver assertions and inspect workload identity.", no_args_is_help=True
+)
+identity_trust_app = typer.Typer(help="Manage local trust-anchor issuers.", no_args_is_help=True)
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(runs_app, name="runs")
 app.add_typer(approvals_app, name="approvals")
 app.add_typer(policy_app, name="policy")
 app.add_typer(audit_app, name="audit")
+app.add_typer(identity_app, name="identity")
+identity_app.add_typer(identity_trust_app, name="trust")
 
 console = Console()
 err_console = Console(stderr=True)
@@ -651,6 +658,17 @@ def decide_cmd(
         help="approve or reject (requires --node).",
     ),
     actor: str | None = typer.Option(None, "--actor", envvar="READYAGENTS_ACTOR"),
+    token_file: Path | None = typer.Option(
+        None,
+        "--token-file",
+        help="OIDC/JWT assertion to identify the approver (verified against local trust anchors).",
+    ),
+    trust_anchors: Path | None = typer.Option(
+        None,
+        "--trust-anchors",
+        help="Trust-anchor YAML (env: READYAGENTS_TRUST_ANCHORS).",
+        envvar="READYAGENTS_TRUST_ANCHORS",
+    ),
     as_json: bool = typer.Option(False, "--json"),
     no_persist: bool = typer.Option(False, "--no-persist"),
     pack: list[str] = typer.Option([], "--pack", help=_PACK_HELP),
@@ -659,7 +677,10 @@ def decide_cmd(
 
     This is the core side of a webhook/pack: no always-on HTTP listener.
     A pack can receive the webhook and call this (or write --file).
+    ``--actor NAME`` remains the default unconfigured path. ``--token-file``
+    identifies the approver; it is separate from HMAC *signing* of the body.
     """
+    from readyagents.config import get_settings
     from readyagents.errors import ConfigError
 
     persist = not no_persist
@@ -673,12 +694,38 @@ def decide_cmd(
             decisions[node] = decision.strip().lower()
         if not decisions:
             raise ConfigError("Pass --file or --node plus --decision")
+        verified = None
+        resolved_actor = actor
+        if token_file is not None:
+            from readyagents.identity.decide import identify_approver, load_token_file
+            from readyagents.run_store import open_run_store
+
+            settings = get_settings()
+            token = load_token_file(token_file)
+            store = open_run_store(settings)
+            try:
+                paused = store.get(run_id, allow_prefix=True).state
+            finally:
+                closer = getattr(store, "close", None)
+                if callable(closer):
+                    closer()
+            node_id = next(iter(decisions))
+            verified = identify_approver(
+                token,
+                home=settings.home_path(),
+                run_id=paused.run_id,
+                node_id=node_id,
+                decision=str(decisions[node_id]),
+                trust_path=trust_anchors,
+            )
+            resolved_actor = verified.actor
         state = resume_run(
             run_id,
             persist=persist,
             extra_packs=_load_extra_packs(pack),
             decisions=decisions,
-            actor=actor,
+            actor=resolved_actor,
+            verified_actor=verified,
         )
     except ReadyAgentsError as exc:
         _emit_run_exception(exc, as_json=as_json, persist=persist, command="decide")
@@ -1739,6 +1786,210 @@ def graph_cmd(
         _print_json(_json_envelope("graph", ok=True, **payload))
         return
     console.print(mermaid, end="")
+
+
+@identity_app.command("verify")
+def identity_verify_cmd(
+    token_file: Path = typer.Option(..., "--token-file", help="JWT/OIDC token file."),
+    trust_anchors: Path | None = typer.Option(
+        None,
+        "--trust-anchors",
+        help="Trust-anchor YAML.",
+        envvar="READYAGENTS_TRUST_ANCHORS",
+    ),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Verify an assertion against local trust anchors. Does not resume a run."""
+    from readyagents.config import get_settings
+    from readyagents.identity.anchors import load_trust_anchors, resolve_trust_path
+    from readyagents.identity.decide import load_token_file
+    from readyagents.identity.verify import verify_token
+
+    try:
+        settings = get_settings()
+        resolved = resolve_trust_path(explicit=trust_anchors, home=settings.home_path())
+        if resolved is None:
+            raise IdentityError("no trust-anchor file configured")
+        anchors = load_trust_anchors(resolved)
+        actor = verify_token(load_token_file(token_file), anchors, base=resolved.parent)
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "identity verify",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    payload = actor.as_dict()
+    if as_json:
+        _print_json(_json_envelope("identity verify", ok=True, **payload))
+        return
+    console.print(f"ok subject={actor.subject} issuer={actor.issuer} actor={actor.actor}")
+
+
+@identity_app.command("whoami")
+def identity_whoami_cmd(
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Print the configured workload identity fingerprint. Never the private key."""
+    from readyagents.identity.workload import whoami
+
+    try:
+        info = whoami()
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "identity whoami",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(_json_envelope("identity whoami", ok=True, **info))
+        return
+    if not info.get("configured"):
+        console.print("workload identity is not configured")
+        return
+    console.print(
+        f"subject={info['subject']} key_id={info['key_id']} fingerprint={info['fingerprint']}"
+    )
+
+
+@identity_trust_app.command("list")
+def identity_trust_list(
+    trust_anchors: Path | None = typer.Option(
+        None, "--trust-anchors", envvar="READYAGENTS_TRUST_ANCHORS"
+    ),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """List configured issuers."""
+    from readyagents.config import get_settings
+    from readyagents.identity.anchors import load_trust_anchors, resolve_trust_path
+
+    try:
+        settings = get_settings()
+        resolved = resolve_trust_path(explicit=trust_anchors, home=settings.home_path())
+        if resolved is None:
+            rows: list[dict[str, Any]] = []
+        else:
+            anchors = load_trust_anchors(resolved)
+            rows = [
+                {"issuer": item.issuer, "audience": item.audiences(), "jwks_file": item.jwks_file}
+                for item in anchors.issuers
+            ]
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "identity trust list",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(_json_envelope("identity trust list", ok=True, issuers=rows))
+        return
+    if not rows:
+        console.print("no trust anchors")
+        return
+    for row in rows:
+        console.print(f"{row['issuer']} aud={row['audience']} jwks={row['jwks_file']}")
+
+
+@identity_trust_app.command("add")
+def identity_trust_add(
+    issuer: str = typer.Option(..., "--issuer"),
+    jwks_file: Path = typer.Option(..., "--jwks-file"),
+    audience: str = typer.Option("readyagents", "--audience"),
+    actor_claim: str = typer.Option("sub", "--actor-claim"),
+    trust_anchors: Path | None = typer.Option(
+        None, "--trust-anchors", envvar="READYAGENTS_TRUST_ANCHORS"
+    ),
+) -> None:
+    """Append an issuer to the local trust-anchor file. Fail closed on malformed files."""
+    from readyagents.config import get_settings
+    from readyagents.identity.anchors import (
+        IssuerAnchor,
+        TrustAnchors,
+        load_trust_anchors,
+        resolve_trust_path,
+    )
+
+    settings = get_settings()
+    dest = Path(trust_anchors) if trust_anchors is not None else settings.home_path() / "trust.yaml"
+    existing = resolve_trust_path(
+        explicit=dest if dest.is_file() else None, home=settings.home_path()
+    )
+    try:
+        if existing is not None and existing.is_file():
+            anchors = load_trust_anchors(existing)
+        else:
+            anchors = TrustAnchors()
+        anchors.issuers.append(
+            IssuerAnchor(
+                issuer=issuer,
+                audience=audience,
+                jwks_file=str(jwks_file),
+                actor_claim=actor_claim,
+            )
+        )
+        import yaml
+
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(
+            yaml.safe_dump(anchors.model_dump(exclude={"source"}), sort_keys=False),
+            encoding="utf-8",
+        )
+    except ReadyAgentsError as extra:
+        _fail(extra)
+        return
+    console.print(f"added issuer {issuer} -> {dest}")
+
+
+@identity_trust_app.command("remove")
+def identity_trust_remove(
+    issuer: str = typer.Option(..., "--issuer"),
+    trust_anchors: Path | None = typer.Option(
+        None, "--trust-anchors", envvar="READYAGENTS_TRUST_ANCHORS"
+    ),
+) -> None:
+    """Remove an issuer from the local trust-anchor file."""
+    from readyagents.config import get_settings
+    from readyagents.identity.anchors import load_trust_anchors, resolve_trust_path
+
+    settings = get_settings()
+    resolved = resolve_trust_path(explicit=trust_anchors, home=settings.home_path())
+    if resolved is None:
+        raise typer.Exit(code=1)
+    try:
+        anchors = load_trust_anchors(resolved)
+        anchors.issuers = [item for item in anchors.issuers if item.issuer != issuer]
+        if not anchors.issuers:
+            raise IdentityError("refusing to write a trust-anchor file with no issuers")
+        import yaml
+
+        resolved.write_text(
+            yaml.safe_dump(anchors.model_dump(exclude={"source"}), sort_keys=False),
+            encoding="utf-8",
+        )
+    except ReadyAgentsError as extra:
+        _fail(extra)
+        return
+    console.print(f"removed issuer {issuer}")
 
 
 def _show_run(run_id: str, *, as_json: bool = False) -> None:

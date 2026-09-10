@@ -182,6 +182,24 @@ readyagents spend --by label
 `--by` is `day` (default), `workflow`, `model`, `actor`, or `label`. Empty and
 corrupt lines are skipped (`skipped_corrupt` in `--json`). No network.
 
+## `readyagents decide`
+
+`--actor NAME` remains the default unconfigured path. `--token-file` presents
+an OIDC/JWT assertion; verification is against `--trust-anchors` /
+`READYAGENTS_TRUST_ANCHORS`. *Signed* (HMAC of the body) and *identified*
+(verified subject) are separate. Replay of the same token on a gate is refused.
+
+## `readyagents identity`
+
+```bash
+readyagents identity verify --token-file ./id.jwt --json
+readyagents identity whoami --json
+readyagents identity trust list
+```
+
+`whoami` prints subject, key id, and fingerprint — never the private key. See
+[identity.md](identity.md).
+
 ## `readyagents resume RUN_ID`
 
 Resume a paused or failed run from the last successful node. Uses the workflow path stored on the run record. A policy that was in force for the run is reloaded even if `--policy` is omitted.
