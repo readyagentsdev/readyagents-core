@@ -27,6 +27,15 @@ model requests. Gates reuse the existing signed approval path. See
 [docs/security-model.md](docs/security-model.md) and [docs/policy.md](docs/policy.md).
 Without a policy file the 1.0 behaviour is unchanged.
 
+## Supply-chain signatures prove origin, not safety
+
+`readyagents sign` / `verify` and `--require-signed` check that a workflow or
+pack was signed by a key in the local publisher keyring. That is provenance,
+not a safety proof. Policy still decides what tools may run. There is no
+default-trusted key, no Sigstore/CA, and no network key fetch. Pack
+verification happens **before** import. See
+[docs/supply-chain.md](docs/supply-chain.md).
+
 ## Identity and credentials
 
 Approver JWTs are verified against a local trust-anchor file with a real JWT

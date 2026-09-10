@@ -16,6 +16,7 @@ ReadyAgents is a local workflow engine. The operator authors the graph, chooses 
 | Chain verify | `readyagents audit verify` | Walks the hash chain. Unchained pre-chain lines are reported, not failed. A break exits 1. |
 | HITL | approval nodes, `decide` / `resume`, localhost UI, MCP `tasks/update` | A pause mechanism. A rubber-stamp approve is still an approve. |
 | Optional telemetry | `READYAGENTS_OTEL=1` and `OtelPack` | Content-free spans (usage / model / node / status / run id / cost). No prompts. See [observability.md](observability.md). |
+| Supply-chain provenance | run `metadata.supply_chain`, `run_started` audit | Artifact digests and signature status. Signing proves origin, not safety. See [supply-chain.md](supply-chain.md). |
 
 `readyagents runs freeze` is a **regression fixture**, not an evidence pack. Cassettes hold full prompts and completions when `--record` is on.
 

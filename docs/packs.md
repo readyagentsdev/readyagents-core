@@ -93,6 +93,11 @@ readyagents packs --pack examples/packs/connector_pack.py
 
 `--pack` is repeatable. `READYAGENTS_PACK` may hold one path, or several separated by `os.pathsep` or commas.
 
+Under `--require-signed` (or policy `require_signed: true`) a local pack is
+verified **before** it is imported — importing is executing. The bytes that
+were digested are the bytes that run. See [supply-chain.md](supply-chain.md).
+Signing proves who published the pack, not that it is safe.
+
 List what is installed (plus any `--pack` / `READYAGENTS_PACK` modules):
 
 ```bash

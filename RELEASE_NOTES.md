@@ -1,3 +1,20 @@
+# Unreleased — supply-chain trust (draft, not a release)
+
+Canonical SHA-256 digests (algorithm v1) for workflows including every
+resolved `include`, pack file bytes, and MCP advertised tool surfaces.
+`readyagents sign` / `verify`, a local publisher keyring (`readyagents trust`),
+`--require-signed` (verify **before** pack import), `readyagents lock` /
+`--frozen`, and `readyagents sbom`. Optional `sign` extra is not in `all`.
+No default-trusted key. Signing proves origin, not safety.
+
+```bash
+readyagents trust add publisher.pub.pem --name ops
+readyagents sign flow.yaml --key publisher.pem
+readyagents run flow.yaml --require-signed --frozen
+readyagents sbom flow.yaml --json
+```
+
+
 # ReadyAgents Core 1.5.0
 
 **Agent identity and credential brokering.**

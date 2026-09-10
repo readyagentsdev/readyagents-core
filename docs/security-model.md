@@ -19,6 +19,12 @@ system prompt, decides whether a tool runs.
   when the model emits literal arguments.
 - Known secret values being placed into a model request.
 
+## Supply chain
+
+`--require-signed` refuses unsigned workflows and packs **before** import.
+Signatures prove origin, not safety. This firewall is still what decides
+whether a tool runs. See [supply-chain.md](supply-chain.md).
+
 ## What it does not stop
 
 - Prompt injection as a class. Heuristics are bounded, explainable, and

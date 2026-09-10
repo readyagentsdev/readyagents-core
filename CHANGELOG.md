@@ -4,6 +4,21 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Added
+
+- **Supply-chain trust.** Canonical SHA-256 digests (algorithm v1) for
+  workflows including every resolved `include`, pack file bytes, and MCP
+  advertised tool surfaces. `readyagents sign` / `verify` write a detached
+  Ed25519 signature beside the artifact (`flow.yaml.sig`) that binds digest
+  **and** kind. `readyagents trust add|list|remove` manages a local publisher
+  keyring under `$READYAGENTS_HOME` (atomic, restrictive permissions; malformed
+  fails closed). `--require-signed` and policy `require_signed` refuse unsigned
+  or untrusted artifacts **before** a pack is imported. `readyagents lock` and
+  `--frozen` pin digests; `readyagents sbom` emits a deterministic
+  CycloneDX-shaped inventory (no network, no secrets). Optional `sign` extra
+  is **not** in `all`. No default-trusted key. Signing proves origin, not
+  safety. See [docs/supply-chain.md](docs/supply-chain.md).
+
 ### Fixed
 
 - Workload `sign_assertion` is attached to outbound pause-notify (`post_json`)
