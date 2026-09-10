@@ -13,6 +13,12 @@ All notable changes to ReadyAgents Core.
   what was dropped. Memory is untrusted. Delayed injection and scope escape
   are first-class tests. Not a quality or benchmark claim. See
   [docs/memory.md](docs/memory.md).
+
+### Fixed
+
+- Memory read/search apply compacted text to the node output so truncate and
+  summarize do not still return dropped content.
+- SQLite `forget` of a missing record id returns 0, matching the JSON store.
 - **A2A interoperability.** Serve one workflow as an A2A agent
   (`readyagents a2a serve|card|probe`) and delegate with `type: a2a`. Tasks are
   a projection over the durable run record (not a second state machine).

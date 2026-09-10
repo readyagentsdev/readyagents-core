@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from readyagents.errors import MemoryError, PolicyDenied
 from readyagents.firewall.enforce import ToolRequest, apply_decision, evaluate, quarantine_text
-from readyagents.memory.compaction import compact_text
+from readyagents.memory.compaction import apply_compacted_items, compact_text
 from readyagents.memory.protocol import (
     MAX_QUERY_CHARS,
     MemoryRecord,
@@ -111,9 +111,11 @@ def _read(node: NodeSpec, state: RunState, ctx: Any, store: Any, scope: str) -> 
     records = store.read(scope, limit=limit)
     payload = [_public(rec, ctx) for rec in records]
     joined = "\n".join(str(item.get("text") or "") for item in payload)
-    _, compaction = compact_text(
+    kept, compaction = compact_text(
         joined, getattr(node, "context", None), llm=ctx.llm, node_id=node.id
     )
+    if compaction:
+        payload = apply_compacted_items(payload, kept)
     _audit(
         ctx,
         "memory_read",
@@ -157,9 +159,11 @@ def _search(node: NodeSpec, state: RunState, ctx: Any, store: Any, scope: str, n
         row["score"] = hit.score
         payload.append(row)
     joined = "\n".join(str(item.get("text") or "") for item in payload)
-    _, compaction = compact_text(
+    kept, compaction = compact_text(
         joined, getattr(node, "context", None), llm=ctx.llm, node_id=node.id
     )
+    if compaction:
+        payload = apply_compacted_items(payload, kept)
     _audit(
         ctx,
         "memory_search",
