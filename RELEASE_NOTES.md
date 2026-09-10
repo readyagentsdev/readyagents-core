@@ -27,22 +27,6 @@ readyagents spend
 
 Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
 
-# ReadyAgents Core (Unreleased) — TokenOps draft
-
-**Know the bill before you press enter.** `readyagents run --estimate` walks
-the same routing the engine uses and prints a range. `--max-spend` /
-`--max-tokens` stop a run before the next model call. `readyagents spend`
-reads a local hash-chained ledger. Unknown models are unpriced, not free.
-The provider invoice is authoritative. No hosted billing.
-
-```bash
-readyagents run examples/research_brief.yaml --estimate --json
-readyagents run examples/calc_pipeline.yaml --max-spend 2.50 --label team=platform
-readyagents spend --by label --json
-```
-
-See `docs/cost.md`. Packs are waitlisted, not for sale.
-
 # ReadyAgents Core 1.3.0
 
 **Traceability evidence: hash-chained audit, evidence packs, retention, observers.**
