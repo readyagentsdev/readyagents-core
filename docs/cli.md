@@ -251,7 +251,10 @@ readyagents batch examples/batch_echo.yaml --input-file examples/batch_rows.csv 
 | Flag | Meaning |
 | --- | --- |
 | `--input-file PATH` | JSONL (object per line or a JSON array) or CSV. Each row is that run's inputs. |
-| `--concurrency N` | Max in-flight rows (default 8). Capped by `READYAGENTS_MAX_CONCURRENCY`. |
+| `--concurrency N` | Max in-flight rows (default 8). Capped by `READYAGENTS_MAX_CONCURRENCY` (default 4096). |
+| `--per-workflow-limit N` | Max in-flight rows for this workflow (`READYAGENTS_PER_WORKFLOW_CONCURRENCY`). |
+| `--per-provider-limit N` | Max in-flight rows per provider (`READYAGENTS_PER_PROVIDER_CONCURRENCY`). |
+| `--provider-rate N` | Token-bucket tokens/sec (`READYAGENTS_PROVIDER_RATE`). |
 | `--continue-on-error` | Default on. A failed row is recorded; others continue. |
 | `--max-spend USD` | Hard cap across rows, consulted before each model call. |
 | `--out PATH` | Per-row JSONL sorted by `index`. Workspace-confined. |

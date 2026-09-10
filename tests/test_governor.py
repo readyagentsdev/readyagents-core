@@ -193,6 +193,66 @@ def test_hard_ceiling_clamps_global_limit() -> None:
     assert gov.max_concurrency == 4
 
 
+def test_get_governor_default_global_is_hard_ceiling(monkeypatch) -> None:
+    from readyagents.workflow.governor import get_governor, reset_governor_for_tests
+
+    monkeypatch.delenv("READYAGENTS_MAX_CONCURRENCY", raising=False)
+    monkeypatch.delenv("READYAGENTS_GLOBAL_CONCURRENCY", raising=False)
+    reset_governor_for_tests()
+    gov = get_governor()
+    assert gov.max_concurrency == 4096
+    assert gov.global_limit == 4096
+
+
+def test_get_governor_reads_env_limits(monkeypatch) -> None:
+    from readyagents.workflow.governor import get_governor, reset_governor_for_tests
+
+    monkeypatch.setenv("READYAGENTS_MAX_CONCURRENCY", "128")
+    monkeypatch.setenv("READYAGENTS_GLOBAL_CONCURRENCY", "64")
+    monkeypatch.setenv("READYAGENTS_PER_WORKFLOW_CONCURRENCY", "8")
+    monkeypatch.setenv("READYAGENTS_PER_PROVIDER_CONCURRENCY", "4")
+    monkeypatch.setenv("READYAGENTS_PROVIDER_RATE", "2.5")
+    reset_governor_for_tests()
+    gov = get_governor()
+    assert gov.max_concurrency == 128
+    assert gov.global_limit == 64
+    assert gov.per_workflow_limit == 8
+    assert gov.per_provider_limit == 4
+    assert gov.provider_rate == 2.5
+
+
+def test_retry_after_arms_bucket_so_release_is_not_a_stampede() -> None:
+    clock = {"t": 0.0}
+
+    def now() -> float:
+        return clock["t"]
+
+    gov = ConcurrencyGovernor(global_limit=16, max_concurrency=16, clock=now)
+    gov.note_retry_after("openai", 5.0)
+    assert gov.blocked_until("openai") == 5.0
+    clock["t"] = 5.0
+    got = []
+    lock = threading.Lock()
+
+    def try_once() -> None:
+        try:
+            with gov.acquire(workflow="w", provider="openai", timeout=0.0):
+                with lock:
+                    got.append(1)
+        except GovernorBackpressure:
+            with lock:
+                got.append(0)
+
+    threads = [threading.Thread(target=try_once) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5)
+        assert not thread.is_alive()
+    assert got.count(1) == 1
+    assert got.count(0) == 7
+
+
 def test_per_workflow_limit() -> None:
     gov = ConcurrencyGovernor(global_limit=4, per_workflow_limit=1, max_concurrency=4)
     held = threading.Event()

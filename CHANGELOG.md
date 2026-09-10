@@ -33,6 +33,11 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- Provider and connector HTTP 429/`Retry-After` notify the process concurrency
+  governor (token bucket + wait), so `readyagents batch` backs off instead of
+  retry-storming. `--concurrency` is capped by `READYAGENTS_MAX_CONCURRENCY`
+  (default 4096), not a hidden 32. Declared global / per-workflow /
+  per-provider limits are env and CLI flags.
 - Sovereign egress guard is refcounted so concurrent `batch` rows share one
   process wrapper instead of raising "already installed" or uninstalling
   while another row is still running. Per-handle attempt lists stay isolated.

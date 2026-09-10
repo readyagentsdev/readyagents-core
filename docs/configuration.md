@@ -87,6 +87,11 @@ If the node has no explicit `model:` and the default provider has no key, the en
 | `READYAGENTS_MCP_HTTP_PORT` | Bind port for that HTTP door (default `8765`). |
 | `READYAGENTS_MCP_MAX_CONCURRENT_RUNS` | In-process executor cap for `/runs` (default `4`). |
 | `READYAGENTS_MCP_MAX_PENDING_RUNS` | Queue cap for `/runs`; extra starts return `429` (default `32`). |
+| `READYAGENTS_MAX_CONCURRENCY` | Hard ceiling for in-flight runs (default `4096`). A workflow cannot raise it. |
+| `READYAGENTS_GLOBAL_CONCURRENCY` | Process-wide in-flight cap (defaults to the hard ceiling). |
+| `READYAGENTS_PER_WORKFLOW_CONCURRENCY` | Optional per-workflow in-flight cap. |
+| `READYAGENTS_PER_PROVIDER_CONCURRENCY` | Optional per-provider in-flight cap. |
+| `READYAGENTS_PROVIDER_RATE` | Optional token-bucket rate (tokens/sec) per provider. A 429 `Retry-After` arms a burst-1 bucket even when this is unset. |
 | `READYAGENTS_APPROVAL_UI_SECRET` | Optional HMAC secret for `readyagents approvals serve`. If unset, the process generates one for that lifetime. Never pass the secret as a CLI flag. Restart invalidates UI tokens. |
 | `READYAGENTS_RUN_STORE` | `json` (default) or `sqlite`. JSON files stay under `$READYAGENTS_HOME/runs/`. SQLite is a local optional file, not hosted recovery. |
 | `READYAGENTS_MEMORY_STORE` | `json` (default) or `sqlite` for `type: memory`. Files stay under `$READYAGENTS_HOME/memory/`. |

@@ -212,7 +212,7 @@ def run_batch(
     limit = max(1, int(concurrency))
     if governor is None:
         governor = get_governor()
-    limit = min(limit, governor.global_limit)
+    limit = min(limit, governor.global_limit, governor.max_concurrency)
     token = cancellation or CancellationToken()
     governor.on_shutdown(lambda: token.request(reason="batch shutdown"))
     shared = None

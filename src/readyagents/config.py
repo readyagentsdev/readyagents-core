@@ -150,6 +150,28 @@ class Settings(BaseSettings):
         ge=1,
         validation_alias=AliasChoices("READYAGENTS_MCP_MAX_PENDING_RUNS"),
     )
+    max_concurrency: int = Field(
+        default=4096,
+        ge=1,
+        le=4096,
+        validation_alias=AliasChoices("READYAGENTS_MAX_CONCURRENCY"),
+    )
+    global_concurrency: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices("READYAGENTS_GLOBAL_CONCURRENCY"),
+    )
+    per_workflow_concurrency: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices("READYAGENTS_PER_WORKFLOW_CONCURRENCY"),
+    )
+    per_provider_concurrency: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices("READYAGENTS_PER_PROVIDER_CONCURRENCY"),
+    )
+    provider_rate: float | None = Field(
+        default=None,
+        validation_alias=AliasChoices("READYAGENTS_PROVIDER_RATE"),
+    )
     run_store: str = Field(
         default="json",
         validation_alias=AliasChoices("READYAGENTS_RUN_STORE"),

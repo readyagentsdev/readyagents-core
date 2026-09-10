@@ -8,8 +8,8 @@ import pytest
 
 from readyagents.connectors.context import ConnectorContext
 from readyagents.connectors.fixtures import FixtureStore
-from readyagents.connectors.sdk import iter_cursor_pages, parse_retry_after
-from readyagents.connectors.spec import ConnectorSpec, RateLimitSpec
+from readyagents.connectors.sdk import exchange, iter_cursor_pages, parse_retry_after
+from readyagents.connectors.spec import ConnectorSpec, HttpResponse, RateLimitSpec
 from readyagents.errors import ConnectorCapError, ToolError
 
 
@@ -24,6 +24,32 @@ def _spec() -> ConnectorSpec:
         side_effects="read",
         rate_limit=RateLimitSpec(requests=8, window_seconds=1.0),
     )
+
+
+def test_exchange_429_notifies_process_governor(tmp_path: Path, monkeypatch) -> None:
+    from readyagents.errors import GovernorBackpressure
+    from readyagents.workflow.governor import get_governor, reset_governor_for_tests
+
+    reset_governor_for_tests()
+    calls = {"n": 0}
+
+    def fake_once(ctx, method, url, **kwargs):  # noqa: ANN001
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return HttpResponse(status=429, headers={"Retry-After": "45"}, body=b"slow")
+        return HttpResponse(status=200, headers={}, body=b'{"ok":true}')
+
+    monkeypatch.setattr("readyagents.connectors.sdk._once", fake_once)
+    monkeypatch.setattr("readyagents.connectors.sdk.time.sleep", lambda _s: None)
+    ctx = ConnectorContext(_spec(), workspace=tmp_path)
+    resp = exchange(ctx, "GET", "https://api.example.test/x")
+    assert resp.status == 200
+    assert calls["n"] == 2
+    gov = get_governor()
+    assert gov.blocked_until("rest") > 0
+    with pytest.raises(GovernorBackpressure):
+        with gov.acquire(workflow="w", provider="rest", timeout=0.0):
+            pass
 
 
 def test_parse_retry_after_seconds() -> None:

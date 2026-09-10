@@ -30,8 +30,9 @@ from typing import Any
 from readyagents.errors import GovernorBackpressure, GovernorShutdown
 
 _ABS_CEILING = 4096
-_DEFAULT_GLOBAL = 32
 _DEFAULT_QUEUE = 256
+_RETRY_BUCKET_RATE = 1.0
+_RETRY_BUCKET_BURST = 1.0
 _TLS = threading.local()
 
 
@@ -128,7 +129,7 @@ class ConcurrencyGovernor:
             if max_concurrency is not None
             else hard_concurrency_ceiling()
         )
-        requested = _DEFAULT_GLOBAL if global_limit is None else int(global_limit)
+        requested = ceiling if global_limit is None else int(global_limit)
         self.max_concurrency = ceiling
         self.global_limit = max(1, min(requested, ceiling))
         self.per_workflow_limit = (
@@ -203,16 +204,61 @@ class ConcurrencyGovernor:
                     self._cond.wait()
             return True
 
+    def blocked_until(self, provider: str) -> float:
+        """Monotonic deadline while ``provider`` is paused for Retry-After (0 if not)."""
+        name = _provider_key(provider) or ""
+        with self._cond:
+            return float(self._retry_until.get(name, 0.0))
+
+    def configure(
+        self,
+        *,
+        global_limit: int | None = None,
+        per_workflow_limit: int | None = None,
+        per_provider_limit: int | None = None,
+        provider_rate: float | None = None,
+        provider_burst: float | None = None,
+    ) -> None:
+        """Apply operator limits. Cannot raise the hard ceiling."""
+        with self._cond:
+            if global_limit is not None:
+                self.global_limit = max(1, min(int(global_limit), self.max_concurrency))
+            if per_workflow_limit is not None:
+                self.per_workflow_limit = max(1, min(int(per_workflow_limit), self.global_limit))
+            if per_provider_limit is not None:
+                self.per_provider_limit = max(1, min(int(per_provider_limit), self.global_limit))
+            if provider_rate is not None:
+                self.provider_rate = max(0.0, float(provider_rate))
+            if provider_burst is not None:
+                self.provider_burst = max(0.0, float(provider_burst))
+            self._cond.notify_all()
+
     def note_retry_after(self, provider: str, seconds: float) -> None:
-        """Pause new work for ``provider`` until Retry-After elapses."""
+        """Pause new work for ``provider`` until Retry-After elapses.
+
+        Also arms a per-provider token bucket (burst 1) so waiters trickle
+        after the window instead of stampeding.
+        """
         name = (provider or "").strip().lower()
         if not name:
             return
-        until = self._clock() + max(0.0, float(seconds))
+        wait = max(0.0, float(seconds))
+        until = self._clock() + wait
         with self._cond:
             prev = self._retry_until.get(name, 0.0)
             if until > prev:
                 self._retry_until[name] = until
+            rate = self.provider_rate if self.provider_rate else _RETRY_BUCKET_RATE
+            burst = self.provider_burst if self.provider_burst else _RETRY_BUCKET_BURST
+            bucket = self._buckets.get(name)
+            if bucket is None:
+                bucket = _Bucket(tokens=1.0, updated=until, rate=rate, burst=burst)
+                self._buckets[name] = bucket
+            else:
+                bucket.tokens = 1.0
+                bucket.updated = until
+                if bucket.rate <= 0:
+                    bucket.rate = rate
             self._cond.notify_all()
 
     def acquire(
@@ -364,17 +410,20 @@ class ConcurrencyGovernor:
                 if progressed:
                     break
 
+    def _has_bucket(self, provider: str) -> bool:
+        return provider in self._buckets or self.provider_rate is not None
+
     def _bucket(self, provider: str) -> _Bucket:
         bucket = self._buckets.get(provider)
         if bucket is None:
             burst = self.provider_burst if self.provider_burst is not None else 1.0
-            rate = self.provider_rate if self.provider_rate is not None else 0.0
+            rate = self.provider_rate if self.provider_rate is not None else _RETRY_BUCKET_RATE
             bucket = _Bucket(tokens=burst, updated=self._clock(), rate=rate, burst=burst)
             self._buckets[provider] = bucket
         return bucket
 
     def _refill(self, provider: str) -> None:
-        if self.provider_rate is None:
+        if not self._has_bucket(provider):
             return
         bucket = self._bucket(provider)
         now = self._clock()
@@ -383,15 +432,17 @@ class ConcurrencyGovernor:
         bucket.updated = now
 
     def _tokens_ready(self, provider: str | None) -> bool:
-        if not provider or self.provider_rate is None:
-            return self._retry_until.get(provider or "", 0.0) <= self._clock()
+        if not provider:
+            return True
         if self._retry_until.get(provider, 0.0) > self._clock():
             return False
+        if not self._has_bucket(provider):
+            return True
         self._refill(provider)
         return self._bucket(provider).tokens >= 1.0
 
     def _consume_token(self, provider: str | None) -> None:
-        if not provider or self.provider_rate is None:
+        if not provider or not self._has_bucket(provider):
             return
         self._refill(provider)
         bucket = self._bucket(provider)
@@ -404,7 +455,7 @@ class ConcurrencyGovernor:
             until = self._retry_until.get(provider, 0.0)
             if until > now:
                 delays.append(until - now)
-            if self.provider_rate:
+            if self._has_bucket(provider):
                 self._refill(provider)
                 bucket = self._bucket(provider)
                 if bucket.tokens < 1.0 and bucket.rate > 0:
@@ -421,11 +472,46 @@ _DEFAULT: ConcurrencyGovernor | None = None
 _DEFAULT_LOCK = threading.Lock()
 
 
+def _env_int(name: str) -> int | None:
+    text = os.environ.get(name, "")
+    if text is None or not str(text).strip():
+        return None
+    try:
+        return int(str(text).strip())
+    except ValueError:
+        return None
+
+
+def _env_float(name: str) -> float | None:
+    text = os.environ.get(name, "")
+    if text is None or not str(text).strip():
+        return None
+    try:
+        return float(str(text).strip())
+    except ValueError:
+        return None
+
+
+def governor_from_env() -> ConcurrencyGovernor:
+    """Process governor from env. Default global limit is the hard ceiling."""
+    ceiling = hard_concurrency_ceiling()
+    global_limit = _env_int("READYAGENTS_GLOBAL_CONCURRENCY")
+    if global_limit is None:
+        global_limit = ceiling
+    return ConcurrencyGovernor(
+        global_limit=global_limit,
+        per_workflow_limit=_env_int("READYAGENTS_PER_WORKFLOW_CONCURRENCY"),
+        per_provider_limit=_env_int("READYAGENTS_PER_PROVIDER_CONCURRENCY"),
+        provider_rate=_env_float("READYAGENTS_PROVIDER_RATE"),
+        max_concurrency=ceiling,
+    )
+
+
 def get_governor() -> ConcurrencyGovernor:
     global _DEFAULT
     with _DEFAULT_LOCK:
         if _DEFAULT is None:
-            _DEFAULT = ConcurrencyGovernor()
+            _DEFAULT = governor_from_env()
         return _DEFAULT
 
 
@@ -452,3 +538,60 @@ def parse_retry_after_seconds(raw: Any) -> float | None:
         return max(0.0, float(str(raw).strip()))
     except ValueError:
         return None
+
+
+def _header_map(source: Any) -> Any:
+    if source is None:
+        return None
+    if hasattr(source, "headers"):
+        return source.headers
+    if isinstance(source, dict):
+        return source
+    response = getattr(source, "response", None) or getattr(source, "http_response", None)
+    if response is not None:
+        return getattr(response, "headers", None)
+    return None
+
+
+def retry_after_seconds_from(source: Any) -> float | None:
+    """Parse Retry-After from a header map, HTTP response, or SDK exception."""
+    if isinstance(source, (int, float)):
+        return max(0.0, float(source))
+    headers = _header_map(source)
+    if headers is None:
+        return None
+    getter = headers.get if hasattr(headers, "get") else None
+    raw = None
+    if getter is not None:
+        raw = getter("Retry-After")
+        if raw is None:
+            raw = getter("retry-after")
+    elif "Retry-After" in headers:
+        raw = headers["Retry-After"]
+    elif "retry-after" in headers:
+        raw = headers["retry-after"]
+    return parse_retry_after_seconds(raw)
+
+
+def looks_like_rate_limit(exc: BaseException) -> bool:
+    status = getattr(exc, "status_code", None)
+    if status is None:
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None) or getattr(response, "status", None)
+    if status in {429, 503}:
+        return True
+    name = type(exc).__name__.lower()
+    return "ratelimit" in name or "rate_limit" in name
+
+
+def notify_retry_after(
+    provider: str,
+    source: Any = None,
+    *,
+    seconds: float | None = None,
+) -> None:
+    """Tell the process governor a provider asked us to back off."""
+    wait = seconds if seconds is not None else retry_after_seconds_from(source)
+    if wait is None:
+        return
+    get_governor().note_retry_after(provider, float(wait))
