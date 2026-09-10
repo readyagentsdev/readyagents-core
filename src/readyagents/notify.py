@@ -24,6 +24,9 @@ def post_json(url: str, payload: dict[str, Any], *, timeout: float = 5.0) -> Non
         "Content-Type": "application/json",
         "User-Agent": f"readyagents/{__version__}",
     }
+    assertion = _workload_bearer(current)
+    if assertion:
+        headers["Authorization"] = assertion
     for _ in range(_MAX_HTTP_REDIRECTS + 1):
         parsed = _assert_public_http_url(current, kind=_KIND)
         assert parsed.hostname is not None
@@ -61,3 +64,20 @@ def post_json(url: str, payload: dict[str, Any], *, timeout: float = 5.0) -> Non
             raise OSError(f"HTTP Error {status}")
         return
     raise OSError("too many redirects")
+
+
+def _workload_bearer(url: str) -> str | None:
+    """Attach a short-lived workload JWT when configured. Fail closed on errors."""
+    from readyagents.identity.workload import sign_assertion, workload_configured
+
+    if not workload_configured():
+        return None
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if parsed.scheme and parsed.netloc:
+        audience = f"{parsed.scheme}://{parsed.netloc}"
+    else:
+        audience = "readyagents"
+    token = sign_assertion(audience=audience)
+    return f"Bearer {token}"

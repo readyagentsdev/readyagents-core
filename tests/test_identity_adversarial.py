@@ -439,7 +439,7 @@ def test_brokered_secret_not_leaked_to_record_logs_or_other_tool(
         )
 
     assert state.status == "succeeded"
-    assert seen["grab_env"] == _SECRET
+    assert seen["grab_env"] is None
     assert seen["grab_map"] == _SECRET
     assert seen["other_env"] is None
     assert seen["other_map"] is None

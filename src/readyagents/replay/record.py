@@ -219,7 +219,11 @@ def dispatch_tool(
             )
 
             grant = policy.grant_for(name)
-            granted = materialise(grant, getattr(ctx, "secrets", None))
+            granted = materialise(
+                grant,
+                getattr(ctx, "secrets", None),
+                env_snapshot=getattr(ctx, "credential_env", None),
+            )
             kind = credential_kind(granted)
             ctx.last_credential_kind = kind
             if state is not None and isinstance(getattr(state, "metadata", None), dict):

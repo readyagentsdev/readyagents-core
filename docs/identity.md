@@ -66,5 +66,6 @@ readyagents identity trust list
 
 Optional. Operator-provided key pair and subject (`READYAGENTS_WORKLOAD_SUBJECT`,
 `READYAGENTS_WORKLOAD_KEY`). `whoami` prints subject, key id, and a public
-fingerprint — never the private key. Unconfigured, no outbound identity is
-attached.
+fingerprint — never the private key. When configured, pause-notify webhooks
+(`post_json`) attach a short-lived `Authorization: Bearer` JWT identifying
+this agent. Unconfigured, no outbound identity is attached.
