@@ -806,6 +806,9 @@ class RunCoordinator:
                 self._finish_cancelled(run_id)
                 return
             wrapped = self._wrap_tools(token)
+            from readyagents.workflow.stream import StreamSession, get_stream_hub
+
+            session = StreamSession(run_id=run_id, hub=get_stream_hub())
             _call_supported(
                 run_workflow_file,
                 path,
@@ -820,6 +823,7 @@ class RunCoordinator:
                 cancellation=token,
                 initial_state=state,
                 store=self._store,
+                stream=session,
             )
         except ApprovalRequired:
             paused = True
@@ -1177,9 +1181,71 @@ def build_run_routes(coordinator: RunCoordinator) -> list[Any]:
         except ReadyAgentsError as exc:
             return _respond(*coordinator._caught(exc, request_id=request_id, run_id=run_id))
 
+    async def get_run_events(request: Request) -> Any:
+        from starlette.responses import StreamingResponse
+
+        from readyagents.workflow.stream import (
+            format_sse,
+            get_stream_hub,
+            snapshot_events,
+        )
+
+        run_id = request.path_params.get("run_id", "")
+        try:
+            coordinator.check_rate(_host(request))
+            state = coordinator._load_exact(run_id)
+        except ReadyAgentsError as exc:
+            caught = coordinator._caught(exc, request_id=_request_id(request), run_id=run_id)
+            return _respond(*caught)
+        hub = get_stream_hub()
+        queue = hub.try_subscribe(run_id)
+        if queue is None:
+            return JSONResponse({"error": "stream cap exceeded"}, status_code=429)
+
+        async def _gen():
+            try:
+                for item in snapshot_events(state):
+                    yield format_sse(item)
+                status = getattr(state, "status", "")
+                if status in {"succeeded", "failed", "cancelled", "paused"}:
+                    return
+                import asyncio
+
+                idle = 0
+                while idle < 200:
+                    if queue:
+                        yield format_sse(queue.popleft())
+                        idle = 0
+                        continue
+                    await asyncio.sleep(0.05)
+                    idle += 1
+                    try:
+                        latest = coordinator._load_exact(run_id)
+                    except ReadyAgentsError:
+                        break
+                    if getattr(latest, "status", "") in {
+                        "succeeded",
+                        "failed",
+                        "cancelled",
+                        "paused",
+                    }:
+                        for item in snapshot_events(latest):
+                            if item.get("event") in {"run.finished", "run.cancelled"}:
+                                yield format_sse(item)
+                        break
+            finally:
+                hub.unsubscribe(run_id, queue)
+
+        return StreamingResponse(
+            _gen(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-store"},
+        )
+
     return [
         Route("/runs", post_runs, methods=["POST"]),
         Route("/runs/{run_id}", get_run, methods=["GET"]),
+        Route("/runs/{run_id}/events", get_run_events, methods=["GET"]),
         Route("/runs/{run_id}/decide", post_decide, methods=["POST"]),
         Route("/runs/{run_id}/cancel", post_cancel, methods=["POST"]),
     ]

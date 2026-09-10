@@ -113,7 +113,7 @@ def test_card_is_deterministic_and_marks_approval(tmp_path: Path) -> None:
     assert a == b
     assert a["digest"] == card_digest(a)
     assert a["capabilities"]["humanInput"] is False
-    assert a["capabilities"]["streaming"] is False
+    assert a["capabilities"]["streaming"] is True
     assert a["readyagents"]["approvalCapable"] is False
     g = build_agent_card(gated, url=url)
     assert g["capabilities"]["humanInput"] is True
@@ -165,7 +165,7 @@ def test_cli_card_twice_identical(tmp_path: Path, tmp_settings) -> None:
     assert a["command"] == "a2a card"
     assert a["card"] == b["card"]
     assert a["card"]["readyagents"]["approvalCapable"] is True
-    assert a["card"]["capabilities"]["streaming"] is False
+    assert a["card"]["capabilities"]["streaming"] is True
 
 
 def test_cli_dry_run_delegate_example(examples_dir: Path, tmp_settings) -> None:
@@ -338,7 +338,7 @@ def test_serve_requires_bearer_and_serves_card(tmp_path: Path, tmp_settings) -> 
         assert card.status_code == 200
         body = card.json()
         assert body["name"] == "a2a-ok"
-        assert body["capabilities"]["streaming"] is False
+        assert body["capabilities"]["streaming"] is True
         alias = client.get(WELL_KNOWN_ALIAS, headers=_headers())
         assert alias.status_code == 200
         assert alias.json()["digest"] == body["digest"]

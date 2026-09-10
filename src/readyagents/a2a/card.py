@@ -42,7 +42,7 @@ def build_agent_card(
         "url": str(url).rstrip("/"),
         "version": str(version or workflow.version or __version__),
         "capabilities": {
-            "streaming": False,
+            "streaming": True,
             "pushNotifications": False,
             "humanInput": approval,
         },
