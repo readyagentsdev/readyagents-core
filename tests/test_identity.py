@@ -160,12 +160,27 @@ def test_wrong_audience_and_issuer(tmp_path: Path) -> None:
         verify_token(_token(pem, {"iss": "https://evil.example/"}), anchors, base=tmp_path)
 
 
-def test_skew_boundary_accepts_inside_and_refuses_outside(tmp_path: Path) -> None:
+def test_skew_boundary_accepts_inside_and_refuses_outside(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from datetime import UTC
+    from datetime import datetime as real_datetime
+
     pem, jwk = _rsa_pair()
     skew = 60
     trust = _write_trust(tmp_path, jwk, max_skew_seconds=skew)
     anchors = load_trust_anchors(trust)
-    now = int(time.time())
+    frozen = real_datetime.now(UTC)
+
+    class _FrozenDateTime(real_datetime):
+        @classmethod
+        def now(cls, tz=None):  # noqa: ANN001
+            if tz is None:
+                return frozen.replace(tzinfo=None)
+            return frozen.astimezone(tz)
+
+    monkeypatch.setattr("jwt.api_jwt.datetime", _FrozenDateTime)
+    now = int(frozen.timestamp())
     inside = _token(
         pem,
         {"exp": now - (skew - 1), "nbf": now - 120, "iat": now - 120, "jti": "skew-in"},
