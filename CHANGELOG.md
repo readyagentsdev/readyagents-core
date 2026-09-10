@@ -4,6 +4,13 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Fixed
+
+- Workload `sign_assertion` is attached to outbound pause-notify (`post_json`)
+  when configured; a fixture peer can verify the JWT against the public key.
+- Credential grants are delivered via a thread-local mapping, not shared
+  `os.environ`, so parallel tool branches cannot see a sibling's secret.
+
 ## 1.5.0 — 2026-09-10
 
 ### Added
@@ -27,10 +34,6 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
-- Workload `sign_assertion` is attached to outbound pause-notify (`post_json`)
-  when configured; a fixture peer can verify the JWT against the public key.
-- Credential grants are delivered via a thread-local mapping, not shared
-  `os.environ`, so parallel tool branches cannot see a sibling's secret.
 - Spend meter reserves only the in-flight call's estimated tokens/cost, not
   the unused remainder of `--max-tokens` / `--max-spend`, so overlapping
   parallel `complete()` calls that together fit under the cap succeed.
