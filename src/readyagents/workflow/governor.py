@@ -432,9 +432,10 @@ class ConcurrencyGovernor:
         bucket.updated = now
 
     def _tokens_ready(self, provider: str | None) -> bool:
+        now = self._clock()
         if not provider:
-            return True
-        if self._retry_until.get(provider, 0.0) > self._clock():
+            return all(until <= now for until in self._retry_until.values())
+        if self._retry_until.get(provider, 0.0) > now:
             return False
         if not self._has_bucket(provider):
             return True
