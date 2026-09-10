@@ -4,8 +4,6 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
-## 1.9.0 — 2026-09-10
-
 ### Added
 
 - **A2A interoperability.** Serve one workflow as an A2A agent
@@ -15,6 +13,11 @@ All notable changes to ReadyAgents Core.
   pin; credentials never follow a cross-host redirect; unsigned answers to a
   local gate are refused and audited. This is a served mapping, not A2A
   certification. See [docs/a2a.md](docs/a2a.md).
+
+## 1.9.0 — 2026-09-10
+
+### Added
+
 - **Connector suite.** Typed contract above the tool registry (`ConnectorSpec` /
   `ConnectorContext`), SDK with `Retry-After`, pagination and size caps, and a
   small first-party set (`rest`, `sql`, `object_storage`, `message`, `ingest`).
