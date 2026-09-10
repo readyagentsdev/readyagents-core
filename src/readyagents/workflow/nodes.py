@@ -17,6 +17,7 @@ from readyagents.errors import (
     CancellationRequested,
     CassetteMiss,
     CircuitOpen,
+    GateExpired,
     LLMError,
     NodeError,
     PolicyDenied,
@@ -109,6 +110,8 @@ class ExecutionContext:
         include_buffers: Mapping[str, str] | None = None,
         require_signed: bool = False,
         frozen: bool = False,
+        vote_reasons: Mapping[str, str] | None = None,
+        vote_signature_status: str = "unsigned",
     ) -> None:
         self.workflow = workflow
         self.tools = tools
@@ -151,6 +154,8 @@ class ExecutionContext:
         self.include_buffers = {str(k): str(v) for k, v in dict(include_buffers or {}).items()}
         self.require_signed = bool(require_signed)
         self.frozen = bool(frozen)
+        self.vote_reasons = {str(k): str(v) for k, v in dict(vote_reasons or {}).items()}
+        self.vote_signature_status = str(vote_signature_status or "unsigned")
         self.last_credential_kind: str | None = None
         self.last_tool_rounds: list[dict[str, Any]] = []
         self._persist_lock = threading.RLock()
@@ -233,6 +238,8 @@ class ExecutionContext:
             include_buffers=self.include_buffers,
             require_signed=self.require_signed,
             frozen=self.frozen,
+            vote_reasons=self.vote_reasons,
+            vote_signature_status=self.vote_signature_status,
         )
 
 
@@ -735,8 +742,262 @@ def _run_condition(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> di
 
 
 def _run_approval(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dict[str, Any]:
+    from readyagents.approvals.gate import (
+        Vote,
+        actor_is_eligible,
+        apply_escalation,
+        clock_now,
+        eligible_labels,
+        enterprise_fields_set,
+        evaluate_gate,
+        expires_at_for,
+        format_clock,
+        legacy_pause,
+        normalize_actor,
+        parse_clock,
+        pause_from_pending,
+    )
+
     ns = state.mapping()
     prompt = interpolate(node.prompt or f"Approve node '{node.id}'?", ns)
+    pending = state.pending if isinstance(state.pending, dict) else {}
+    use_enterprise = enterprise_fields_set(node) or (
+        isinstance(pending, dict)
+        and pending.get("node_id") == node.id
+        and not legacy_pause(pending)
+    )
+    if not use_enterprise:
+        return _run_approval_classic(node, state, ctx, prompt)
+
+    now = clock_now()
+    pause = pause_from_pending(pending if pending.get("node_id") == node.id else {}, node=node)
+    if not pause.paused_at:
+        pause.paused_at = format_clock(now)
+    if not pause.expires_at:
+        paused_at = parse_clock(pause.paused_at) or now
+        pause.expires_at = expires_at_for(node, paused_at=paused_at)
+    if not pause.eligible_actors:
+        pause.eligible_actors = eligible_labels(list(node.approver_roles or []))
+        if pause.escalated_to:
+            pause.eligible_actors = eligible_labels(pause.escalated_to)
+    if not pause.on_expire and node.on_expire:
+        pause.on_expire = node.on_expire
+    if node.deny_actor and not pause.deny_actor:
+        pause.deny_actor = list(node.deny_actor)
+    initiator = ""
+    if isinstance(state.metadata, dict):
+        initiator = str(state.metadata.get("actor") or "")
+    if initiator and normalize_actor(initiator) not in {
+        normalize_actor(item) for item in pause.deny_actor
+    }:
+        if any(normalize_actor(item) in {"$initiator", "initiator"} for item in pause.deny_actor):
+            pause.deny_actor = [
+                initiator if normalize_actor(item) in {"$initiator", "initiator"} else item
+                for item in pause.deny_actor
+            ]
+
+    just_escalated = False
+    outcome = evaluate_gate(pause, now)
+    if outcome.status == "escalated":
+        targets = list(node.escalate_to or pause.approver_roles)
+        apply_escalation(pause, now=now, targets=targets)
+        _persist_pause(state, ctx, pause)
+        if ctx.auditor is not None:
+            ctx.auditor(
+                "gate_escalated",
+                run_id=state.run_id,
+                node_id=node.id,
+                elapsed_seconds=outcome.elapsed_seconds,
+                escalated_to=list(pause.escalated_to),
+                clock_source=pause.clock_source,
+                actor=ctx.actor,
+            )
+        _notify_enterprise(node, state, ctx, prompt, pause, first=False)
+        just_escalated = True
+        outcome = evaluate_gate(pause, now, ignore_expiry=True)
+    if outcome.status == "expired":
+        _record_expiry(ctx, state, node, pause, outcome)
+        raise GateExpired(
+            f"Approval '{node.id}' expired after {outcome.elapsed_seconds}s (on_expire=fail)"
+        )
+    if outcome.status == "rejected" and outcome.reason == "expired":
+        _record_expiry(ctx, state, node, pause, outcome)
+        return _approval_output(node, state, ctx, prompt, approved=False, pause=pause)
+    if outcome.status == "approved":
+        return _approval_output(node, state, ctx, prompt, approved=True, pause=pause)
+    if outcome.status == "rejected":
+        return _approval_output(node, state, ctx, prompt, approved=False, pause=pause)
+
+    raw = ctx.decision_for(node.id)
+    if raw is None:
+        first = not pause.approvals_received
+        _persist_pause(state, ctx, pause)
+        if first:
+            _notify_enterprise(node, state, ctx, prompt, pause, first=True)
+        raise ApprovalRequired(node.id, state.run_id, prompt, state=state, pause=pause.as_dict())
+
+    if raw in _APPROVE_VALUES:
+        action = "approve"
+    elif raw in _REJECT_VALUES:
+        action = "reject"
+    else:
+        raise NodeError(node.id, f"unknown decision '{raw}' (use approve or reject)")
+
+    if ctx.authorizer is not None:
+        try:
+            ctx.authorizer.check(ctx.actor, action, node.id)
+        except AuthorizationError:
+            if ctx.auditor is not None:
+                ctx.auditor(
+                    "decision_refused",
+                    run_id=state.run_id,
+                    node_id=node.id,
+                    actor=ctx.actor,
+                    reason="unauthorized",
+                )
+            raise ApprovalRequired(
+                node.id, state.run_id, prompt, state=state, pause=pause.as_dict()
+            ) from None
+
+    reason = (ctx.vote_reasons or {}).get(node.id)
+    if pause.require_reason and not (reason and str(reason).strip()):
+        if ctx.auditor is not None:
+            ctx.auditor(
+                "decision_refused",
+                run_id=state.run_id,
+                node_id=node.id,
+                actor=ctx.actor,
+                reason="missing_reason",
+            )
+        raise ApprovalRequired(node.id, state.run_id, prompt, state=state, pause=pause.as_dict())
+
+    verified = getattr(ctx, "verified_actor", None)
+    roles = list(getattr(verified, "roles", ()) or ())
+    fn = getattr(ctx.authorizer, "roles_for", None)
+    if callable(fn):
+        roles = list(roles) + [str(item) for item in list(fn(ctx.actor) or [])]
+    delegated_from = None
+    delegated_role = None
+    try:
+        from readyagents.approvals.delegate import find_delegation
+        from readyagents.config import get_settings
+
+        home = getattr(ctx, "pin_home", None) or get_settings().home_path()
+        grant = find_delegation(
+            actor=ctx.actor,
+            roles=roles or pause.approver_roles,
+            home=home,
+            now=now,
+        )
+    except Exception:  # noqa: BLE001
+        grant = None
+    if grant is not None:
+        delegated_from = grant.from_actor
+        delegated_role = grant.scope
+        if grant.scope:
+            roles = list(roles) + [grant.scope]
+        else:
+            roles = list(roles) + list(pause.approver_roles)
+
+    if not actor_is_eligible(ctx.actor, pause, roles=roles, delegated_role=delegated_role):
+        if ctx.auditor is not None:
+            ctx.auditor(
+                "decision_refused",
+                run_id=state.run_id,
+                node_id=node.id,
+                actor=ctx.actor,
+                reason="ineligible",
+            )
+        raise ApprovalRequired(node.id, state.run_id, prompt, state=state, pause=pause.as_dict())
+
+    existing = next(
+        (
+            vote
+            for vote in pause.approvals_received
+            if vote.actor_norm() == normalize_actor(ctx.actor)
+        ),
+        None,
+    )
+    if existing is not None:
+        if existing.decision != action:
+            if ctx.auditor is not None:
+                ctx.auditor(
+                    "decision_refused",
+                    run_id=state.run_id,
+                    node_id=node.id,
+                    actor=ctx.actor,
+                    reason="duplicate_actor",
+                )
+            raise ApprovalRequired(
+                node.id, state.run_id, prompt, state=state, pause=pause.as_dict()
+            )
+    else:
+        rec = pause.recommendation
+        rec_norm = rec.strip().lower() if rec else ""
+        override = False
+        if rec_norm and rec_norm not in {"none", action}:
+            if rec_norm in _APPROVE_VALUES and action == "reject":
+                override = True
+            elif rec_norm in _REJECT_VALUES and action == "approve":
+                override = True
+            elif rec_norm != action:
+                override = True
+        declared = {normalize_actor(item) for item in pause.approver_roles}
+        matched_role = next(
+            (item for item in roles if normalize_actor(item) in declared),
+            None,
+        )
+        if matched_role is None and delegated_role and normalize_actor(delegated_role) in declared:
+            matched_role = delegated_role
+        vote = Vote(
+            actor=str(ctx.actor or ""),
+            decision=action,
+            at=format_clock(now),
+            role=matched_role or (roles[0] if roles else None),
+            reason=str(reason).strip() if reason else None,
+            signature_status=str(getattr(ctx, "vote_signature_status", None) or "unsigned"),
+            delegated_from=delegated_from,
+            override=override,
+        )
+        pause.approvals_received.append(vote)
+        _persist_pause(state, ctx, pause)
+        if ctx.auditor is not None:
+            ctx.auditor(
+                "decision",
+                run_id=state.run_id,
+                node_id=node.id,
+                decision=action,
+                actor=ctx.actor,
+                delegated_from=delegated_from,
+                override=override,
+                signature_status=vote.signature_status,
+                reason=vote.reason,
+            )
+
+    outcome = evaluate_gate(pause, now, ignore_expiry=just_escalated)
+    if outcome.status == "pending":
+        raise ApprovalRequired(node.id, state.run_id, prompt, state=state, pause=pause.as_dict())
+    if outcome.status == "approved":
+        return _approval_output(node, state, ctx, prompt, approved=True, pause=pause)
+    if outcome.status in {"rejected", "expired"}:
+        if outcome.reason == "expired":
+            _record_expiry(ctx, state, node, pause, outcome)
+            if outcome.status == "expired":
+                raise GateExpired(
+                    f"Approval '{node.id}' expired after "
+                    f"{outcome.elapsed_seconds}s (on_expire=fail)"
+                )
+        return _approval_output(node, state, ctx, prompt, approved=False, pause=pause)
+    if outcome.status == "escalated":
+        apply_escalation(pause, now=now, targets=list(node.escalate_to or []))
+        _persist_pause(state, ctx, pause)
+        raise ApprovalRequired(node.id, state.run_id, prompt, state=state, pause=pause.as_dict())
+    return _approval_output(node, state, ctx, prompt, approved=False, pause=pause)
+
+
+def _run_approval_classic(
+    node: NodeSpec, state: RunState, ctx: ExecutionContext, prompt: str
+) -> dict[str, Any]:
     raw = ctx.decision_for(node.id)
     if raw is None:
         raise ApprovalRequired(node.id, state.run_id, prompt, state=state)
@@ -769,6 +1030,78 @@ def _run_approval(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dic
             actor=ctx.actor,
             **extra,
         )
+    return _approval_output(node, state, ctx, prompt, approved=approved, pause=None)
+
+
+def _persist_pause(state: RunState, ctx: ExecutionContext, pause: Any) -> None:
+    payload = pause.as_dict() if hasattr(pause, "as_dict") else dict(pause)
+    pending = dict(state.pending or {}) if isinstance(state.pending, dict) else {}
+    pending.update(payload)
+    pending["type"] = "approval"
+    pending["node_id"] = state.pending_node or pending.get("node_id")
+    state.pending = pending
+    if ctx.on_persist is not None:
+        ctx.on_persist(state)
+
+
+def _record_expiry(
+    ctx: ExecutionContext, state: RunState, node: NodeSpec, pause: Any, outcome: Any
+) -> None:
+    pause.expired = True
+    _persist_pause(state, ctx, pause)
+    if ctx.auditor is not None:
+        ctx.auditor(
+            "gate_expired",
+            run_id=state.run_id,
+            node_id=node.id,
+            elapsed_seconds=getattr(outcome, "elapsed_seconds", None),
+            on_expire=pause.on_expire,
+            clock_source=pause.clock_source,
+            actor=ctx.actor,
+        )
+
+
+def _notify_enterprise(
+    node: NodeSpec,
+    state: RunState,
+    ctx: ExecutionContext,
+    prompt: str,
+    pause: Any,
+    *,
+    first: bool,
+) -> None:
+    channels = list(getattr(node, "notify", None) or [])
+    if not channels:
+        return
+    from readyagents.approvals.channels import notify_channels
+
+    workspace = None
+    if isinstance(state.metadata, dict) and state.metadata.get("workspace"):
+        from pathlib import Path
+
+        workspace = Path(str(state.metadata["workspace"]))
+    notify_channels(
+        channels,
+        run_id=state.run_id,
+        node_id=node.id,
+        prompt=prompt,
+        eligible=list(pause.eligible_actors),
+        expires_at=pause.expires_at,
+        workspace=workspace,
+        redactor=ctx.redactor,
+    )
+
+
+def _approval_output(
+    node: NodeSpec,
+    state: RunState,
+    ctx: ExecutionContext,
+    prompt: str,
+    *,
+    approved: bool,
+    pause: Any,
+) -> dict[str, Any]:
+    action = "approve" if approved else "reject"
     if approved:
         nxt = node.then or node.next
     else:
@@ -780,6 +1113,11 @@ def _run_approval(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dic
         "next": nxt,
         "actor": ctx.actor,
     }
+    if pause is not None:
+        output["approvals_received"] = [vote.as_dict() for vote in pause.approvals_received]
+        output["approvals_required"] = pause.approvals_required
+        if any(vote.override for vote in pause.approvals_received):
+            output["override"] = True
     verified = getattr(ctx, "verified_actor", None)
     if verified is not None:
         output["identified"] = bool(getattr(verified, "identified", lambda: False)())
@@ -832,6 +1170,8 @@ def execute_node_with_policy(
         except CancellationRequested:
             raise
         except ApprovalRequired:
+            raise
+        except GateExpired:
             raise
         except CassetteMiss:
             raise

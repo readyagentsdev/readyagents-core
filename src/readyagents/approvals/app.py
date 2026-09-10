@@ -332,6 +332,8 @@ class ApprovalApplication:
         for item in stored:
             if not is_approval_pause(item.state):
                 continue
+            if self.actor and not _caller_may_see(item.state, self.actor, self.settings):
+                continue
             view = approval_view(
                 item.state,
                 revision=item.revision,
@@ -585,6 +587,18 @@ class ApprovalApplication:
         )
         resp.headers.append(("Allow", ", ".join(allowed)))
         return resp
+
+
+def _caller_may_see(state: Any, actor: str, settings: Settings) -> bool:
+    """Queue entitlement: unauthorized and missing look identical."""
+    from readyagents.approvals.queue import list_approvals
+
+    rows = list_approvals(
+        [state],
+        actor=actor,
+        home=settings.home_path() if settings is not None else None,
+    )
+    return bool(rows)
 
 
 def _match_decide(path: str) -> str | None:

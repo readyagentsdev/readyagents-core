@@ -155,6 +155,8 @@ def run_workflow_file(
     require_signed: bool = False,
     frozen: bool = False,
     pack_specs: Sequence[str] | None = None,
+    vote_reasons: Mapping[str, str] | None = None,
+    vote_signature_status: str = "unsigned",
 ) -> RunState:
     settings = settings or get_settings()
     source_file = Path(path)
@@ -293,8 +295,15 @@ def run_workflow_file(
     action = "resume" if resume_state is not None else "run"
     resource = resume_state.run_id if resume_state is not None else workflow.name
     resolved_authorizer.check(resolved_actor, action, resource)
+    from readyagents.approvals.gate import enterprise_fields_set
+
+    nodes = workflow.node_map()
     for node_id, decision in merged_decisions.items():
         gate = "approve" if str(decision).strip().lower() in _APPROVE else "reject"
+        node = nodes.get(node_id)
+        if node is not None and enterprise_fields_set(node):
+            # Node enforces RBAC and keeps the run paused on deny.
+            continue
         resolved_authorizer.check(resolved_actor, gate, node_id)
 
     redact_on = bool(settings.redact if workflow.redact is None else workflow.redact)
@@ -571,6 +580,8 @@ def run_workflow_file(
         include_buffers=trust_report.include_buffers,
         require_signed=required,
         frozen=lock_frozen,
+        vote_reasons=vote_reasons,
+        vote_signature_status=vote_signature_status,
     )
     metadata = {
         "source": str(source_path),
@@ -856,6 +867,8 @@ def resume_run(
     require_signed: bool = False,
     frozen: bool = False,
     pack_specs: Sequence[str] | None = None,
+    vote_reasons: Mapping[str, str] | None = None,
+    vote_signature_status: str = "unsigned",
 ) -> RunState:
     settings = settings or get_settings()
     owned_store = False
@@ -903,6 +916,8 @@ def resume_run(
             require_signed=require_signed,
             frozen=frozen,
             pack_specs=pack_specs,
+            vote_reasons=vote_reasons,
+            vote_signature_status=vote_signature_status,
         )
     finally:
         if owned_store:

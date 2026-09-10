@@ -1,5 +1,55 @@
 {
   "$defs": {
+    "ApprovalNotifySpec": {
+      "additionalProperties": false,
+      "description": "Opt-in pause notification. Failure never changes run state.",
+      "properties": {
+        "command": {
+          "description": "Argv for kind=command.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Command",
+          "type": "array"
+        },
+        "kind": {
+          "description": "file, command, or webhook.",
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "JSONL path for kind=file.",
+          "title": "Path"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "HTTPS URL for kind=webhook.",
+          "title": "Url"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ApprovalNotifySpec",
+      "type": "object"
+    },
     "BudgetSpec": {
       "additionalProperties": false,
       "description": "Optional token/cost budget for LLM calls in this workflow.",
@@ -462,6 +512,50 @@
           },
           "then": {
             "properties": {
+              "approvals_required": {
+                "anyOf": [
+                  {
+                    "maximum": 32,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Quorum size. Omitted means a single decision resolves the gate.",
+                "title": "Approvals Required"
+              },
+              "approver_roles": {
+                "description": "Roles that may vote. Recorded on the pause as the eligible set.",
+                "items": {
+                  "type": "string"
+                },
+                "title": "Approver Roles",
+                "type": "array"
+              },
+              "deny_actor": {
+                "description": "Identities that may not vote (typically the run initiator).",
+                "items": {
+                  "type": "string"
+                },
+                "title": "Deny Actor",
+                "type": "array"
+              },
+              "distinct_actors": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Refuse the same identity twice. Defaults true when quorum > 1.",
+                "title": "Distinct Actors"
+              },
               "else": {
                 "anyOf": [
                   {
@@ -475,6 +569,48 @@
                 "description": "Successor node id when the condition/approval is false.",
                 "title": "Else"
               },
+              "escalate_to": {
+                "description": "Workflow-declared roles used when on_expire is escalate.",
+                "items": {
+                  "type": "string"
+                },
+                "title": "Escalate To",
+                "type": "array"
+              },
+              "expires_in": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Lazy deadline (30m, 4h, 1d). Evaluated on resume/decide/status.",
+                "title": "Expires In"
+              },
+              "notify": {
+                "description": "Opt-in file/command/webhook pause notifications.",
+                "items": {
+                  "$ref": "#/$defs/ApprovalNotifySpec"
+                },
+                "title": "Notify",
+                "type": "array"
+              },
+              "on_expire": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "reject, escalate, or fail. approve is refused at validation.",
+                "title": "On Expire"
+              },
               "prompt": {
                 "anyOf": [
                   {
@@ -487,6 +623,44 @@
                 "default": null,
                 "description": "Agent or approval prompt. Templates allowed.",
                 "title": "Prompt"
+              },
+              "recommendation": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Model recommendation; a contradicting vote is recorded as override.",
+                "title": "Recommendation"
+              },
+              "reject_short_circuit": {
+                "default": true,
+                "description": "A single reject settles the gate (default).",
+                "title": "Reject Short Circuit",
+                "type": "boolean"
+              },
+              "require": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "any (default) or all across declared approver_roles.",
+                "title": "Require"
+              },
+              "require_reason": {
+                "default": false,
+                "description": "Refuse a vote that omits a reason.",
+                "title": "Require Reason",
+                "type": "boolean"
               },
               "then": {
                 "anyOf": [
