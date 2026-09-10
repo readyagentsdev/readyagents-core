@@ -6,6 +6,13 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **A2A interoperability.** Serve one workflow as an A2A agent
+  (`readyagents a2a serve|card|probe`) and delegate with `type: a2a`. Tasks are
+  a projection over the durable run record (not a second state machine).
+  Loopback by default; polling only; remote content untrusted; SSRF public-IP
+  pin; credentials never follow a cross-host redirect; unsigned answers to a
+  local gate are refused and audited. This is a served mapping, not A2A
+  certification. See [docs/a2a.md](docs/a2a.md).
 - **Connector suite.** Typed contract above the tool registry (`ConnectorSpec` /
   `ConnectorContext`), SDK with `Retry-After`, pagination and size caps, and a
   small first-party set (`rest`, `sql`, `object_storage`, `message`, `ingest`).

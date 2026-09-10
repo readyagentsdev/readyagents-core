@@ -52,3 +52,11 @@ Quote the Python SDK:
 > A resolver works on every connection. For a client on a legacy connection the SDK sends it the question directly; on a 2026-07-28 connection the SDK returns the question from the call, and the client's next attempt carries the answer.
 
 This is a design note, not a competitor gap. The ask is now a stateless retry-shaped resolver. ReadyAgents 0.10.0 surfaces a paused approval as `tasks/get` `input_required` and accepts `tasks/update` `inputResponses`, routed through the same signed/RBAC/audit path as `readyagents decide`. That is protocol-native HITL on a durable run record, not a hosted elicitation service. Process death still loses the in-flight executor. The localhost approval page remains an additional local door, not a substitute for MCP.
+
+## A2A: a projection, not a second runtime
+
+ReadyAgents can publish one workflow as an A2A agent and call a remote A2A
+agent as a workflow node. That surface is a mapping over the same durable run
+record (CLI, MCP tasks, `/runs`). It does not add a second state machine, an
+always-on listener, or a certification claim. Remote cards, messages, and
+artifacts are untrusted. Delegation can exfiltrate. See [a2a.md](a2a.md).
