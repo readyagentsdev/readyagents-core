@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 1.9.0 — 2026-09-10
+
 ### Added
 
 - **Connector suite.** Typed contract above the tool registry (`ConnectorSpec` /
