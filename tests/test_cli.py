@@ -57,6 +57,7 @@ def test_readme_cli_table_lists_help_commands() -> None:
         "fork",
         "freeze",
         "serve",
+        "batch",
     ):
         assert token in help_text, token
         assert token in table, token
