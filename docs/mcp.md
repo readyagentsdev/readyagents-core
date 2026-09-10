@@ -5,7 +5,8 @@ ReadyAgents includes an MCP **client** (call other servers from a workflow) and 
 MCP is an **optional extra**. Builtin tools are Python and need no Node.js. A core install without the extra still runs keyless workflows. MCP/HTTP imports fail only when those paths are used (`MCPError`). No new mandatory dependency.
 
 ```bash
-pip install -e ".[mcp]"
+pip install "readyagentsdev[mcp]"
+# from a clone: pip install -e ".[mcp]"
 ```
 
 ## Builtin tools (always available)
@@ -67,7 +68,7 @@ readyagents mcp serve --transport stdio
 readyagents mcp serve --transport streamable-http --host 127.0.0.1 --port 8765
 ```
 
-Requires `pip install -e ".[mcp]"`. Flags: [cli.md](cli.md).
+Requires `pip install "readyagentsdev[mcp]"` (clone: `pip install -e ".[mcp]"`). Flags: [cli.md](cli.md).
 
 Point your MCP host at the `readyagents` CLI command. Example Claude Desktop / host config sketch (**stdio**):
 
@@ -128,7 +129,7 @@ Roots, Sampling, `logging/setLevel`, OAuth authorization server, Dynamic Client 
 
 ### SDK extras
 
-`pip install -e ".[mcp]"` keeps `mcp>=1.2,<3`. `pip install -e ".[mcp2]"` pins the 2.x line. `server/discover` and `readyagents mcp serve --json` report the installed pin and a `full` / `legacy` / `absent` tier. A 1.x pin advertises the reduced version list rather than claiming `2026-07-28`.
+`pip install "readyagentsdev[mcp]"` (clone: `-e ".[mcp]"`) keeps `mcp>=1.2,<3`. `pip install "readyagentsdev[mcp2]"` pins the 2.x line. `server/discover` and `readyagents mcp serve --json` report the installed pin and a `full` / `legacy` / `absent` tier. A 1.x pin advertises the reduced version list rather than claiming `2026-07-28`.
 
 ### `/mcp` — MCP Streamable HTTP
 
@@ -246,7 +247,7 @@ For concurrent local mutations (this door plus CLI `decide` or the localhost app
 
 ```bash
 # terminal 1
-pip install -e ".[mcp]"
+pip install "readyagentsdev[mcp]"
 readyagents mcp serve --transport streamable-http --host 127.0.0.1 --port 8765
 
 # terminal 2 (same token; printed to stderr if generated)

@@ -38,10 +38,11 @@ Loopback (and allowlisted private) OpenAI-compatible bases need no placeholder k
 Install extras to talk to a provider:
 
 ```bash
-pip install -e ".[openai]"
-pip install -e ".[anthropic]"
-pip install -e ".[all]"
-pip install -e ".[sign]"   # Ed25519 artifact signatures; not in all
+pip install "readyagentsdev[openai]"
+pip install "readyagentsdev[anthropic]"
+pip install "readyagentsdev[all]"
+pip install "readyagentsdev[sign]"   # Ed25519 artifact signatures; not in all
+# from a clone: pip install -e ".[openai]" (same extras)
 ```
 
 `[sign]` is opt-in and unused on the unsigned default path. See [supply-chain.md](supply-chain.md).

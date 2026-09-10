@@ -104,7 +104,8 @@ readyagents run examples/a2a_delegate.yaml --dry-run
 | `--out` | Write the card JSON to a file (`a2a card`). |
 | `--json` | Standard envelope. |
 
-`a2a serve` needs starlette/uvicorn (`pip install -e ".[mcp]"`), same as MCP HTTP.
+`a2a serve` needs starlette and uvicorn (`pip install "readyagentsdev[mcp]" starlette uvicorn`;
+from a clone, `pip install -e ".[mcp]"`). Same extra as MCP HTTP.
 `a2a card` and `type: a2a` dry-run work on a core install. If `--token-env` is
 empty on loopback, a token is generated and printed once to stderr. Public bind
 requires the env var.
@@ -468,7 +469,8 @@ readyagents delegations revoke ID
 
 ## `readyagents mcp serve`
 
-MCP server. Requires `pip install -e ".[mcp]"`. **Stdio is the default** and needs no new flag. See [mcp.md](mcp.md).
+MCP server. Requires `pip install "readyagentsdev[mcp]"` (from a clone:
+`pip install -e ".[mcp]"`). **Stdio is the default** and needs no new flag. See [mcp.md](mcp.md).
 
 ```bash
 readyagents mcp serve
