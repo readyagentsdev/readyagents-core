@@ -73,10 +73,11 @@ def request_json(
     token: str | None = None,
     accept_redirects: bool = True,
     timeout: float = _TIMEOUT,
+    token_for: str | None = None,
 ) -> tuple[int, Any, dict[str, str]]:
     """HTTP JSON with public-IP SSRF pin. Authorization never follows a new host."""
     current = url
-    original_host = (urlparse(url).hostname or "").lower()
+    issued_host = (urlparse(token_for or url).hostname or "").lower()
     payload = json.dumps(body).encode("utf-8") if body is not None else None
     custom = _transport.get()
     for _ in range(MAX_REDIRECTS + 1):
@@ -88,7 +89,7 @@ def request_json(
         if payload is not None:
             headers["Content-Type"] = "application/json"
         this_host = host.lower()
-        if token and this_host == original_host:
+        if token and this_host == issued_host:
             headers["Authorization"] = f"Bearer {token}"
         if custom is None:
             pinned = _assert_public_http_url(current, kind="a2a")
@@ -131,7 +132,7 @@ def request_json(
         if accept_redirects and status in {301, 302, 303, 307, 308} and location:
             nxt = urljoin(current, location)
             next_host = (urlparse(nxt).hostname or "").lower()
-            if next_host != original_host:
+            if next_host != issued_host:
                 token = None
             current = nxt
             if method.upper() == "POST" and status in {301, 302, 303}:
@@ -207,6 +208,7 @@ def jsonrpc_call(
     *,
     token: str | None = None,
     rpc_id: int = 1,
+    token_for: str | None = None,
 ) -> dict[str, Any]:
     payload = {
         "jsonrpc": "2.0",
@@ -220,6 +222,7 @@ def jsonrpc_call(
         body=payload,
         token=token,
         accept_redirects=True,
+        token_for=token_for,
     )
     if status >= 400:
         raise A2AError(f"a2a RPC HTTP {status}")
@@ -241,11 +244,14 @@ def poll_task(
     token: str | None = None,
     timeout_seconds: float = 120.0,
     interval: float = 0.05,
+    token_for: str | None = None,
 ) -> dict[str, Any]:
     deadline = time.monotonic() + max(0.1, float(timeout_seconds))
     last: dict[str, Any] | None = None
     while time.monotonic() < deadline:
-        last = jsonrpc_call(agent_url, "tasks/get", {"id": task_id}, token=token)
+        last = jsonrpc_call(
+            agent_url, "tasks/get", {"id": task_id}, token=token, token_for=token_for
+        )
         raw = ((last.get("status") or {}) if isinstance(last.get("status"), Mapping) else {}).get(
             "state"
         )

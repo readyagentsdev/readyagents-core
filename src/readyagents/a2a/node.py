@@ -12,7 +12,7 @@ from typing import Any
 from readyagents.a2a.card import card_digest
 from readyagents.a2a.client import fetch_agent_card, jsonrpc_call, poll_task, rpc_url
 from readyagents.a2a.mapping import WIRE_INPUT_REQUIRED
-from readyagents.errors import A2AError, ApprovalRequired, ToolError
+from readyagents.errors import A2AError, ApprovalRequired, PolicyDenied, ToolError
 from readyagents.firewall.enforce import ToolRequest, apply_decision, evaluate
 from readyagents.mcp.protocol import PROMPT_MAX_CHARS, sanitize_prompt
 from readyagents.workflow.schema import NodeSpec
@@ -39,7 +39,7 @@ def run_a2a_node(node: NodeSpec, state: RunState, ctx: Any) -> Any:
 
     try:
         card = fetch_agent_card(agent_url, token=token)
-        digest = str(card.get("digest") or card_digest(card))
+        digest = card_digest(card)
         _pin_card(ctx, state, node, agent_url, digest)
         remote_url = rpc_url(str(card.get("url") or agent_url))
         _policy_check(node, state, ctx, remote_url, pin_changed=False)
@@ -47,7 +47,15 @@ def run_a2a_node(node: NodeSpec, state: RunState, ctx: Any) -> Any:
         stored = _stored_task(state, node.id)
         decision = _local_decision(ctx, node.id)
         if stored and decision:
-            task = _continue_remote(stored, decision, token=token, ctx=ctx, state=state, node=node)
+            task = _continue_remote(
+                stored,
+                decision,
+                token=token,
+                token_for=agent_url,
+                ctx=ctx,
+                state=state,
+                node=node,
+            )
         elif stored and not decision:
             raise ApprovalRequired(
                 node.id,
@@ -75,6 +83,7 @@ def run_a2a_node(node: NodeSpec, state: RunState, ctx: Any) -> Any:
                     }
                 },
                 token=token,
+                token_for=agent_url,
             )
             timeout = float(node.timeout_seconds or 120.0)
             task_id = str(task.get("id") or "")
@@ -87,11 +96,23 @@ def run_a2a_node(node: NodeSpec, state: RunState, ctx: Any) -> Any:
                     task_id,
                     token=token,
                     timeout_seconds=timeout,
+                    token_for=agent_url,
                 )
     except ToolError as extra:
         raise A2AError(str(extra)) from extra
 
-    return _finish(node, state, ctx, card, digest, remote_url, task, on_input=on_input, token=token)
+    return _finish(
+        node,
+        state,
+        ctx,
+        card,
+        digest,
+        remote_url,
+        task,
+        on_input=on_input,
+        token=token,
+        origin_url=agent_url,
+    )
 
 
 def _token_for(node: NodeSpec, ns: dict[str, Any]) -> str | None:
@@ -132,12 +153,15 @@ def _remember_task(
     task_id: str,
     agent_url: str,
     card_digest_value: str,
+    origin_url: str | None = None,
 ) -> None:
     meta = dict(state.metadata or {})
     bucket = dict(meta.get("a2a_tasks") or {})
+    origin = origin_url if origin_url is not None else agent_url
     bucket[node_id] = {
         "task_id": task_id,
         "agent_url": agent_url,
+        "origin_url": origin,
         "card_digest": card_digest_value,
     }
     meta["a2a_tasks"] = bucket
@@ -155,6 +179,7 @@ def _continue_remote(
     ctx: Any,
     state: RunState,
     node: NodeSpec,
+    token_for: str | None = None,
 ) -> dict[str, Any]:
     if ctx.authorizer is not None:
         ctx.authorizer.check(ctx.actor, decision, node.id)
@@ -169,6 +194,7 @@ def _continue_remote(
         )
     remote_url = str(stored.get("agent_url") or "")
     task_id = str(stored.get("task_id") or "")
+    issued = token_for or str(stored.get("origin_url") or "")
     try:
         jsonrpc_call(
             remote_url,
@@ -182,9 +208,16 @@ def _continue_remote(
                 },
             },
             token=token,
+            token_for=issued or None,
         )
         timeout = float(node.timeout_seconds or 120.0)
-        return poll_task(remote_url, task_id, token=token, timeout_seconds=timeout)
+        return poll_task(
+            remote_url,
+            task_id,
+            token=token,
+            timeout_seconds=timeout,
+            token_for=issued or None,
+        )
     except ToolError as extra:
         raise A2AError(str(extra)) from extra
 
@@ -200,6 +233,7 @@ def _finish(
     *,
     on_input: str,
     token: str | None,
+    origin_url: str | None = None,
 ) -> Any:
     wire = _wire_state(task)
     task_id = str(task.get("id") or "")
@@ -222,6 +256,7 @@ def _finish(
             task_id=task_id,
             agent_url=remote_url,
             card_digest_value=digest,
+            origin_url=origin_url,
         )
         if on_input == "fail":
             raise A2AError("remote agent requested input")
@@ -319,6 +354,24 @@ def _policy_check(
     apply_decision(decision, node_id=node.id, run_id=state.run_id)
 
 
+def _write_pin(ctx: Any, state: RunState, key: str, digest: str, home: Path | None) -> None:
+    pins = dict(state.metadata.get("a2a_pins") or {})
+    pins[key] = digest
+    meta = dict(state.metadata or {})
+    meta["a2a_pins"] = pins
+    state.metadata = meta
+    _store_pin(home, key, digest)
+    persist = getattr(ctx, "on_persist", None)
+    if callable(persist):
+        persist(state)
+
+
+def _consume_node_decision(ctx: Any, node_id: str) -> None:
+    decisions = getattr(ctx, "decisions", None)
+    if isinstance(decisions, dict):
+        decisions.pop(node_id, None)
+
+
 def _pin_card(ctx: Any, state: RunState, node: NodeSpec, agent_url: str, digest: str) -> None:
     policy = getattr(ctx, "policy", None)
     if policy is None:
@@ -331,22 +384,25 @@ def _pin_card(ctx: Any, state: RunState, node: NodeSpec, agent_url: str, digest:
     if previous is None and stored:
         previous = stored
     if previous is None:
-        pins[key] = digest
-        meta = dict(state.metadata or {})
-        meta["a2a_pins"] = pins
-        state.metadata = meta
-        _store_pin(home, key, digest)
-        persist = getattr(ctx, "on_persist", None)
-        if callable(persist):
-            persist(state)
+        _write_pin(ctx, state, key, digest, home)
         return
-    if previous != digest:
-        _policy_check(node, state, ctx, agent_url, pin_changed=True)
-    pins[key] = digest
-    meta = dict(state.metadata or {})
-    meta["a2a_pins"] = pins
-    state.metadata = meta
-    _store_pin(home, key, digest)
+    if previous == digest:
+        if key not in pins:
+            _write_pin(ctx, state, key, digest, home)
+        return
+    decided = _local_decision(ctx, node.id)
+    if decided == "approve":
+        _consume_node_decision(ctx, node.id)
+        _write_pin(ctx, state, key, digest, home)
+        return
+    if decided == "reject":
+        raise PolicyDenied(
+            node.id,
+            "A2A card digest drift was rejected",
+            rule="tools.a2a.on_description_change",
+        )
+    _policy_check(node, state, ctx, agent_url, pin_changed=True)
+    _write_pin(ctx, state, key, digest, home)
 
 
 def _pin_path(home: Path, url: str) -> Path:

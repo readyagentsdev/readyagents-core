@@ -35,10 +35,12 @@ A remote agent is an attacker. Its Agent Card, task messages, artifacts, and
   before a first delegation.
 - Card fetch and task URLs reuse `http_get` public-IP SSRF pinning. Loopback,
   RFC1918, link-local, and metadata addresses are refused. Authorization
-  never follows a cross-host redirect.
-- When a policy file exists, the card digest is pinned under
-  `$READYAGENTS_HOME/a2a-pins/`. Drift is `on_description_change` (default
-  **gate**).
+  never follows a cross-host redirect, and never follows a card `url` whose
+  host is not the operator-supplied `agent_url`.
+- When a policy file exists, the **locally computed** card digest is pinned
+  under `$READYAGENTS_HOME/a2a-pins/` (a `digest` field on the card is ignored).
+  Drift is `on_description_change` (default **gate**); `--approve` stores the
+  new digest and continues.
 - Serving requires a bearer token (`READYAGENTS_A2A_TOKEN`). An A2A answer to
   a **local** gate travels the existing signed-decision / RBAC / audit path.
   Unsigned or unauthorized answers are refused, audited, and leave the run
@@ -116,8 +118,12 @@ maps artifacts into run state (untrusted). Remote `input-required` becomes a
 readyagents a2a probe http://127.0.0.1:8770 --json
 ```
 
-Read-only. Prints capabilities, auth *scheme types*, digest, and
-`approvalCapable`. Never prints secret values.
+Read-only. Prints capabilities, auth *scheme types*, locally computed digest,
+`signatureStatus` (`unsigned` / `verified` / `invalid`), and
+`approvalCapable`. A `signature` is verified with
+`READYAGENTS_A2A_CARD_SECRET` when set; a claimed signature without a secret
+is `invalid`. Never prints secret values. A signed card proves identity, not
+good behaviour.
 
 ## Policy
 
