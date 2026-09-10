@@ -24,6 +24,7 @@ from readyagents.errors import (
     RunawayGuard,
     TemplateError,
     ToolError,
+    TrustError,
     WorkflowError,
 )
 from readyagents.llm.base import CompletionResult, LLMProvider, Message, ToolCall
@@ -105,6 +106,9 @@ class ExecutionContext:
         verified_actor: Any | None = None,
         credential_policy: Any | None = None,
         credential_env: Mapping[str, str | None] | None = None,
+        include_buffers: Mapping[str, str] | None = None,
+        require_signed: bool = False,
+        frozen: bool = False,
     ) -> None:
         self.workflow = workflow
         self.tools = tools
@@ -144,6 +148,9 @@ class ExecutionContext:
         self.verified_actor = verified_actor
         self.credential_policy = credential_policy
         self.credential_env = dict(credential_env) if credential_env is not None else None
+        self.include_buffers = {str(k): str(v) for k, v in dict(include_buffers or {}).items()}
+        self.require_signed = bool(require_signed)
+        self.frozen = bool(frozen)
         self.last_credential_kind: str | None = None
         self.last_tool_rounds: list[dict[str, Any]] = []
         self._persist_lock = threading.RLock()
@@ -223,6 +230,9 @@ class ExecutionContext:
             verified_actor=self.verified_actor,
             credential_policy=self.credential_policy,
             credential_env=self.credential_env,
+            include_buffers=self.include_buffers,
+            require_signed=self.require_signed,
+            frozen=self.frozen,
         )
 
 
@@ -1107,18 +1117,31 @@ def _run_include(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
     if not raw_path:
         raise NodeError(node.id, "include nodes require 'path'")
     candidate = _confine_include_path(raw_path, ctx.workflow_dir, node.id)
-    if not candidate.is_file():
+    source = (ctx.include_buffers or {}).get(str(candidate))
+    if source is None:
+        try:
+            source = (ctx.include_buffers or {}).get(str(candidate.resolve()))
+        except OSError:
+            source = None
+    enforce = bool(getattr(ctx, "require_signed", False) or getattr(ctx, "frozen", False))
+    if source is None and not candidate.is_file():
         raise NodeError(
             node.id,
             f"included workflow not found: {candidate} "
             f"(resolved from path '{raw_path}' relative to {ctx.workflow_dir})",
+        )
+    if enforce and source is None:
+        raise TrustError(
+            f"included workflow not in the digested graph: {candidate}",
+            artifact=str(candidate),
+            reason="unresolved_include",
         )
 
     from readyagents.workflow.engine import run_workflow
     from readyagents.workflow.runner import load_workflow, merge_inputs
 
     try:
-        spec = load_workflow(candidate, display_path=raw_path)
+        spec = load_workflow(candidate, display_path=raw_path, source=source)
     except WorkflowError as exc:
         parent_source = None
         meta = getattr(state, "metadata", None)

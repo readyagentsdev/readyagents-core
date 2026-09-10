@@ -19,6 +19,14 @@ All notable changes to ReadyAgents Core.
   is **not** in `all`. No default-trusted key. Signing proves origin, not
   safety. See [docs/supply-chain.md](docs/supply-chain.md).
 
+### Fixed
+
+- `--require-signed` executes the workflow and include bytes that were
+  digested, not a later re-read of the path. Pack lock pins are checked
+  **before** import. Templated `include` paths are refused under
+  `--require-signed` / `--frozen`. `on_lock_mismatch: gate` persists a
+  paused run that can be resumed.
+
 ## 1.5.1 — 2026-09-10
 
 ### Fixed

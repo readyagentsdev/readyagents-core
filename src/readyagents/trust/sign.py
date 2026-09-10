@@ -37,11 +37,17 @@ def infer_kind(path: Path | str) -> str:
     return KIND_PACK if Path(path).suffix.lower() == ".py" else KIND_WORKFLOW
 
 
-def digest_artifact(path: Path | str, *, kind: str, data: bytes | None = None) -> str:
+def digest_artifact(
+    path: Path | str,
+    *,
+    kind: str,
+    data: bytes | None = None,
+    source: str | None = None,
+) -> str:
     if kind == KIND_PACK:
         payload = data if data is not None else Path(path).read_bytes()
         return digest_pack_bytes(payload)
-    return digest_workflow(path)
+    return digest_workflow(path, source=source)
 
 
 def signed_message(*, digest: str, kind: str) -> bytes:
@@ -155,6 +161,8 @@ def verify_artifact(
     data: bytes | None = None,
     keyring: Any | None = None,
     sig_path: Path | str | None = None,
+    digest: str | None = None,
+    source: str | None = None,
 ) -> dict[str, Any]:
     """Verify a detached signature against the local keyring. Fail closed."""
     file = Path(path)
@@ -173,7 +181,10 @@ def verify_artifact(
             artifact=str(file),
             reason="kind_mismatch",
         )
-    digest = digest_artifact(file, kind=resolved_kind, data=data)
+    if digest is None:
+        digest = digest_artifact(file, kind=resolved_kind, data=data, source=source)
+    else:
+        digest = prefixed(digest)
     if prefixed(payload["digest"]) != digest:
         raise TrustError(
             f"tampered artifact: {file}",

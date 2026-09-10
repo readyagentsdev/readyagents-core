@@ -303,3 +303,191 @@ def test_unsigned_default_path_still_runs(tmp_settings) -> None:
     assert state.status == "succeeded"
     assert state.metadata["supply_chain"]["require_signed"] is False
     assert state.metadata["supply_chain"]["artifacts"][0]["signature"] == "unsigned"
+
+
+def _rewrite_after_first_read(monkeypatch: pytest.MonkeyPatch, target: Path, new_text: str) -> None:
+    target = target.resolve()
+    orig = Path.read_text
+    seen = {"n": 0}
+
+    def hooked(self: Path, *args: object, **kwargs: object) -> str:
+        text = orig(self, *args, **kwargs)
+        try:
+            resolved = self.resolve()
+        except OSError:
+            return text
+        if resolved == target:
+            seen["n"] += 1
+            if seen["n"] == 1:
+                target.write_text(new_text, encoding="utf-8")
+        return text
+
+    monkeypatch.setattr(Path, "read_text", hooked)
+
+
+def test_require_signed_executes_first_buffer_not_swapped_path(
+    tmp_settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_settings.workspace_path()
+    flow = _flow(root)
+    priv, pub = _ed25519_pem(root)
+    add_key(pub, name="ops", home=tmp_settings.home_path())
+    sign_artifact(flow, key=priv)
+    evil = (
+        "name: t\nstart: n\nnodes:\n"
+        "  - id: n\n    type: transform\n    template: 'EVIL'\n    output_key: out\n"
+    )
+    _rewrite_after_first_read(monkeypatch, flow, evil)
+    state = run_workflow_file(flow, settings=tmp_settings, persist=False, require_signed=True)
+    assert state.status == "succeeded"
+    assert state.output_keys["out"] == "hello"
+    assert flow.read_text(encoding="utf-8") == evil
+
+
+def test_require_signed_does_not_run_unsigned_after_swap_to_signed(
+    tmp_settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_settings.workspace_path()
+    flow = _flow(root)
+    priv, pub = _ed25519_pem(root)
+    add_key(pub, name="ops", home=tmp_settings.home_path())
+    sign_artifact(flow, key=priv)
+    good = flow.read_text(encoding="utf-8")
+    evil = good.replace("hello", "EVIL")
+    flow.write_text(evil, encoding="utf-8")
+    _rewrite_after_first_read(monkeypatch, flow, good)
+    with pytest.raises(TrustError, match="tampered artifact") as caught:
+        run_workflow_file(flow, settings=tmp_settings, persist=False, require_signed=True)
+    assert caught.value.reason == "tampered"
+
+
+def test_include_swap_after_digest_is_not_executed(
+    tmp_settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_settings.workspace_path()
+    child = root / "child.yaml"
+    child.write_text(
+        "name: child\nstart: t\nnodes:\n"
+        "  - id: t\n    type: transform\n    template: 'GOOD'\n    output_key: out\n",
+        encoding="utf-8",
+    )
+    parent = root / "parent.yaml"
+    parent.write_text(
+        "name: parent\nstart: c\nnodes:\n"
+        "  - id: c\n    type: include\n    path: child.yaml\n    output_key: nested\n",
+        encoding="utf-8",
+    )
+    priv, pub = _ed25519_pem(root)
+    add_key(pub, name="ops", home=tmp_settings.home_path())
+    sign_artifact(parent, key=priv)
+    pwned = (
+        "name: child\nstart: t\nnodes:\n"
+        "  - id: t\n    type: transform\n    template: 'PWNED'\n    output_key: out\n"
+    )
+    _rewrite_after_first_read(monkeypatch, child, pwned)
+    state = run_workflow_file(parent, settings=tmp_settings, persist=False, require_signed=True)
+    assert state.status == "succeeded"
+    nested = state.output_keys["nested"]
+    assert nested["out"] == "GOOD"
+    assert child.read_text(encoding="utf-8") == pwned
+
+
+def test_frozen_mismatch_never_imports_bomb_pack(tmp_settings) -> None:
+    root = tmp_settings.workspace_path()
+    flow = _flow(root)
+    pack = root / "p.py"
+    pack.write_text(_PACK, encoding="utf-8")
+    lock = build_lockfile(flow, pack_specs=[str(pack)], workspace=root)
+    write_lockfile(lock, root / "readyagents.lock")
+    marker = root / "imported.flag"
+    pack.write_text(
+        "from pathlib import Path\n"
+        f"Path({str(marker)!r}).write_text('imported', encoding='utf-8')\n"
+        "raise RuntimeError('imported')\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(TrustError, match="lockfile mismatch") as caught:
+        run_workflow_file(
+            flow,
+            settings=tmp_settings,
+            persist=False,
+            frozen=True,
+            pack_specs=[str(pack)],
+        )
+    assert caught.value.reason == "digest_mismatch"
+    assert not marker.exists()
+
+
+def test_templated_include_refused_when_unresolved_under_require_signed(tmp_settings) -> None:
+    root = tmp_settings.workspace_path()
+    flow = root / "flow.yaml"
+    flow.write_text(
+        "name: t\nstart: c\nnodes:\n  - id: c\n    type: include\n    path: '{{child}}'\n",
+        encoding="utf-8",
+    )
+    priv, pub = _ed25519_pem(root)
+    add_key(pub, name="ops", home=tmp_settings.home_path())
+    sign_artifact(flow, key=priv)
+    with pytest.raises(TrustError, match="templated include") as caught:
+        run_workflow_file(flow, settings=tmp_settings, persist=False, require_signed=True)
+    assert caught.value.reason == "unresolved_include"
+
+
+def test_templated_include_refused_under_require_signed_even_with_inputs(tmp_settings) -> None:
+    root = tmp_settings.workspace_path()
+    child = root / "kid.yaml"
+    child.write_text(
+        "name: kid\nstart: t\nnodes:\n"
+        "  - id: t\n    type: transform\n    template: 'hello'\n    output_key: out\n",
+        encoding="utf-8",
+    )
+    parent = root / "parent.yaml"
+    parent.write_text(
+        "name: parent\ninputs:\n  child: kid.yaml\nstart: c\nnodes:\n"
+        "  - id: c\n    type: include\n    path: '{{child}}'\n    output_key: nested\n",
+        encoding="utf-8",
+    )
+    priv, pub = _ed25519_pem(root)
+    add_key(pub, name="ops", home=tmp_settings.home_path())
+    sign_artifact(parent, key=priv)
+    with pytest.raises(TrustError, match="templated include") as caught:
+        run_workflow_file(
+            parent,
+            settings=tmp_settings,
+            persist=False,
+            require_signed=True,
+            inputs={"child": "kid.yaml"},
+        )
+    assert caught.value.reason == "unresolved_include"
+
+
+def test_lock_mismatch_gate_pauses_resumable_run(tmp_settings) -> None:
+    from readyagents.errors import ApprovalRequired
+    from readyagents.workflow.runner import resume_run
+
+    root = tmp_settings.workspace_path()
+    flow = _flow(root)
+    lock = build_lockfile(flow)
+    write_lockfile(lock, root / "readyagents.lock")
+    flow.write_text(
+        "name: t\nstart: n\nnodes:\n"
+        "  - id: n\n    type: transform\n    template: 'changed'\n    output_key: out\n",
+        encoding="utf-8",
+    )
+    policy = root / "readyagents.policy.yaml"
+    policy.write_text("version: 1\non_lock_mismatch: gate\n", encoding="utf-8")
+    with pytest.raises(ApprovalRequired) as caught:
+        run_workflow_file(flow, settings=tmp_settings, persist=True, policy=policy)
+    assert caught.value.node_id == "supply_chain_lock"
+    assert caught.value.run_id != "unassigned"
+    paused = caught.value.state
+    assert paused is not None
+    assert paused.status == "paused"
+    assert paused.run_id == caught.value.run_id
+    state = resume_run(
+        caught.value.run_id,
+        settings=tmp_settings,
+        decisions={"supply_chain_lock": "approve"},
+    )
+    assert state.status == "succeeded"
+    assert state.output_keys["out"] == "changed"
