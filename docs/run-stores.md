@@ -20,6 +20,8 @@ Changing `READYAGENTS_RUN_STORE` selects which backend CLI and local API command
 
 `run`, `resume`, `decide`, and `runs list` / `show` / `replay` / `delete` / `gc` / `report` keep the same syntax against the selected backend.
 
+`readyagents batch` defaults to `--run-store sqlite` (WAL, compare-and-swap) because many in-flight rows contend on the store. JSON remains the low-concurrency default for `readyagents run`. Pass `--run-store json` to batch if you want the file backend. See [scale.md](scale.md).
+
 ## JSON (default)
 
 ```bash

@@ -55,6 +55,23 @@ jobs:
       - name: Keyless smoke
         run: python scripts/smoke.py
 
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Batch harness
+        run: python scripts/bench_batch.py --rows 20 --concurrency 4 --json
+      - name: Baseline method is recorded
+        run: |
+          python -c "import json; json.load(open('baselines/bench_batch.json')); print('ok')"
+
   extras:
     runs-on: macos-latest
     strategy:

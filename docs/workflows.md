@@ -25,9 +25,10 @@ Run:
 
 ```bash
 readyagents run hello.yaml --input name=Ada
+readyagents batch hello.yaml --input-file rows.jsonl --concurrency 8
 ```
 
-Connectors appear as ordinary `type: tool` nodes (`tool: rest`, `sql`, …). See [connectors.md](connectors.md).
+Many rows of one workflow: [scale.md](scale.md) (`readyagents batch`, opt-in, foreground). Connectors appear as ordinary `type: tool` nodes (`tool: rest`, `sql`, …). See [connectors.md](connectors.md).
 
 ## Fields
 
