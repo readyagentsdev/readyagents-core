@@ -1,3 +1,35 @@
+# ReadyAgents Core 1.6.0
+
+**Supply-chain trust: digests, detached signatures, keyring, lock, SBOM.**
+
+Canonical SHA-256 digests (algorithm v1) for workflows including every resolved
+`include`, pack file bytes, and MCP advertised tool surfaces. `readyagents sign`
+/ `verify` write a detached Ed25519 signature beside the artifact that binds
+digest and kind. `readyagents trust add|list|remove` manages a local publisher
+keyring under `$READYAGENTS_HOME`. `--require-signed` and policy `require_signed`
+refuse unsigned or untrusted artifacts before a pack is imported.
+`readyagents lock` and `--frozen` pin digests; `readyagents sbom` emits a
+deterministic CycloneDX-shaped inventory. Optional `sign` extra is not in `all`.
+No default-trusted key. Signing proves origin, not safety.
+
+Also: `--require-signed` executes the digested workflow/include buffers (not a
+later re-read), pack lock pins are checked before import, templated `include`
+paths are refused under `--require-signed` / `--frozen`, and
+`on_lock_mismatch: gate` persists a paused run that can be resumed.
+
+Packs are waitlisted, not for sale.
+
+## Try it
+
+```bash
+pip install 'readyagentsdev[sign]==1.6.0'
+readyagents trust list
+readyagents verify examples/calc_pipeline.yaml
+readyagents sbom examples/calc_pipeline.yaml
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e '.[sign]'`.
+
 # Unreleased — supply-chain trust (draft, not a release)
 
 Canonical SHA-256 digests (algorithm v1) for workflows including every

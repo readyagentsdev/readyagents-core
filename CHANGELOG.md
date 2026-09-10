@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 1.6.0 — 2026-09-10
+
 ### Added
 
 - **Supply-chain trust.** Canonical SHA-256 digests (algorithm v1) for
