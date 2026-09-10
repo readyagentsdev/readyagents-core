@@ -23,6 +23,11 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- Cancel of a paused (input-required) run finishes immediately even if the
+  worker has not yet dropped the in-flight set, so A2A `tasks/cancel` does not
+  sit in `working` and starve the 120/min poll cap.
+- Logging stream handler swallows closed-stream emit errors so a background
+  worker cannot stall on pytest/stderr teardown.
 - Memory read/search apply compacted text to the node output so truncate and
   summarize do not still return dropped content.
 - SQLite `forget` of a missing record id returns 0, matching the JSON store.

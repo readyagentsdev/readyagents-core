@@ -777,3 +777,21 @@ def test_cancel_inactive_queued_run_does_not_deadlock(tmp_settings) -> None:
         assert loaded.status == "cancelled"
     finally:
         coord.shutdown()
+
+
+def test_cancel_paused_run_finishes_while_still_active(tmp_settings) -> None:
+    """Paused (input-required) cancel must not wait for the worker to leave `_active`."""
+    coord = RunCoordinator(settings=tmp_settings, workspace=tmp_settings.workspace_path())
+    run_id = "cd" * 16
+    paused = RunState.start("paused-cancel", {}, run_id=run_id)
+    paused.status = "paused"
+    paused.pending_node = "gate"
+    persist_run(paused, tmp_settings.runs_dir())
+    coord._active.add(run_id)
+    try:
+        payload = coord.cancel(run_id, {"actor": "tester", "reason": "a2a cancel"})
+        assert payload["status"] == "cancelled"
+        loaded = load_run_exact(tmp_settings.runs_dir(), run_id)
+        assert loaded.status == "cancelled"
+    finally:
+        coord.shutdown()
