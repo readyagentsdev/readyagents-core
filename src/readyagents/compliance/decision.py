@@ -20,6 +20,10 @@ class HumanReview:
     decision: str | None = None
     outcome: str | None = None
     signature_status: str = "n/a"
+    identified: bool = False
+    subject: str | None = None
+    issuer: str | None = None
+    method: str = "none"
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -168,6 +172,10 @@ def _human_for(result: NodeResult, audit: list[dict[str, Any]]) -> HumanReview |
         decision=decision,
         outcome=outcome,
         signature_status=signature_status,
+        identified=bool((row or {}).get("identified")),
+        subject=(row or {}).get("subject"),
+        issuer=(row or {}).get("issuer"),
+        method=str((row or {}).get("method") or "none"),
     )
 
 
@@ -188,4 +196,6 @@ def _maybe_redact(record: DecisionRecord, redactor: Any) -> DecisionRecord:
         record.human.actor = redactor.redact(record.human.actor)
         record.human.role = redactor.redact(record.human.role)
         record.human.timestamp = redactor.redact(record.human.timestamp)
+        record.human.subject = redactor.redact(record.human.subject)
+        record.human.issuer = redactor.redact(record.human.issuer)
     return record

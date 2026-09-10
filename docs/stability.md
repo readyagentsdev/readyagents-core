@@ -22,6 +22,7 @@ __all__ = [
     "BudgetExceeded",
     "CircuitOpen",
     "ConfigError",
+    "IdentityError",
     "LLMError",
     "MCPError",
     "NodeError",

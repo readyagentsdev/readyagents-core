@@ -119,6 +119,10 @@ class AuthorizationError(ReadyAgentsError):
         super().__init__(f"Actor '{who}' is not allowed to {action} '{resource}'")
 
 
+class IdentityError(ConfigError):
+    """Identity verification or trust-anchor failure. Always fail closed."""
+
+
 class PolicyError(ConfigError):
     """A policy file is missing, malformed, or unreadable (fail closed)."""
 

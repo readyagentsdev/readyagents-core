@@ -195,6 +195,14 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("READYAGENTS_PRICES"),
     )
+    trust_anchors: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices("READYAGENTS_TRUST_ANCHORS"),
+    )
+    credentials: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices("READYAGENTS_CREDENTIALS"),
+    )
 
     def fallback_model_list(self) -> list[str]:
         if not self.fallback_models:

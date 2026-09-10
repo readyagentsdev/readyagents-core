@@ -102,6 +102,8 @@ class ExecutionContext:
         observers: list[Any] | None = None,
         spend_meter: Any | None = None,
         labels: Mapping[str, str] | None = None,
+        verified_actor: Any | None = None,
+        credential_policy: Any | None = None,
     ) -> None:
         self.workflow = workflow
         self.tools = tools
@@ -138,6 +140,9 @@ class ExecutionContext:
         self.observers = list(observers or [])
         self.spend_meter = spend_meter
         self.labels = {str(k): str(v) for k, v in dict(labels or {}).items()}
+        self.verified_actor = verified_actor
+        self.credential_policy = credential_policy
+        self.last_credential_kind: str | None = None
         self.last_tool_rounds: list[dict[str, Any]] = []
         self._persist_lock = threading.RLock()
         self._in_flight = 0
@@ -213,6 +218,8 @@ class ExecutionContext:
             observers=self.observers,
             spend_meter=self.spend_meter,
             labels=self.labels,
+            verified_actor=self.verified_actor,
+            credential_policy=self.credential_policy,
         )
 
 
@@ -733,24 +740,40 @@ def _run_approval(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dic
     if ctx.authorizer is not None:
         ctx.authorizer.check(ctx.actor, action, node.id)
     if ctx.auditor is not None:
+        verified = getattr(ctx, "verified_actor", None)
+        extra: dict[str, Any] = {}
+        if verified is not None:
+            extra["subject"] = getattr(verified, "subject", None)
+            extra["issuer"] = getattr(verified, "issuer", None)
+            extra["method"] = getattr(verified, "method", "none")
+            extra["identified"] = bool(getattr(verified, "identified", lambda: False)())
+            extra["roles"] = list(getattr(verified, "roles", ()) or ())
         ctx.auditor(
             "decision",
             run_id=state.run_id,
             node_id=node.id,
             decision=action,
             actor=ctx.actor,
+            **extra,
         )
     if approved:
         nxt = node.then or node.next
     else:
         nxt = node.else_
-    return {
+    output: dict[str, Any] = {
         "approved": approved,
         "decision": action,
         "prompt": prompt,
         "next": nxt,
         "actor": ctx.actor,
     }
+    verified = getattr(ctx, "verified_actor", None)
+    if verified is not None:
+        output["identified"] = bool(getattr(verified, "identified", lambda: False)())
+        output["subject"] = getattr(verified, "subject", None)
+        output["issuer"] = getattr(verified, "issuer", None)
+        output["method"] = getattr(verified, "method", "none")
+    return output
 
 
 def _estimate_tokens(*texts: str) -> int:
