@@ -30,6 +30,9 @@ class NodeResult:
     finished_at: str = ""
     usage: dict[str, int] = field(default_factory=dict)
     tool_rounds: list[dict[str, Any]] = field(default_factory=list)
+    ttft_ms: int | None = None
+    total_ms: int | None = None
+    inter_token_ms: float | None = None
 
 
 @dataclass
@@ -94,6 +97,9 @@ class RunState:
         finished_at: str = "",
         usage: Mapping[str, int] | None = None,
         tool_rounds: list[dict[str, Any]] | None = None,
+        ttft_ms: int | None = None,
+        total_ms: int | None = None,
+        inter_token_ms: float | None = None,
     ) -> None:
         self.node_outputs[node_id] = output
         if output_key:
@@ -109,6 +115,9 @@ class RunState:
                 finished_at=finished_at,
                 usage={str(k): int(v) for k, v in dict(usage or {}).items()},
                 tool_rounds=[dict(row) for row in (tool_rounds or [])],
+                ttft_ms=ttft_ms,
+                total_ms=total_ms,
+                inter_token_ms=inter_token_ms,
             )
         )
 
@@ -183,6 +192,11 @@ class RunState:
                     "finished_at": r.finished_at,
                     "usage": dict(r.usage),
                     "tool_rounds": list(r.tool_rounds),
+                    **({"ttft_ms": r.ttft_ms} if r.ttft_ms is not None else {}),
+                    **({"total_ms": r.total_ms} if r.total_ms is not None else {}),
+                    **(
+                        {"inter_token_ms": r.inter_token_ms} if r.inter_token_ms is not None else {}
+                    ),
                 }
                 for r in self.results
             ],
@@ -214,6 +228,9 @@ class RunState:
                     for item in (row.get("tool_rounds") or [])
                     if isinstance(item, Mapping)
                 ],
+                ttft_ms=_opt_int(row.get("ttft_ms")),
+                total_ms=_opt_int(row.get("total_ms")),
+                inter_token_ms=_opt_float(row.get("inter_token_ms")),
             )
             for row in data.get("node_results") or []
             if isinstance(row, Mapping)
@@ -446,6 +463,24 @@ def _is_intlike(value: Any) -> bool:
         return True
     except (TypeError, ValueError):
         return False
+
+
+def _opt_int(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _opt_float(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _jsonable(value: Any) -> Any:

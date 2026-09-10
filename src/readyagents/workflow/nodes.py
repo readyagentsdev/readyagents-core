@@ -115,6 +115,7 @@ class ExecutionContext:
         frozen: bool = False,
         vote_reasons: Mapping[str, str] | None = None,
         vote_signature_status: str = "unsigned",
+        stream: Any | None = None,
     ) -> None:
         self.workflow = workflow
         self.tools = tools
@@ -159,6 +160,9 @@ class ExecutionContext:
         self.frozen = bool(frozen)
         self.vote_reasons = {str(k): str(v) for k, v in dict(vote_reasons or {}).items()}
         self.vote_signature_status = str(vote_signature_status or "unsigned")
+        self.stream = stream
+        if stream is not None and stream not in self.observers:
+            self.observers.append(stream)
         self.last_credential_kind: str | None = None
         self.last_tool_rounds: list[dict[str, Any]] = []
         self._persist_lock = threading.RLock()
@@ -243,6 +247,7 @@ class ExecutionContext:
             frozen=self.frozen,
             vote_reasons=self.vote_reasons,
             vote_signature_status=self.vote_signature_status,
+            stream=self.stream,
         )
 
 
@@ -524,6 +529,38 @@ def _account_usage(state: RunState, ctx: ExecutionContext, usage: Mapping[str, A
         sink.add_usage(**cleaned)
 
 
+def _invoke_provider(
+    provider: Any,
+    messages: list[Message],
+    *,
+    model_id: str,
+    tools: list[dict[str, Any]] | None,
+    node: NodeSpec,
+    state: RunState,
+    ctx: ExecutionContext,
+) -> CompletionResult:
+    stream = getattr(ctx, "stream", None)
+    buffer = bool(getattr(node, "output_schema", None))
+    stream_fn = getattr(provider, "stream", None)
+    if stream is None or not callable(stream_fn):
+        return provider.complete(messages, model=model_id, tools=tools)
+    if buffer and stream is not None:
+        stream.buffer_nodes.add(node.id)
+
+    def on_token(piece: str) -> None:
+        token = getattr(ctx, "cancellation", None)
+        if token is not None:
+            token.raise_if_requested(run_id=state.run_id)
+        stream.on_token(node.id, piece, state=state)
+
+    return stream_fn(
+        messages,
+        model=model_id,
+        tools=tools,
+        on_token=None if buffer else on_token,
+    )
+
+
 def _complete_agent(
     node: NodeSpec,
     state: RunState,
@@ -631,7 +668,15 @@ def _complete_agent(
                         secrets=ctx.cassette_secrets,
                     )
             tried.append(ref)
-            result = provider.complete(messages, model=model_id, tools=tools)
+            result = _invoke_provider(
+                provider,
+                messages,
+                model_id=model_id,
+                tools=tools,
+                node=node,
+                state=state,
+                ctx=ctx,
+            )
         except (BudgetExceeded, RunawayGuard):
             raise
         except LLMError as exc:

@@ -130,6 +130,32 @@ class RecordingProvider:
         )
         return result
 
+    def stream(
+        self,
+        messages: list[Message],
+        *,
+        model: str,
+        tools: Any = None,
+        on_token: Any = None,
+        **kwargs: Any,
+    ) -> CompletionResult:
+        inner_stream = getattr(self.inner, "stream", None)
+        if callable(inner_stream):
+            result = inner_stream(messages, model=model, tools=tools, on_token=on_token, **kwargs)
+        else:
+            result = self.inner.complete(messages, model=model, tools=tools, **kwargs)
+        record_llm_result(
+            self.cassette,
+            node_id=self.node_id,
+            model=model,
+            messages=messages,
+            tools=tools if isinstance(tools, list) else None,
+            result=result,
+            redactor=self.redactor,
+            secrets=self.secrets,
+        )
+        return result
+
 
 def record_llm_result(
     cassette: Cassette,

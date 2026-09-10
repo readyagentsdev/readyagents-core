@@ -112,6 +112,48 @@ class AnthropicProvider:
             self._note_rate_limit(exc)
             raise LLMError(f"Anthropic request failed: {exc}") from exc
 
+    def stream(
+        self,
+        messages: list[Message],
+        *,
+        model: str,
+        tools: list[dict[str, Any]] | None = None,
+        on_token: Any = None,
+        **kwargs: Any,
+    ) -> CompletionResult:
+        try:
+            from anthropic import Anthropic
+        except ImportError as exc:
+            raise LLMError(missing_extra_message("Anthropic", "anthropic")) from exc
+        try:
+            client = Anthropic(api_key=self._api_key)
+            payload = self._payload(messages, model=model, tools=tools, kwargs=kwargs)
+            parts: list[str] = []
+            usage: dict[str, Any] = {}
+            with client.messages.stream(**payload) as streamed:
+                for piece in streamed.text_stream:
+                    if piece:
+                        parts.append(piece)
+                        if on_token is not None:
+                            on_token(piece)
+                final = streamed.get_final_message()
+            if getattr(final, "usage", None):
+                usage = {
+                    "input_tokens": getattr(final.usage, "input_tokens", None),
+                    "output_tokens": getattr(final.usage, "output_tokens", None),
+                }
+            return CompletionResult(
+                text="".join(parts).strip(),
+                model=model,
+                raw=final,
+                usage=usage,
+                tool_calls=tool_calls_from_anthropic_content(getattr(final, "content", [])),
+            )
+        except LLMError:
+            raise
+        except Exception:
+            return self.complete(messages, model=model, tools=tools, **kwargs)
+
     def _note_rate_limit(self, exc: BaseException) -> None:
         from readyagents.workflow.governor import (
             looks_like_rate_limit,
