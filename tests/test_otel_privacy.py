@@ -88,6 +88,9 @@ def test_enabled_spans_are_content_free(monkeypatch) -> None:
     assert attrs.get("readyagents.status") == "ok"
     assert attrs.get("gen_ai.request.model") == "openai:gpt-4o-mini"
     assert attrs.get("gen_ai.usage.input_tokens") == 11
+    assert attrs.get("gen_ai.usage.output_tokens") == 7
+    assert attrs.get("readyagents.total_tokens") == 18
+    assert "gen_ai.usage.total_tokens" not in attrs
     assert attrs.get("readyagents.cost_micros") == 1234
     for banned in ("prompt", "input", "output", "arguments", "tool_arguments", "api_key"):
         assert banned not in attrs
