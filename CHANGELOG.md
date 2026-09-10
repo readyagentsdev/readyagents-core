@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 1.8.0 — 2026-09-10
+
 ### Added
 
 - **Sovereign mode.** `--sovereign` / `READYAGENTS_SOVEREIGN=1` refuses
