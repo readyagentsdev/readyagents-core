@@ -98,7 +98,6 @@ def get_provider(
         return AnthropicProvider(key), model_id
 
     if provider_name in _COMPAT_NAMES:
-        key = require_api_key("openai-compat", settings, secrets=secrets)
         base = settings.openai_compat_base_url
         if not base:
             if provider_name == "groq":
@@ -110,8 +109,24 @@ def get_provider(
                     "OpenAI-compatible provider requires OPENAI_COMPAT_BASE_URL "
                     "(for example https://api.groq.com/openai/v1 or http://127.0.0.1:11434/v1)."
                 )
-        api_key = key or "not-needed"
-        return OpenAICompatProvider(api_key, base_url=base), model_id
+        from readyagents.sovereign.egress import is_loopback_url
+
+        local = is_loopback_url(base)
+        if not local:
+            allow = {item.lower() for item in settings.sovereign_allow_list()}
+            from urllib.parse import urlparse
+
+            host = (urlparse(base).hostname or "").lower()
+            local = bool(host and host in allow)
+        if local:
+            key = settings.api_key_for("openai-compat") or "not-needed"
+            if secrets is not None and key == "not-needed":
+                from readyagents.secrets import secret_for_provider
+
+                key = secret_for_provider("openai-compat", settings=None, secrets=secrets) or key
+        else:
+            key = require_api_key("openai-compat", settings, secrets=secrets)
+        return OpenAICompatProvider(key, base_url=base), model_id
 
     raise LLMError(
         f"Unknown LLM provider '{provider_name}'. "

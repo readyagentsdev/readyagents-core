@@ -1,0 +1,15 @@
+name: ollama_local
+version: "1"
+description: >
+  Keyless local OpenAI-compatible path (Ollama default 127.0.0.1:11434).
+  No live model is required to validate. Dry-run walks without connecting:
+    readyagents run examples/ollama_local.yaml --dry-run --sovereign
+  Live (operator-run, local server already up):
+    readyagents run examples/ollama_local.yaml --sovereign
+
+start: greet
+nodes:
+  - id: greet
+    type: transform
+    template: "ollama_local ready (keyless loopback). Start Ollama to run an agent node."
+    output_key: summary
