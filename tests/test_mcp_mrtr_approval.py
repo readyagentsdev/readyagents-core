@@ -271,11 +271,11 @@ def test_second_gate_waits_out_prior_in_flight(mrtr_env) -> None:
             break
         time.sleep(0.05)
     assert key2 != key1
-    coord._in_flight_resume.add(task_id)
+    coord._in_flight_resume[task_id] = "first"
 
     def release() -> None:
         time.sleep(0.15)
-        coord._in_flight_resume.discard(task_id)
+        coord._in_flight_resume.pop(task_id, None)
 
     threading.Thread(target=release, daemon=True).start()
     second_update = _update(client, task_id, key2, "approve")

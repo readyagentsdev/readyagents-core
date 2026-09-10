@@ -371,7 +371,7 @@ class RunCoordinator:
         self._lock = threading.RLock()
         self._run_locks: dict[str, threading.RLock] = {}
         self._tokens: dict[str, Any] = {}
-        self._in_flight_resume: set[str] = set()
+        self._in_flight_resume: dict[str, str] = {}
         self._active: set[str] = set()
         self._queued = 0
         self._running = 0
@@ -890,15 +890,19 @@ class RunCoordinator:
                 self._authorizer.check(actor, decision, node_id)
             except Exception:
                 raise
+            inflight_node: str | None
             with self._lock:
-                busy = run_id in self._in_flight_resume
-                if not busy:
-                    self._in_flight_resume.add(run_id)
-            if busy:
-                # Durable state can show the next gate before the prior
-                # executor drops in-flight. Wait it out when we are already
-                # paused at the node this decision targets.
-                if state.status == "paused" and state.pending_node == node_id:
+                inflight_node = self._in_flight_resume.get(run_id)
+                if inflight_node is None:
+                    self._in_flight_resume[run_id] = node_id
+            if inflight_node is not None:
+                # Same-node duplicate: 409. Different node (next gate already
+                # persisted while the prior executor is winding down): wait.
+                if (
+                    inflight_node != node_id
+                    and state.status == "paused"
+                    and state.pending_node == node_id
+                ):
                     self._wait_resume_idle(run_id)
                     state = self._load_exact(run_id)
                     if state.status != "paused" or state.pending_node != node_id:
@@ -909,7 +913,7 @@ class RunCoordinator:
                     with self._lock:
                         if run_id in self._in_flight_resume:
                             raise RunConflict(f"Run {run_id} already has a resume in flight")
-                        self._in_flight_resume.add(run_id)
+                        self._in_flight_resume[run_id] = node_id
                 else:
                     raise RunConflict(f"Run {run_id} already has a resume in flight")
             if input_request_key:
@@ -925,7 +929,7 @@ class RunCoordinator:
                     from readyagents.errors import RunStoreConflict
 
                     with self._lock:
-                        self._in_flight_resume.discard(run_id)
+                        self._in_flight_resume.pop(run_id, None)
                     if isinstance(extra, RunStoreConflict):
                         raise RunConflict(
                             "conflicting input response for this input request key"
@@ -952,7 +956,7 @@ class RunCoordinator:
                 )
             except Exception:
                 with self._lock:
-                    self._in_flight_resume.discard(run_id)
+                    self._in_flight_resume.pop(run_id, None)
                     self._active.discard(run_id)
                 raise
         return {
@@ -1004,7 +1008,7 @@ class RunCoordinator:
                 self._finish_cancelled(run_id)
         finally:
             with self._lock:
-                self._in_flight_resume.discard(run_id)
+                self._in_flight_resume.pop(run_id, None)
                 self._active.discard(run_id)
 
     def _cancel(self, run_id: str, payload: Any) -> dict[str, Any]:
