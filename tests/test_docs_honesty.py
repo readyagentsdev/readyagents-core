@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
 from readyagents import __version__
+from readyagents.cli import app
 from readyagents.errors import LLMError
 from readyagents.llm.anthropic_provider import AnthropicProvider
 from readyagents.llm.base import Message, missing_extra_message
@@ -42,6 +45,30 @@ def test_first_ten_minutes_matches_package() -> None:
     assert "readyagentsdev" in text
     assert f"**{__version__}**" in text
     assert "0.8.0" not in text
+
+
+_NEW_CMD = re.compile(r"readyagents new ([A-Za-z0-9_-]+)(?: --template ([A-Za-z0-9_-]+))?")
+
+
+def test_first_ten_minutes_pypi_new_dests_are_distinct(tmp_path: Path, monkeypatch) -> None:
+    """A linear follow of the PyPI walkthrough must not hit overwrite."""
+    text = (ROOT / "docs" / "first-ten-minutes.md").read_text(encoding="utf-8")
+    found = _NEW_CMD.findall(text)
+    assert found, "first-ten-minutes must show readyagents new"
+    names = [name for name, _template in found]
+    gated = [name for name, template in found if template == "gated"]
+    assert gated, "PyPI HITL path must scaffold --template gated"
+    assert "my-flow" not in gated
+    assert len(names) == len(set(names)), names
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    for name, template in found:
+        args = ["new", name]
+        if template:
+            args.extend(["--template", template])
+        result = runner.invoke(app, args)
+        assert result.exit_code == 0, result.stdout + result.stderr
+        assert (tmp_path / name / "workflow.yaml").is_file()
 
 
 def test_getting_started_matches_package() -> None:
