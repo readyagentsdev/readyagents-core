@@ -11,7 +11,12 @@ from typer.testing import CliRunner
 from readyagents.cli import app
 from readyagents.errors import MemoryError, MemoryScopeError, PolicyDenied
 from readyagents.firewall.taint import provenance_of
-from readyagents.memory.protocol import MemoryRecord, open_memory_store
+from readyagents.memory.protocol import (
+    MAX_RECORDS_PER_SCOPE,
+    MAX_TEXT_BYTES,
+    MemoryRecord,
+    open_memory_store,
+)
 from readyagents.memory.retrieve import bm25_search
 from readyagents.memory.scope import validate_scope
 from readyagents.workflow.runner import run_workflow_file
@@ -98,6 +103,41 @@ def test_store_write_read_search_forget_contract(tmp_path: Path, backend: str) -
 
     with pytest.raises(ConfigError):
         store.get(rec.id)
+    assert store.forget(record_id="e" * 32) == 0
+    store.close()
+
+
+@pytest.mark.parametrize("backend", ["json", "sqlite"])
+def test_size_caps_refuse_oversized_text_and_extra_records(tmp_path: Path, backend: str) -> None:
+    store = open_memory_store(tmp_path / f"cap-{backend}", backend=backend)
+    too_big = MemoryRecord(
+        id="1" * 32,
+        scope="ns:cap",
+        text="x" * (MAX_TEXT_BYTES + 1),
+        created_at=utc_now(),
+        source_run_id="r",
+    )
+    with pytest.raises(MemoryError):
+        store.write(too_big)
+    for index in range(MAX_RECORDS_PER_SCOPE):
+        rec = MemoryRecord(
+            id=f"{index:032x}",
+            scope="ns:cap",
+            text="ok",
+            created_at=utc_now(),
+            source_run_id="r",
+        )
+        store.write(rec)
+    extra = MemoryRecord(
+        id="f" * 32,
+        scope="ns:cap",
+        text="nope",
+        created_at=utc_now(),
+        source_run_id="r",
+    )
+    with pytest.raises(MemoryError):
+        store.write(extra)
+    assert len(store.read("ns:cap")) == MAX_RECORDS_PER_SCOPE
     store.close()
 
 
@@ -262,6 +302,52 @@ def test_compaction_truncate_and_fail(tmp_path: Path, tmp_settings) -> None:
     )
     with pytest.raises(MemoryError):
         run_workflow_file(fail_wf, settings=tmp_settings, persist=False)
+
+
+def test_read_and_search_apply_compacted_text(tmp_path: Path, tmp_settings) -> None:
+    long = "word " * 5000
+    wf = _write(
+        tmp_path / "rcomp.yaml",
+        "name: rcomp\n"
+        "nodes:\n"
+        "  - id: remember\n"
+        "    type: memory\n"
+        "    op: write\n"
+        "    scope: ns:rcomp\n"
+        "    text: '" + long + "'\n"
+        "    next: recall\n"
+        "  - id: recall\n"
+        "    type: memory\n"
+        "    op: read\n"
+        "    scope: ns:rcomp\n"
+        "    context:\n"
+        "      max_tokens: 20\n"
+        "      on_exceed: truncate\n"
+        "    output_key: recalled\n"
+        "    next: seek\n"
+        "  - id: seek\n"
+        "    type: memory\n"
+        "    op: search\n"
+        "    scope: ns:rcomp\n"
+        "    query: word\n"
+        "    context:\n"
+        "      max_tokens: 20\n"
+        "      on_exceed: truncate\n"
+        "    output_key: hits\n",
+    )
+    state = run_workflow_file(wf, settings=tmp_settings, persist=True)
+    assert state.status == "succeeded"
+    recalled = state.output_keys["recalled"]
+    assert recalled["compaction"]["strategy"] == "truncate"
+    dropped = recalled["compaction"]["dropped"]
+    texts = "".join(str(row.get("text") or "") for row in recalled["records"])
+    assert dropped
+    assert dropped not in texts
+    assert len(texts) < len(long)
+    hits = state.output_keys["hits"]
+    assert hits["compaction"]["strategy"] == "truncate"
+    hit_text = "".join(str(row.get("text") or "") for row in hits["hits"])
+    assert hits["compaction"]["dropped"] not in hit_text
 
 
 def test_secret_refused_on_write(tmp_path: Path, tmp_settings) -> None:

@@ -146,7 +146,8 @@ class SQLiteMemoryStore:
         self._ensure_open()
         conn = self._conn()
         if record_id:
-            ids = [record_id]
+            row = conn.execute("SELECT id FROM records WHERE id = ?", (record_id,)).fetchone()
+            ids = [str(row[0])] if row is not None else []
         else:
             want = f"subject:{subject}" if subject else scope
             if want:

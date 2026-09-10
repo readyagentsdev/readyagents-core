@@ -52,6 +52,45 @@ def compact_text(
     return kept, payload
 
 
+def apply_compacted_items(
+    items: list[dict[str, Any]], kept: str, *, join: str = "\n"
+) -> list[dict[str, Any]]:
+    """Rewrite item texts so dropped content is not in the node output."""
+    if not items:
+        return items
+    joined = join.join(str(item.get("text") or "") for item in items)
+    if kept == joined:
+        return items
+    if joined.startswith(kept):
+        remaining = kept
+        out: list[dict[str, Any]] = []
+        for index, item in enumerate(items):
+            row = dict(item)
+            original = str(item.get("text") or "")
+            rest = remaining[len(original) :] if remaining.startswith(original) else None
+            if rest is not None and (rest == "" or rest.startswith(join)):
+                row["text"] = original
+                remaining = rest[len(join) :] if rest.startswith(join) else rest
+                out.append(row)
+                continue
+            row["text"] = remaining
+            out.append(row)
+            for extra in items[index + 1 :]:
+                blank = dict(extra)
+                blank["text"] = ""
+                out.append(blank)
+            return out
+        return out
+    first = dict(items[0])
+    first["text"] = kept
+    out = [first]
+    for extra in items[1:]:
+        blank = dict(extra)
+        blank["text"] = ""
+        out.append(blank)
+    return out
+
+
 def _summarize(
     text: str, spec: ContextSpec, *, llm: Any, cap: int
 ) -> tuple[str | None, str | None]:
