@@ -278,3 +278,20 @@ def test_nested_governor_with_run_workflow_file(tmp_path: Path, tmp_settings) ->
         )
     assert state.status == "succeeded"
     assert state.output_keys["msg"] == "n=7"
+
+
+def test_batch_sovereign_concurrent_rows(tmp_path: Path, tmp_settings) -> None:
+    wf = _echo_wf(tmp_path)
+    gov = ConcurrencyGovernor(global_limit=2, max_concurrency=2)
+    report = run_batch(
+        wf,
+        [{"n": 1}, {"n": 2}],
+        concurrency=2,
+        persist=False,
+        governor=gov,
+        settings=tmp_settings,
+        run_kwargs={"sovereign": True},
+    )
+    assert report.succeeded == 2
+    assert report.failed == 0
+    assert {row.outputs["msg"] for row in report.results} == {"n=1", "n=2"}

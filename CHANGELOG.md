@@ -33,6 +33,9 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- Sovereign egress guard is refcounted so concurrent `batch` rows share one
+  process wrapper instead of raising "already installed" or uninstalling
+  while another row is still running. Per-handle attempt lists stay isolated.
 - Security-model docs: MCP description/schema pins gate only when a firewall
   policy file is present. Without a policy, shipped `evaluate` stays identity
   allow (`pin_changed` does not pause an unconfigured run).

@@ -504,3 +504,39 @@ nodes:
     )
     assert state.status == "succeeded"
     assert "10.0.0.8" in list((state.metadata.get("network") or {}).get("allowed_endpoints") or [])
+
+
+def test_concurrent_install_guard_is_refcounted() -> None:
+    """Batch rows share the process guard; last close uninstalls."""
+    from readyagents.sovereign.egress import active_guard
+
+    held = threading.Event()
+    finish = threading.Event()
+    errors: list[BaseException] = []
+
+    def holder() -> None:
+        guard = install_guard()
+        try:
+            held.set()
+            finish.wait(timeout=5)
+        except BaseException as extra:  # noqa: BLE001
+            errors.append(extra)
+        finally:
+            guard.close()
+
+    t_hold = threading.Thread(target=holder)
+    t_hold.start()
+    assert held.wait(timeout=5)
+    nested = install_guard()
+    try:
+        assert active_guard() is not None
+        with pytest.raises(EgressDenied):
+            socket.create_connection(("1.1.1.1", 443), timeout=0.2)
+    finally:
+        nested.close()
+    assert active_guard() is not None
+    finish.set()
+    t_hold.join(timeout=5)
+    assert not t_hold.is_alive()
+    assert not errors
+    assert active_guard() is None
