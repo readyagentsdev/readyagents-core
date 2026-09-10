@@ -250,7 +250,7 @@ def run_batch(
         try:
             with governor.acquire(
                 workflow=workflow.name,
-                provider=_provider_of(extra),
+                provider=_provider_of(extra, workflow),
                 priority=RunPriority.BATCH,
             ):
                 if token.is_requested() or governor.is_shutdown():
@@ -409,9 +409,27 @@ def _outputs(state: RunState) -> dict[str, Any]:
     return dict(state.node_outputs or {})
 
 
-def _provider_of(run_kwargs: Mapping[str, Any]) -> str | None:
+def _provider_of(run_kwargs: Mapping[str, Any], workflow: Any = None) -> str | None:
+    """Provider key for governor acquire. CLI batch has no llm in run_kwargs."""
     llm = run_kwargs.get("llm")
     name = getattr(llm, "name", None)
     if name:
-        return str(name)
-    return None
+        return str(name).strip().lower() or None
+    ref = ""
+    if workflow is not None:
+        ref = str(getattr(workflow, "default_model", None) or "").strip()
+    if not ref:
+        settings = run_kwargs.get("settings")
+        if settings is None:
+            from readyagents.config import get_settings
+
+            settings = get_settings()
+        ref = str(getattr(settings, "default_model", "") or "").strip()
+    if not ref:
+        return None
+    from readyagents.llm.base import parse_model_ref
+
+    try:
+        return parse_model_ref(ref)[0]
+    except ValueError:
+        return None
