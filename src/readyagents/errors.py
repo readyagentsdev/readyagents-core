@@ -123,6 +123,21 @@ class IdentityError(ConfigError):
     """Identity verification or trust-anchor failure. Always fail closed."""
 
 
+class TrustError(ConfigError):
+    """Supply-chain verification failed. Always fail closed under enforcement."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        artifact: str | None = None,
+        reason: str | None = None,
+    ) -> None:
+        self.artifact = artifact
+        self.reason = reason
+        super().__init__(message)
+
+
 class PolicyError(ConfigError):
     """A policy file is missing, malformed, or unreadable (fail closed)."""
 

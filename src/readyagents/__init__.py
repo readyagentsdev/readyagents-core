@@ -19,6 +19,7 @@ from readyagents.errors import (
     StructuredOutputError,
     TemplateError,
     ToolError,
+    TrustError,
     WorkflowError,
 )
 
@@ -38,5 +39,6 @@ __all__ = [
     "StructuredOutputError",
     "TemplateError",
     "ToolError",
+    "TrustError",
     "WorkflowError",
 ]

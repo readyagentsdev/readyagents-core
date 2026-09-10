@@ -141,6 +141,9 @@ def fork_run(
     authorizer: Any | None = None,
     extra_packs: Any = None,
     decisions: Mapping[str, str] | None = None,
+    pack_specs: Any = None,
+    require_signed: bool = False,
+    frozen: bool = False,
 ) -> RunState:
     """Mint a new run from a parent checkpoint. Parent record is not rewritten."""
     from readyagents.config import get_settings
@@ -181,6 +184,9 @@ def fork_run(
             offline=offline,
             cassette_path=cassette_path if offline else None,
             record=False,
+            pack_specs=pack_specs,
+            require_signed=require_signed,
+            frozen=frozen,
         )
         if parent_path.is_file() and parent_path.read_bytes() != parent_before:
             raise ForkError("Fork mutated the parent run record")

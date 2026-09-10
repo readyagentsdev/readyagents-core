@@ -51,6 +51,9 @@ class Policy(_Forbid):
     tools: dict[str, ToolRule] = Field(default_factory=dict)
     detection: DetectionBlock | None = None
     nodes: dict[str, NodeRule] = Field(default_factory=dict)
+    require_signed: bool = False
+    frozen: bool = False
+    on_lock_mismatch: Action = "allow"
     source: str | None = None
 
     def tool_rule(self, name: str) -> tuple[str, ToolRule | None]:
