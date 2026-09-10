@@ -328,6 +328,92 @@ def doctor_cmd(
         raise typer.Exit(code=1)
 
 
+@app.command("attest")
+def attest_cmd(
+    run_id: str = typer.Argument(..., help="Persisted run id (or unique prefix)."),
+    out: Path | None = typer.Option(None, "--out", help="Write JSON to this path."),
+    as_json: bool = typer.Option(False, "--json"),
+    sign: bool = typer.Option(False, "--sign", help="Detached Ed25519 beside the JSON."),
+    key: Path | None = typer.Option(None, "--key", help="Ed25519 private key for --sign."),
+) -> None:
+    """Write a data-residency attestation. Technical evidence, not legal compliance."""
+    from readyagents.config import get_settings
+    from readyagents.run_store import open_run_store
+    from readyagents.sovereign.attest import build_attestation, dump_attestation, sign_attestation
+
+    try:
+        settings = get_settings()
+        store = open_run_store(settings)
+        try:
+            state = store.get(run_id, allow_prefix=True).state
+        finally:
+            closer = getattr(store, "close", None)
+            if callable(closer):
+                closer()
+        payload = build_attestation(state, mcp_names=list(state.metadata.get("mcp_servers") or []))
+        text = dump_attestation(payload)
+        dest = out
+        if dest is not None:
+            dest = Path(dest)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(text, encoding="utf-8")
+        if sign:
+            if key is None:
+                raise ConfigError("--sign requires --key")
+            sig = sign_attestation(payload, key=key)
+            sig_path = (dest or Path(f"attest-{state.run_id}.json")).with_suffix(".json.sig")
+            sig_path.write_text(json.dumps(sig, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            payload = dict(payload)
+            payload["signature_path"] = str(sig_path)
+        if as_json:
+            extra = dict(payload)
+            if dest is not None:
+                extra["path"] = str(dest)
+            _print_json(_json_envelope("attest", ok=True, **extra))
+            return
+        if dest is not None:
+            console.print(f"wrote {dest}")
+        else:
+            console.print(text, markup=False, end="")
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope("attest", ok=False, error=type(extra).__name__, message=str(extra))
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+
+
+@app.command("bundle")
+def bundle_cmd(
+    out: Path = typer.Option(..., "--out", help="Directory to write wheels and manifest.json."),
+    python: str | None = typer.Option(
+        None, "--python", help="Target Python X.Y (one per invocation)."
+    ),
+    platform: str | None = typer.Option(
+        None, "--platform", help="Target platform tag (one per invocation)."
+    ),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Collect wheels for offline `pip install --no-index --find-links`."""
+    from readyagents.sovereign.bundle import write_bundle
+
+    try:
+        payload = write_bundle(out, python=python, platform=platform)
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope("bundle", ok=False, error=type(extra).__name__, message=str(extra))
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(_json_envelope("bundle", ok=True, path=str(out), **payload))
+        return
+    console.print(f"wrote {len(payload.get('files') or [])} files under {out}")
+
+
 @app.command("eval")
 def eval_cmd(
     path: Path = typer.Argument(
@@ -504,6 +590,17 @@ def run(
         "--frozen",
         help="Refuse to run when readyagents.lock digests do not match.",
     ),
+    sovereign: bool = typer.Option(
+        False,
+        "--sovereign",
+        help="Refuse non-loopback egress at the socket boundary (env: READYAGENTS_SOVEREIGN).",
+        envvar="READYAGENTS_SOVEREIGN",
+    ),
+    sovereign_allow: list[str] = typer.Option(
+        [],
+        "--sovereign-allow",
+        help="Private endpoint allowlisted under --sovereign (repeatable).",
+    ),
 ) -> None:
     """Execute a workflow."""
     if log_level or log_format:
@@ -541,6 +638,8 @@ def run(
                 max_wall_seconds=max_wall_seconds,
                 require_signed=require_signed,
                 frozen=frozen,
+                sovereign=sovereign,
+                sovereign_allow=sovereign_allow,
             )
         else:
             state = run_workflow_file(
@@ -564,6 +663,8 @@ def run(
                 max_wall_seconds=max_wall_seconds,
                 require_signed=require_signed,
                 frozen=frozen,
+                sovereign=sovereign,
+                sovereign_allow=sovereign_allow,
             )
     except KeyboardInterrupt:
         if as_json:

@@ -203,6 +203,19 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("READYAGENTS_CREDENTIALS"),
     )
+    sovereign: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("READYAGENTS_SOVEREIGN"),
+    )
+    sovereign_allow: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("READYAGENTS_SOVEREIGN_ALLOW"),
+    )
+
+    def sovereign_allow_list(self) -> list[str]:
+        if not self.sovereign_allow:
+            return []
+        return [part.strip() for part in self.sovereign_allow.split(",") if part.strip()]
 
     def fallback_model_list(self) -> list[str]:
         if not self.fallback_models:

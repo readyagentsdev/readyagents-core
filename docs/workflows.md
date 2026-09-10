@@ -272,6 +272,7 @@ readyagents runs replay <run_id>
 | File | Needs LLM | Notes |
 | --- | --- | --- |
 | `examples/calc_pipeline.yaml` | No | Clone-and-run smoke test |
+| `examples/ollama_local.yaml` | No | Keyless loopback OpenAI-compat path |
 | `examples/approval_gate.yaml` | No | Human-in-the-loop approval |
 | `examples/quorum_gate.yaml` | No | Two-approver quorum gate |
 | `examples/expiring_gate.yaml` | No | Lazy `expires_in` / `on_expire: reject` |

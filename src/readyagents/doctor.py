@@ -99,7 +99,29 @@ def run_doctor() -> dict[str, Any]:
             "database": str(settings.run_db_path()),
         },
         "findings": findings,
+        "sovereign": {
+            "would_succeed": bool(loopback),
+            "loopback_bindable": loopback,
+            "os_sandbox": False,
+        },
+        "local_models": {
+            "ollama": {
+                "present": _loopback_port_open(11434),
+                "endpoint": "loopback:11434",
+            }
+        },
     }
+    if not loopback:
+        findings.append(
+            {
+                "id": "sovereign",
+                "message": "Sovereign mode would fail: loopback is not bindable.",
+                "remedy": "Restore 127.0.0.1 bind permission, then retry readyagents doctor.",
+            }
+        )
+        payload["ok"] = False
+        payload["findings"] = findings
+        payload["sovereign"]["would_succeed"] = False
     return payload
 
 
@@ -122,6 +144,15 @@ def format_doctor(report: dict[str, Any]) -> str:
         (
             f"Run-store {report['run_store']['backend']} "
             f"sqlite_wal={report['run_store']['sqlite_wal']}"
+        ),
+        (
+            "Sovereign would_succeed="
+            f"{report.get('sovereign', {}).get('would_succeed')} "
+            "(in-process guard, not an OS sandbox)"
+        ),
+        (
+            "Local models ollama_present="
+            f"{report.get('local_models', {}).get('ollama', {}).get('present')}"
         ),
     ]
     if report["findings"]:
@@ -163,6 +194,19 @@ def _loopback_bindable() -> bool:
         return True
     except OSError:
         return False
+
+
+def _loopback_port_open(port: int) -> bool:
+    """Loopback probe only. Never prints a private hostname or secret."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(0.05)
+    try:
+        sock.connect(("127.0.0.1", int(port)))
+        return True
+    except OSError:
+        return False
+    finally:
+        sock.close()
 
 
 def _sqlite_wal() -> bool:

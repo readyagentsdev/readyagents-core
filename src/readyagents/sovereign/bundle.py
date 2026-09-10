@@ -1,0 +1,123 @@
+"""Offline install bundle: wheels + manifest checksums for pip --no-index."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+from readyagents import __version__
+from readyagents.atomic import atomic_write_text
+from readyagents.errors import ConfigError
+
+MANIFEST_NAME = "manifest.json"
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return f"sha256:{digest.hexdigest()}"
+
+
+def write_bundle(
+    dest: Path,
+    *,
+    python: str | None = None,
+    platform: str | None = None,
+    project: Path | None = None,
+) -> dict[str, Any]:
+    """Write wheels into dest plus a checksum manifest.
+
+    One target platform/Python per invocation. pip may be used; the caller
+    supplies network when collecting third-party wheels.
+    """
+    dest = Path(dest)
+    dest.mkdir(parents=True, exist_ok=True)
+    root = Path(project) if project is not None else Path.cwd()
+    py = python or f"{sys.version_info.major}.{sys.version_info.minor}"
+    plat = platform or sys.platform
+    build_cmd = [
+        sys.executable,
+        "-m",
+        "build",
+        "--wheel",
+        "--outdir",
+        str(dest),
+        str(root),
+    ]
+    proc = subprocess.run(build_cmd, check=False, capture_output=True, text=True, timeout=180)
+    if proc.returncode != 0:
+        raise ConfigError(
+            f"bundle: could not build the project wheel: {proc.stderr or proc.stdout}"
+        ) from None
+    download = [
+        sys.executable,
+        "-m",
+        "pip",
+        "download",
+        str(root),
+        "-d",
+        str(dest),
+        "--disable-pip-version-check",
+    ]
+    if python:
+        download.extend(["--python-version", python])
+    if platform:
+        download.extend(["--platform", platform, "--only-binary=:all:"])
+    try:
+        subprocess.run(download, check=True, capture_output=True, text=True, timeout=180)
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        pass
+    files: list[dict[str, str]] = []
+    for path in sorted(dest.iterdir(), key=lambda p: p.name.lower()):
+        if not path.is_file() or path.name == MANIFEST_NAME:
+            continue
+        if path.suffix not in {".whl", ".gz", ".zip"} and ".tar" not in path.name:
+            continue
+        files.append({"name": path.name, "digest": sha256_file(path)})
+    if not files:
+        raise ConfigError(f"bundle: no wheels written under {dest}")
+    payload = {
+        "version": 1,
+        "readyagents_version": __version__,
+        "python": py,
+        "platform": plat,
+        "files": files,
+        "install": f"pip install --no-index --find-links {dest} readyagentsdev",
+    }
+    atomic_write_text(
+        dest / MANIFEST_NAME,
+        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    return payload
+
+
+def verify_manifest(dest: Path) -> dict[str, Any]:
+    folder = Path(dest)
+    manifest_path = folder / MANIFEST_NAME
+    if not manifest_path.is_file():
+        raise ConfigError(f"bundle manifest missing: {manifest_path}")
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    files = data.get("files")
+    if not isinstance(files, list) or not files:
+        raise ConfigError("bundle manifest has no files")
+    for row in files:
+        name = str(row.get("name") or "")
+        expected = str(row.get("digest") or "")
+        path = folder / name
+        if not path.is_file():
+            raise ConfigError(f"bundle missing file: {name}")
+        actual = sha256_file(path)
+        if actual != expected:
+            raise ConfigError(f"bundle checksum mismatch for {name}")
+    return data

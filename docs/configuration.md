@@ -21,6 +21,8 @@ Copy `.env.example` to `.env` and fill in keys.
 | `OPENAI_COMPAT_API_KEY` or `READYAGENTS_OPENAI_COMPAT_API_KEY` | Groq / Ollama / compatible |
 | `OPENAI_COMPAT_BASE_URL` | Base URL for compatible APIs |
 | `READYAGENTS_DEFAULT_MODEL` | `provider:model`, e.g. `openai:gpt-4o-mini` |
+| `READYAGENTS_SOVEREIGN` | `1` / true: refuse non-loopback egress at the socket boundary for the run |
+| `READYAGENTS_SOVEREIGN_ALLOW` | Comma-separated private hosts allowed under sovereign (must resolve private) |
 
 Model references:
 
@@ -28,6 +30,9 @@ Model references:
 - `anthropic:claude-sonnet-4-5`
 - `openai-compat:llama-3.1-8b-instant` (requires `OPENAI_COMPAT_BASE_URL`)
 - `groq:llama-3.1-8b-instant` (defaults Groq base URL)
+- `ollama:llama3.2` (loopback `http://127.0.0.1:11434/v1`, no API key)
+
+Loopback (and allowlisted private) OpenAI-compatible bases need no placeholder key. Remote compat URLs still do. See [local-models.md](local-models.md) and [sovereign.md](sovereign.md).
 - `ollama:llama3` (defaults `http://127.0.0.1:11434/v1`)
 
 Install extras to talk to a provider:

@@ -1,3 +1,20 @@
+# Unreleased — sovereign mode (draft, not a release)
+
+`--sovereign` refuses non-loopback egress at the socket boundary. Loopback
+OpenAI-compatible endpoints need no API key. `readyagents attest`,
+`readyagents bundle`, and `readyagents doctor` report residency evidence,
+offline wheels, and whether sovereign would succeed here. In-process is not
+an OS sandbox; MCP stdio is network-uncontrolled.
+
+```bash
+readyagents run examples/calc_pipeline.yaml --sovereign
+readyagents attest RUN --json
+readyagents bundle --out ./offline-wheels
+```
+
+See [docs/sovereign.md](docs/sovereign.md).
+
+
 # ReadyAgents Core 1.7.0
 
 **Enterprise HITL: quorum, roles, deadlines, delegation.**

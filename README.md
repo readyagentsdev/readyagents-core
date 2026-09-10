@@ -84,7 +84,9 @@ flowchart LR
 | `readyagents validate PATH` | Schema-validate a workflow (source-located errors on failure) |
 | `readyagents schema` | Print/write/check the generated workflow JSON Schema |
 | `readyagents eval PATH` | Score a keyless fixture suite (exit 0/1) |
-| `readyagents run PATH [--input KEY=VALUE] [--dry-run] [--approve NODE] [--reject NODE] [--decision-file FILE] [--actor NAME] [--pack PATH] [--policy PATH] [--estimate] [--max-spend USD] [--max-tokens N] [--label KEY=VALUE]` | Execute (or `--estimate` without running) |
+| `readyagents run PATH [--input KEY=VALUE] [--dry-run] [--approve NODE] [--reject NODE] [--decision-file FILE] [--actor NAME] [--pack PATH] [--policy PATH] [--estimate] [--max-spend USD] [--max-tokens N] [--label KEY=VALUE] [--sovereign]` | Execute (or `--estimate` without running) |
+| `readyagents attest RUN_ID` | Data-residency attestation (technical evidence, not legal compliance) |
+| `readyagents bundle --out DIR` | Offline wheel set for `pip install --no-index --find-links` |
 | `readyagents resume RUN_ID [--approve NODE] [--reject NODE] [--decision-file FILE] [--policy PATH]` | Resume a paused or failed run |
 | `readyagents policy check PATH` | Validate a firewall policy file (fail closed) |
 | `readyagents policy explain PATH [--policy PATH]` | Show which tools each node may call and why |
@@ -107,7 +109,7 @@ flowchart LR
 | `readyagents mcp serve` | Stdio MCP server (builtin tools); `--json` prints protocol versions |
 | `readyagents mcp probe URL` | Read-only `server/discover` diagnostic (never calls a tool) |
 | `readyagents packs [--pack PATH]` | List installed / local packs |
-| `readyagents doctor` | Read-only platform / extras / permissions / loopback / run-store diagnostic |
+| `readyagents doctor` | Read-only platform / extras / permissions / loopback / run-store / sovereign diagnostic |
 | `readyagents version` | Print version |
 
 ## Examples (no keys unless noted)
@@ -117,6 +119,7 @@ flowchart LR
 | `examples/calc_pipeline.yaml` | Builtin tools, transform, condition |
 | `examples/calc_pipeline.json` | Same graph as `calc_pipeline.yaml` |
 | `examples/approval_gate.yaml` | Human-in-the-loop pause / resume |
+| `examples/ollama_local.yaml` | Keyless loopback OpenAI-compat path (no live model) |
 | `examples/quorum_gate.yaml` | Two-approver gate (keyless) |
 | `examples/expiring_gate.yaml` | Lazy deadline, `on_expire: reject` (keyless) |
 | `examples/multi_gate.yaml` | Two sequential approval gates |

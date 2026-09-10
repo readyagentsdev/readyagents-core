@@ -36,7 +36,17 @@ Loads YAML/JSON and validates the Pydantic schema (unique node ids, dangling `ne
 
 ## `readyagents doctor`
 
-Read-only diagnostic: platform, Python, ReadyAgents version and install location, optional extras, `READYAGENTS_HOME` writability, whether restrictive permissions are enforceable, filesystem case sensitivity, loopback bind, SQLite WAL, and the resolved run-store backend. No network, no LLM, no run record. Exit 0 if nothing is broken, 1 if a check failed. Attach `--json` output to an I-ran-this issue.
+Read-only diagnostic: platform, Python, ReadyAgents version and install location, optional extras, `READYAGENTS_HOME` writability, whether restrictive permissions are enforceable, filesystem case sensitivity, loopback bind, SQLite WAL, the resolved run-store backend, whether `--sovereign` would succeed here, and loopback model presence (never secret values or full private hostnames). Loopback probes only; no egress. Exit 0 if nothing is broken, 1 if a check failed. Attach `--json` output to an I-ran-this issue.
+
+## `readyagents attest RUN_ID`
+
+Write a data-residency attestation for a persisted run (mode, recorded connect attempts, model endpoint, workspace, digests, MCP subprocess markers). Technical evidence, not legal compliance. MCP stdio is `network_uncontrolled: true`. `--json`, `--out FILE`, `--sign --key PEM`.
+
+## `readyagents bundle --out DIR`
+
+Collect wheels plus `manifest.json` checksums for offline `pip install --no-index --find-links DIR`. One `--python` / `--platform` per invocation.
+
+`--sovereign` on `readyagents run` refuses non-loopback egress at the socket boundary. See [sovereign.md](sovereign.md).
 
 ```bash
 readyagents doctor
