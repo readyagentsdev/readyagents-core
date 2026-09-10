@@ -7,6 +7,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from readyagents.atomic import atomic_write_text, read_text_with_retry
 from readyagents.errors import ConfigError, RunStoreConflict
 from readyagents.run_store.base import RunQuery, StoredRun
 from readyagents.workflow.state import RunState
@@ -62,8 +63,6 @@ class JsonRunStore:
                 record_obj = dict(state.to_record())
             record_obj[_REV_KEY] = next_rev
             self.runs_dir.mkdir(parents=True, exist_ok=True)
-            from readyagents.atomic import atomic_write_text
-
             atomic_write_text(
                 path,
                 json.dumps(record_obj, indent=2, ensure_ascii=False) + "\n",
@@ -75,7 +74,8 @@ class JsonRunStore:
     def get(self, run_id: str, *, allow_prefix: bool = True) -> StoredRun:
         self._ensure_open()
         path = self._resolve_path(run_id, allow_prefix=allow_prefix)
-        return self._read_path(path)
+        with self._run_lock(path.stem):
+            return self._read_path(path)
 
     def list(self, query: RunQuery | None = None) -> list[StoredRun]:
         self._ensure_open()
@@ -174,7 +174,7 @@ class JsonRunStore:
 
     def _read_path(self, path: Path) -> StoredRun:
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
+            data = json.loads(read_text_with_retry(path, encoding="utf-8"))
         except json.JSONDecodeError as exc:
             raise ConfigError(f"Corrupt run record {path}: {exc}") from exc
         except OSError as exc:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -102,6 +103,69 @@ def test_gc_spares_paused(tmp_path, backend: str) -> None:
     store.delete(paused.run_id)
     with pytest.raises(ConfigError, match="not found"):
         store.get(paused.run_id)
+    store.close()
+
+
+def test_json_get_retries_windows_sharing(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from pathlib import Path
+
+    store = JsonRunStore(tmp_path / "runs")
+    state = _state()
+    store.save(state)
+    dest = tmp_path / "runs" / f"{state.run_id}.json"
+    calls = {"n": 0}
+    real = Path.read_text
+
+    def flaky(self: Path, *args: object, **kwargs: object) -> str:
+        if self.resolve() == dest.resolve():
+            calls["n"] += 1
+            if calls["n"] < 3:
+                err = PermissionError(13, "Permission denied")
+                err.winerror = 32  # type: ignore[attr-defined]
+                err.errno = 13
+                raise err
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", flaky)
+    monkeypatch.setattr("readyagents.atomic._REPLACE_BACKOFF", 0)
+    loaded = store.get(state.run_id, allow_prefix=False)
+    assert loaded.state.run_id == state.run_id
+    assert calls["n"] == 3
+    store.close()
+
+
+def test_json_get_during_save(tmp_path) -> None:
+    store = JsonRunStore(tmp_path / "r")
+    state = _state()
+    store.save(state)
+    errors: list[BaseException] = []
+    barrier = threading.Barrier(2)
+
+    def writer() -> None:
+        barrier.wait(timeout=5)
+        current = store.get(state.run_id, allow_prefix=False).state
+        for i in range(40):
+            current.status = "paused" if i % 2 else "running"
+            try:
+                store.save(current)
+            except BaseException as exc:  # noqa: BLE001
+                errors.append(exc)
+
+    def reader() -> None:
+        barrier.wait(timeout=5)
+        for _ in range(80):
+            try:
+                store.get(state.run_id, allow_prefix=False)
+            except BaseException as exc:  # noqa: BLE001
+                errors.append(exc)
+
+    threads = [threading.Thread(target=writer), threading.Thread(target=reader)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+        assert not thread.is_alive()
+    assert errors == []
     store.close()
 
 
