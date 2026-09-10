@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from tests.test_identity import AUD, ISSUER, _rsa_pair, _token, _write_trust
 from typer.testing import CliRunner
 
 from readyagents.cli import app
@@ -21,7 +22,6 @@ from readyagents.identity.verify import verify_token
 from readyagents.secrets import MappingSecrets
 from readyagents.tools import FunctionTool, ToolRegistry
 from readyagents.workflow.runner import run_workflow_file
-from tests.test_identity import AUD, ISSUER, _rsa_pair, _token, _write_trust
 
 runner = CliRunner()
 ROOT = Path(__file__).resolve().parents[1]
@@ -70,9 +70,7 @@ def test_alg_none_refused_verify_and_cli(
     token_path.write_text(forged, encoding="utf-8")
     monkeypatch.setenv("READYAGENTS_TRUST_ANCHORS", str(trust))
     monkeypatch.setenv("READYAGENTS_HOME", str(tmp_settings.home_path()))
-    result = runner.invoke(
-        app, ["identity", "verify", "--token-file", str(token_path), "--json"]
-    )
+    result = runner.invoke(app, ["identity", "verify", "--token-file", str(token_path), "--json"])
     assert result.exit_code != 0
     blob = (result.stdout + result.stderr).lower()
     assert "alg none" in blob or "identityerror" in blob
@@ -150,7 +148,9 @@ def test_audience_issuer_exp_nbf_refused(tmp_path: Path) -> None:
     now = int(time.time())
 
     with pytest.raises(IdentityError, match="audience|aud"):
-        verify_token(_token(pem, {"aud": "evil-audience", "jti": "aud-bad"}), anchors, base=tmp_path)
+        verify_token(
+            _token(pem, {"aud": "evil-audience", "jti": "aud-bad"}), anchors, base=tmp_path
+        )
 
     # Missing aud claim.
     missing_aud = jwt.encode(
@@ -206,13 +206,12 @@ def test_malformed_and_unreadable_trust_fails_closed_on_verify(
     malformed = tmp_path / "malformed-trust.yaml"
     malformed.write_text("{[ not yaml", encoding="utf-8")
     monkeypatch.setenv("READYAGENTS_TRUST_ANCHORS", str(malformed))
-    bad_cli = runner.invoke(
-        app, ["identity", "verify", "--token-file", str(token_path), "--json"]
-    )
+    bad_cli = runner.invoke(app, ["identity", "verify", "--token-file", str(token_path), "--json"])
     assert bad_cli.exit_code != 0
-    assert "IdentityError" in (bad_cli.stdout + bad_cli.stderr) or "malformed" in (
-        bad_cli.stdout + bad_cli.stderr
-    ).lower()
+    assert (
+        "IdentityError" in (bad_cli.stdout + bad_cli.stderr)
+        or "malformed" in (bad_cli.stdout + bad_cli.stderr).lower()
+    )
 
     with pytest.raises(IdentityError):
         identify_approver(
@@ -398,9 +397,9 @@ def test_brokered_secret_not_leaked_to_record_logs_or_other_tool(
 
         seen["other_map"] = current_granted().get("PARTNER_API_TOKEN")
         # Hostile attempt: read process environ dump.
-        seen["environ_dump_has"] = _SECRET if _SECRET in " ".join(
-            f"{k}={v}" for k, v in os.environ.items()
-        ) else None
+        seen["environ_dump_has"] = (
+            _SECRET if _SECRET in " ".join(f"{k}={v}" for k, v in os.environ.items()) else None
+        )
         return "other-ok"
 
     creds = tmp_path / "readyagents.credentials.yaml"
@@ -484,7 +483,9 @@ def test_hostile_claims_do_not_become_roles(tmp_path: Path) -> None:
     )
     anchors = load_trust_anchors(trust)
     with pytest.raises(IdentityError, match="actor claim"):
-        verify_token(_token(pem, {"email": "../../etc/passwd", "jti": "path"}), anchors, base=tmp_path)
+        verify_token(
+            _token(pem, {"email": "../../etc/passwd", "jti": "path"}), anchors, base=tmp_path
+        )
     actor = verify_token(
         _token(
             pem,
@@ -536,6 +537,7 @@ def test_signed_is_not_identified_without_token(
     assert identity is None or identity.get("identified") in {None, False}
     assert identity is None or identity.get("method") in {None, "none"}
     # Actor string is recorded, but that is not cryptographic identification.
-    assert (rec.get("metadata") or {}).get("actor") == "local-only" or payload.get(
-        "actor"
-    ) in {None, "local-only"}
+    assert (rec.get("metadata") or {}).get("actor") == "local-only" or payload.get("actor") in {
+        None,
+        "local-only",
+    }
