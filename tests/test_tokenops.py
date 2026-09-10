@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import socket
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -258,9 +260,25 @@ def test_unpriced_plus_max_spend_fails_closed(tmp_path: Path, tmp_settings) -> N
     assert llm.calls == []
 
 
-def test_parallel_branches_share_meter(tmp_path: Path, tmp_settings) -> None:
+class _OverlappingLLM:
+    """Both complete() calls enter before either returns (~150ms each)."""
+
+    name = "overlap"
+
+    def __init__(self, inner: ScriptedLLM, parties: int = 2) -> None:
+        self._inner = inner
+        self._barrier = threading.Barrier(parties, timeout=5)
+        self.calls = inner.calls
+
+    def complete(self, messages, *, model, tools=None, **kwargs):  # noqa: ANN001
+        self._barrier.wait()
+        time.sleep(0.15)
+        return self._inner.complete(messages, model=model, tools=tools, **kwargs)
+
+
+def test_parallel_overlapping_completes_fit_under_shared_cap(tmp_path: Path, tmp_settings) -> None:
     spec = {
-        "name": "fan-cap",
+        "name": "fan-overlap",
         "nodes": [
             {
                 "id": "fan",
@@ -283,6 +301,33 @@ def test_parallel_branches_share_meter(tmp_path: Path, tmp_settings) -> None:
         ],
     }
     path = _write_workflow(tmp_path, spec)
+    inner = ScriptedLLM()
+    inner.enqueue(
+        "one",
+        model="gpt-4o-mini",
+        usage={"prompt_tokens": 10, "completion_tokens": 0, "total_tokens": 10},
+    )
+    inner.enqueue(
+        "two",
+        model="gpt-4o-mini",
+        usage={"prompt_tokens": 10, "completion_tokens": 0, "total_tokens": 10},
+    )
+    llm = _OverlappingLLM(inner)
+    state = run_workflow_file(
+        path,
+        llm=llm,
+        settings=tmp_settings,
+        persist=False,
+        max_tokens_cap=100_000,
+    )
+    assert state.status == "succeeded"
+    assert len(inner.calls) == 2
+    assert state.usage.get("total_tokens") == 20
+
+
+def test_parallel_branches_share_meter_after_first_records(tmp_path: Path, tmp_settings) -> None:
+    """Sequential agents on one meter: the second consult sees the first usage."""
+    path = _write_workflow(tmp_path, _agent_pair())
     llm = ScriptedLLM()
     llm.enqueue(
         "one",
@@ -446,6 +491,45 @@ def test_refuse_to_start_and_audited_override(tmp_path: Path, tmp_settings) -> N
     kinds = {row.get("event") for row in events}
     assert "budget_override" in kinds
     assert "budget_refuse" in kinds
+
+
+def test_ledger_unpriced_model_does_not_inherit_legacy_cost(tmp_path: Path, tmp_settings) -> None:
+    from readyagents.llm.resilience import cost_micros as legacy_cost_micros
+
+    path = _write_workflow(
+        tmp_path,
+        {
+            "name": "mystery-ledger",
+            "nodes": [
+                {
+                    "id": "a",
+                    "type": "agent",
+                    "prompt": "unpriced mystery",
+                    "model": "mystery-model-does-not-exist",
+                }
+            ],
+        },
+    )
+    llm = ScriptedLLM()
+    llm.enqueue(
+        "ok",
+        model="mystery-model-does-not-exist",
+        usage={"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
+    )
+    state = run_workflow_file(path, llm=llm, settings=tmp_settings, persist=True)
+    assert state.status == "succeeded"
+    assert state.metadata["spend"]["unpriced"] is True
+    assert state.metadata["spend"]["cost_micros"] == 0
+    legacy = legacy_cost_micros("mystery-model-does-not-exist", 100, 50)
+    assert legacy != 0
+    assert state.usage.get("cost_micros") == legacy
+    entries = read_spend_entries(tmp_settings.ledger_dir())
+    assert entries
+    row = entries[-1]
+    assert row["unpriced"] is True
+    assert row["cost_micros"] == 0
+    assert row["cost_micros"] != legacy
+    assert row["cost_micros"] == state.metadata["spend"]["cost_micros"]
 
 
 def test_ledger_labels_aggregation_and_corrupt(tmp_path: Path, tmp_settings) -> None:

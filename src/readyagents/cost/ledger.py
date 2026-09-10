@@ -115,12 +115,12 @@ def spend_entry_from_state(
         "status": getattr(state, "status", None),
         "actor": actor,
         "labels": dict(labels or {}),
-        "prompt_tokens": int(usage.get("prompt_tokens") or spend.get("prompt_tokens") or 0),
-        "completion_tokens": int(
-            usage.get("completion_tokens") or spend.get("completion_tokens") or 0
-        ),
-        "total_tokens": int(usage.get("total_tokens") or spend.get("total_tokens") or 0),
-        "cost_micros": int(usage.get("cost_micros") or spend.get("cost_micros") or 0),
+        "prompt_tokens": _prefer_int(spend, usage, "prompt_tokens"),
+        "completion_tokens": _prefer_int(spend, usage, "completion_tokens"),
+        "total_tokens": _prefer_int(spend, usage, "total_tokens"),
+        # Meter cost wins, including 0 for unpriced. `usage.cost_micros or …`
+        # would treat 0 as missing and copy the legacy default-rate silent price.
+        "cost_micros": _prefer_int(spend, usage, "cost_micros"),
         "unpriced": bool(spend.get("unpriced")),
         "unpriced_models": list(spend.get("unpriced_models") or []),
         "cache_hits": int(usage.get("cache_hits") or spend.get("cache_hits") or 0),
@@ -131,6 +131,22 @@ def spend_entry_from_state(
         "by_model": {str(k): dict(v) for k, v in by_model.items() if isinstance(v, dict)},
         "models": list(by_model.keys()),
     }
+
+
+def _prefer_int(spend: Mapping[str, Any], usage: Mapping[str, Any], key: str) -> int:
+    """Prefer the meter snapshot, including an explicit 0 (unpriced is not free)."""
+    if key in spend and spend[key] is not None:
+        try:
+            return int(spend[key])
+        except (TypeError, ValueError):
+            return 0
+    raw = usage.get(key)
+    if raw is None:
+        return 0
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 0
 
 
 @dataclass

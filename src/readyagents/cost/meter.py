@@ -89,17 +89,16 @@ class SpendMeter:
             if self.max_model_calls is not None and self.model_calls >= self.max_model_calls:
                 raise RunawayGuard("model_calls", self.model_calls, self.max_model_calls)
             if self.max_tokens is not None:
-                remaining = self.max_tokens - self.total_tokens - self._reserved_tokens
-                if remaining <= 0 or estimated_tokens > remaining:
+                in_flight = self.total_tokens + self._reserved_tokens
+                projected = in_flight + estimated_tokens
+                if in_flight >= self.max_tokens or projected > self.max_tokens:
                     raise BudgetExceeded(
                         "tokens",
-                        self.total_tokens + self._reserved_tokens + estimated_tokens,
+                        projected,
                         self.max_tokens,
                         reason="before_call",
                     )
-                # Hold the rest of the cap until this call records so a parallel
-                # peer cannot also start and cross the ceiling.
-                self._reserved_tokens += remaining
+                self._reserved_tokens += estimated_tokens
             if self.max_spend_micros is not None:
                 if not quote.priced or estimated_cost is None:
                     self.unpriced = True
@@ -111,22 +110,27 @@ class SpendMeter:
                         self.max_spend_micros,
                         reason="unpriced",
                     )
-                remaining_cost = self.max_spend_micros - self.cost_micros - self._reserved_cost
-                if remaining_cost <= 0 or estimated_cost > remaining_cost:
+                in_flight_cost = self.cost_micros + self._reserved_cost
+                projected_cost = in_flight_cost + estimated_cost
+                if (
+                    in_flight_cost >= self.max_spend_micros
+                    or projected_cost > self.max_spend_micros
+                ):
                     raise BudgetExceeded(
                         "cost_micros",
-                        self.cost_micros + self._reserved_cost + estimated_cost,
+                        projected_cost,
                         self.max_spend_micros,
                         reason="before_call",
                     )
-                self._reserved_cost += remaining_cost
+                self._reserved_cost += estimated_cost
             self.model_calls += 1
 
     def release_reservation(self, *, prompt_tokens: int = 0, completion_tokens: int = 0) -> None:
-        del prompt_tokens, completion_tokens
+        tokens = max(0, int(prompt_tokens)) + max(0, int(completion_tokens))
         with self._lock:
-            self._reserved_tokens = 0
-            self._reserved_cost = 0
+            self._reserved_tokens = max(0, self._reserved_tokens - tokens)
+            if self._reserved_tokens == 0:
+                self._reserved_cost = 0
 
     def record_usage(
         self,
@@ -148,8 +152,13 @@ class SpendMeter:
             self.prompt_tokens += prompt
             self.completion_tokens += completion
             self.total_tokens += total
-            self._reserved_tokens = 0
-            self._reserved_cost = 0
+            reserved = max(0, int(reserved_prompt)) + max(0, int(reserved_completion))
+            self._reserved_tokens = max(0, self._reserved_tokens - reserved)
+            reserved_cost = quote.cost_micros(reserved_prompt, reserved_completion)
+            if reserved_cost:
+                self._reserved_cost = max(0, self._reserved_cost - reserved_cost)
+            if self._reserved_tokens == 0:
+                self._reserved_cost = 0
             if quote.priced and priced is not None:
                 self.cost_micros += priced
                 extras["priced_cost_micros"] = priced

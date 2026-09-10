@@ -67,8 +67,10 @@ readyagents run PATH --max-spend 2.50 --max-tokens 200000
 
 `--max-spend` and `--max-tokens` apply to the **whole run** and are consulted
 **before** each `complete()`. Parallel branches share one meter behind a lock.
-A resumed run restores the meter from `metadata.spend` and continues the same
-budget.
+Each in-flight call reserves **this call's estimated tokens/cost**, not the
+unused remainder of the cap, so overlapping `complete()` calls that together
+fit still run. A resumed run restores the meter from `metadata.spend` and
+continues the same budget.
 
 A single in-flight provider call can still overshoot the estimate of *that*
 call (the provider is not changed). The next call is blocked.
