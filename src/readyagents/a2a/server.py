@@ -27,6 +27,7 @@ from readyagents.errors import (
     AuthorizationError,
     ConfigError,
     ReadyAgentsError,
+    missing_extra_message,
 )
 from readyagents.mcp.protocol import PROMPT_MAX_CHARS, sanitize_prompt
 from readyagents.mcp.tasks import canonical_decision_bytes
@@ -484,7 +485,11 @@ def serve_a2a(
     try:
         import uvicorn
     except ImportError as extra:
-        raise A2AError('A2A serve needs starlette/uvicorn. pip install -e ".[mcp]"') from extra
+        raise A2AError(
+            "A2A serve needs starlette and uvicorn. "
+            f"{missing_extra_message('MCP', 'mcp')} "
+            "Also: pip install starlette uvicorn"
+        ) from extra
     try:
         uvicorn.run(app, host=bind, port=int(port), log_level="warning")
     finally:

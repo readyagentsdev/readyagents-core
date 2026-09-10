@@ -9,7 +9,7 @@ from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any
 
-from readyagents.errors import MCPError
+from readyagents.errors import MCPError, missing_extra_message
 from readyagents.tools import FunctionTool, Tool
 from readyagents.workflow.schema import MCPServerSpec
 
@@ -174,8 +174,7 @@ class MCPClient:
         if not mcp_available():
             names = ", ".join(self._servers)
             raise MCPError(
-                f"Workflow declares MCP servers ({names}) but the mcp extra is not installed. "
-                'Run: pip install -e ".[mcp]"'
+                f"Workflow declares MCP servers ({names}) but {missing_extra_message('MCP', 'mcp')}"
             )
         self._loop = _AsyncLoop()
         try:

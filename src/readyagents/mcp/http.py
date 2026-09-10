@@ -24,7 +24,7 @@ from readyagents.config import (
     MAX_PENDING_RUNS_HARD,
     get_settings,
 )
-from readyagents.errors import MCPError
+from readyagents.errors import MCPError, missing_extra_message
 from readyagents.mcp.dispatch import McpRpcSurface, ProtocolDispatchMiddleware
 from readyagents.mcp.server import construct_server, streamable_http_app
 
@@ -198,7 +198,7 @@ def serve_streamable_http(
         try:
             import uvicorn
         except ImportError as exc:
-            raise MCPError('MCP extra is not installed. Run: pip install -e ".[mcp]"') from exc
+            raise MCPError(missing_extra_message("MCP", "mcp")) from exc
         uvicorn.run(app, host=host, port=int(port), log_level="warning")
     finally:
         shutdown = getattr(coordinator, "shutdown", None) if coordinator is not None else None

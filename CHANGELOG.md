@@ -23,6 +23,8 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- MCP and A2A missing-extra errors name `readyagentsdev[mcp]` (PyPI), not only
+  clone-only `pip install -e ".[mcp]"`.
 - README CLI table lists shipped `connectors`, `sign`/`verify`/`lock`/`sbom`/`trust`,
   `runs fork|diff|freeze|migrate`, and `approvals serve`. Optional OTel emits
   `readyagents.total_tokens` instead of a non-registry `gen_ai.usage.total_tokens`.

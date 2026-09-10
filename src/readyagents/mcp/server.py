@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from readyagents.config import MAX_HTTP_BODY_BYTES, get_settings
-from readyagents.errors import MCPError
+from readyagents.errors import MCPError, missing_extra_message
 from readyagents.mcp.builtin import builtin_tools
 from readyagents.mcp.protocol import (
     LIST_CACHE_SCOPE,
@@ -77,7 +77,7 @@ def _cache_hints() -> Any:
 def construct_server(*, allow_http: bool | None = None, workspace: Path | None = None) -> Any:
     """Build an MCP server that exposes builtin tools. Does not start a transport."""
     if not mcp_available():
-        raise MCPError('MCP extra is not installed. Run: pip install -e ".[mcp]"')
+        raise MCPError(missing_extra_message("MCP", "mcp"))
 
     settings = get_settings()
     allow = settings.allow_http if allow_http is None else allow_http
@@ -142,7 +142,7 @@ def streamable_http_app(
     if method is None:
         raise MCPError(
             "This mcp package does not support Streamable HTTP. "
-            "Upgrade with: pip install 'mcp>=2' or pip install -e '.[mcp]'"
+            "Upgrade with: pip install 'mcp>=2' or pip install 'readyagentsdev[mcp]'"
         )
     kwargs: dict[str, Any] = {
         "streamable_http_path": "/mcp",

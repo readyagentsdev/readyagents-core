@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from readyagents.errors import LLMError
-from readyagents.llm.base import CompletionResult, Message, missing_extra_message
+from readyagents.errors import LLMError, missing_extra_message
+from readyagents.llm.base import CompletionResult, Message
 from readyagents.llm.tool_calls import (
     anthropic_tools_payload,
     messages_to_anthropic,
