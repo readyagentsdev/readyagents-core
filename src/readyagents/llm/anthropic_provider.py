@@ -83,6 +83,7 @@ class AnthropicProvider:
         except LLMError:
             raise
         except Exception as exc:  # noqa: BLE001
+            self._note_rate_limit(exc)
             raise LLMError(f"Anthropic request failed: {exc}") from exc
 
     async def complete_async(
@@ -108,4 +109,20 @@ class AnthropicProvider:
         except LLMError:
             raise
         except Exception as exc:  # noqa: BLE001
+            self._note_rate_limit(exc)
             raise LLMError(f"Anthropic request failed: {exc}") from exc
+
+    def _note_rate_limit(self, exc: BaseException) -> None:
+        from readyagents.workflow.governor import (
+            looks_like_rate_limit,
+            notify_retry_after,
+            retry_after_seconds_from,
+        )
+
+        if not looks_like_rate_limit(exc):
+            return
+        notify_retry_after(
+            self.name,
+            exc,
+            seconds=retry_after_seconds_from(exc) or 1.0,
+        )

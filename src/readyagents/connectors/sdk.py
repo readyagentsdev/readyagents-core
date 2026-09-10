@@ -83,12 +83,18 @@ def exchange(
     current = url
     for attempt in range(max_tries):
         last = _once(ctx, method, current, headers=req_headers, body=payload)
-        if last.status in {429, 503} and attempt + 1 < max_tries:
+        if last.status in {429, 503}:
             wait = parse_retry_after(last.headers.get("Retry-After"))
             if wait is None:
                 wait = min(2**attempt, 8)
-            time.sleep(min(float(wait), 30.0))
-            continue
+            from readyagents.workflow.governor import notify_retry_after
+
+            spec = getattr(ctx, "spec", None)
+            provider = str(getattr(spec, "name", None) or "connector")
+            notify_retry_after(provider, last.headers, seconds=float(wait))
+            if attempt + 1 < max_tries:
+                time.sleep(min(float(wait), 30.0))
+                continue
         if last.status in {301, 302, 303, 307, 308}:
             location = last.headers.get("Location") or last.headers.get("location")
             if location:

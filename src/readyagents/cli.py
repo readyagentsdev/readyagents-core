@@ -704,7 +704,27 @@ def batch_cmd(
         8,
         "--concurrency",
         min=1,
-        help="Max in-flight rows. Capped by READYAGENTS_MAX_CONCURRENCY.",
+        help="Max in-flight rows. Capped by READYAGENTS_MAX_CONCURRENCY (default 4096).",
+    ),
+    per_workflow_limit: int | None = typer.Option(
+        None,
+        "--per-workflow-limit",
+        min=1,
+        help="Max in-flight rows for this workflow. Env: READYAGENTS_PER_WORKFLOW_CONCURRENCY.",
+        envvar="READYAGENTS_PER_WORKFLOW_CONCURRENCY",
+    ),
+    per_provider_limit: int | None = typer.Option(
+        None,
+        "--per-provider-limit",
+        min=1,
+        help="Max in-flight rows per provider. Env: READYAGENTS_PER_PROVIDER_CONCURRENCY.",
+        envvar="READYAGENTS_PER_PROVIDER_CONCURRENCY",
+    ),
+    provider_rate: float | None = typer.Option(
+        None,
+        "--provider-rate",
+        help="Token-bucket rate per provider (tokens/sec). Env: READYAGENTS_PROVIDER_RATE.",
+        envvar="READYAGENTS_PROVIDER_RATE",
     ),
     continue_on_error: bool = typer.Option(
         True,
@@ -764,6 +784,11 @@ def batch_cmd(
     store = None
     owned_store = False
     governor = get_governor()
+    governor.configure(
+        per_workflow_limit=per_workflow_limit,
+        per_provider_limit=per_provider_limit,
+        provider_rate=provider_rate,
+    )
     pack_specs = collect_pack_specs(pack)
 
     def _progress(row: Any, done: int, total: int) -> None:

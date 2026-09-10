@@ -264,6 +264,55 @@ def test_shared_budget_unit_fail_closed() -> None:
         )
 
 
+def test_cli_batch_concurrency_above_default_32(tmp_path: Path, tmp_settings, monkeypatch) -> None:
+    """--concurrency is capped by READYAGENTS_MAX_CONCURRENCY, not a hidden 32."""
+    from readyagents.workflow.governor import reset_governor_for_tests
+
+    monkeypatch.setenv("READYAGENTS_MAX_CONCURRENCY", "128")
+    monkeypatch.delenv("READYAGENTS_GLOBAL_CONCURRENCY", raising=False)
+    reset_governor_for_tests()
+    wf = _echo_wf(tmp_path)
+    rows = tmp_path / "rows.jsonl"
+    rows.write_text("\n".join(json.dumps({"n": i}) for i in range(40)) + "\n", encoding="utf-8")
+    current = 0
+    max_seen = 0
+    lock = threading.Lock()
+    real = run_workflow_file
+
+    def wrapped(*args, **kwargs):
+        nonlocal current, max_seen
+        with lock:
+            current += 1
+            max_seen = max(max_seen, current)
+        try:
+            time.sleep(0.03)
+            return real(*args, **kwargs)
+        finally:
+            with lock:
+                current -= 1
+
+    monkeypatch.setattr("readyagents.workflow.batch.run_workflow_file", wrapped)
+    result = runner.invoke(
+        app,
+        [
+            "batch",
+            str(wf),
+            "--input-file",
+            str(rows),
+            "--concurrency",
+            "40",
+            "--no-persist",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout[result.stdout.find("{") :])
+    assert data["succeeded"] == 40
+    assert data["concurrency"] == 40
+    assert max_seen > 32
+    assert max_seen <= 40
+
+
 def test_nested_governor_with_run_workflow_file(tmp_path: Path, tmp_settings) -> None:
     wf = _echo_wf(tmp_path)
     gov = ConcurrencyGovernor(global_limit=1, max_concurrency=1)
