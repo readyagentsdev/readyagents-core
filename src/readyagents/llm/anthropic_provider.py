@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from readyagents.errors import LLMError
-from readyagents.llm.base import CompletionResult, Message
+from readyagents.llm.base import CompletionResult, Message, missing_extra_message
 from readyagents.llm.tool_calls import (
     anthropic_tools_payload,
     messages_to_anthropic,
@@ -30,9 +30,7 @@ class AnthropicProvider:
         try:
             from anthropic import Anthropic
         except ImportError as exc:
-            raise LLMError(
-                "The Anthropic extra is not installed. Run: pip install 'readyagents[anthropic]'"
-            ) from exc
+            raise LLMError(missing_extra_message("Anthropic", "anthropic")) from exc
         system, chat = messages_to_anthropic(messages)
         if not chat:
             raise LLMError("Anthropic requires at least one non-system message")

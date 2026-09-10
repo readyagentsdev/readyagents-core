@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from readyagents.errors import LLMError
-from readyagents.llm.base import CompletionResult, Message
+from readyagents.llm.base import CompletionResult, Message, missing_extra_message
 from readyagents.llm.tool_calls import (
     messages_to_openai,
     openai_tools_payload,
@@ -31,9 +31,7 @@ class OpenAIProvider:
         try:
             from openai import OpenAI
         except ImportError as exc:
-            raise LLMError(
-                "The OpenAI extra is not installed. Run: pip install 'readyagents[openai]'"
-            ) from exc
+            raise LLMError(missing_extra_message("OpenAI", "openai")) from exc
         try:
             client_kwargs: dict[str, Any] = {"api_key": self._api_key}
             if self._base_url:
