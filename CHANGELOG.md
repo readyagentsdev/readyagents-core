@@ -6,6 +6,13 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Scoped local memory.** JSON default store and opt-in SQLite (`type: memory`
+  with `write|read|search|forget`), explicit `workflow:` / `ns:` / `subject:`
+  scopes, stdlib BM25, optional BYOK embeddings that degrade to keyword search,
+  TTL, auditable forget/subject sweep, and declared compaction that records
+  what was dropped. Memory is untrusted. Delayed injection and scope escape
+  are first-class tests. Not a quality or benchmark claim. See
+  [docs/memory.md](docs/memory.md).
 - **A2A interoperability.** Serve one workflow as an A2A agent
   (`readyagents a2a serve|card|probe`) and delegate with `type: a2a`. Tasks are
   a projection over the durable run record (not a second state machine).

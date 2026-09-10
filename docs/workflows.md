@@ -57,7 +57,7 @@ Connectors appear as ordinary `type: tool` nodes (`tool: rest`, `sql`, …). See
 | Field | Meaning |
 | --- | --- |
 | `id` | Unique id |
-| `type` | `agent` \| `tool` \| `condition` \| `transform` \| `approval` \| `parallel` \| `include` \| `foreach` \| `a2a` |
+| `type` | `agent` \| `tool` \| `condition` \| `transform` \| `approval` \| `parallel` \| `include` \| `foreach` \| `a2a` \| `memory` |
 | `next` | Default successor if no edges |
 | `output_key` | Alias for templates (`{{brief}}` instead of `{{write}}`) |
 | `timeout_seconds` | Soft timeout |
@@ -243,6 +243,22 @@ send in `message` can leave the building. See [a2a.md](a2a.md).
 public-IP SSRF pin as `http_get`. Remote `input-required` becomes a local
 approval pause.
 
+## Memory (`type: memory`)
+
+Declared scoped write/read/search/forget. Memory is untrusted. Templated
+scopes cannot expand into another subject. See [memory.md](memory.md).
+
+```yaml
+- id: remember
+  type: memory
+  op: write
+  scope: "subject:{{ ticket_id }}"
+  scope_pattern: "subject:*"
+  text: "{{ note }}"
+  ttl: 90d
+  output_key: stored
+```
+
 ## Transform
 
 ```yaml
@@ -308,6 +324,7 @@ readyagents runs replay <run_id>
 | `examples/agent_tools.yaml` | Yes (dry-run: no) | Agent `tools: [calc]` allowlist |
 | `examples/foreach_calc.yaml` | No | Sequential `foreach` + `calc` |
 | `examples/a2a_delegate.yaml` | No | `type: a2a` dry-run (no network) |
+| `examples/memory_triage.yaml` | No | `type: memory` write then search |
 | `examples/json_mutate.yaml` | No | `json_set` / `json_merge` |
 | `examples/list_dir.yaml` | No | Builtin `list_dir` (no MCP / no Node) |
 | `examples/eval/pass.yaml` | No | Keyless `readyagents eval` fixture suite |

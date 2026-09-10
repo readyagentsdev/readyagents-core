@@ -92,6 +92,14 @@ class A2ATransitionError(A2AError):
     """Illegal A2A task state transition."""
 
 
+class MemoryError(ReadyAgentsError):
+    """Memory store, scope, or compaction failure. Not a second run store."""
+
+
+class MemoryScopeError(MemoryError):
+    """Templated scope escaped its declared pattern, kind, or safe token."""
+
+
 class ApprovalRequired(ReadyAgentsError):
     """An approval node is waiting for an explicit operator decision."""
 

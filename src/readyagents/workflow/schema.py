@@ -39,6 +39,7 @@ class NodeType(StrEnum):
     include = "include"
     foreach = "foreach"
     a2a = "a2a"
+    memory = "memory"
 
 
 class RetrySpec(BaseModel):
@@ -103,6 +104,34 @@ class RunawaySpec(BaseModel):
     )
 
 
+class ContextSpec(BaseModel):
+    """Declared compaction for oversized memory content. Never implicit."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        description="Token budget for this node's memory payload.",
+    )
+    on_exceed: str = Field(
+        default="truncate",
+        description="truncate, summarize, or fail when the budget is exceeded.",
+    )
+    summarize_model: str | None = Field(
+        default=None,
+        description="Optional provider:model used when on_exceed is summarize.",
+    )
+
+    @field_validator("on_exceed")
+    @classmethod
+    def _exceed(cls, value: str) -> str:
+        cleaned = (value or "truncate").strip().lower()
+        if cleaned not in {"truncate", "summarize", "fail"}:
+            raise ValueError("context.on_exceed must be truncate, summarize, or fail")
+        return cleaned
+
+
 class CircuitSpec(BaseModel):
     """Process-local circuit breaker for LLM providers."""
 
@@ -146,7 +175,7 @@ class NodeSpec(BaseModel):
     type: str = Field(
         description=(
             "Node kind. Built-ins: agent, tool, condition, transform, approval, "
-            "parallel, include, foreach, a2a. Packs may add types."
+            "parallel, include, foreach, a2a, memory. Packs may add types."
         )
     )
     timeout_seconds: float | None = Field(
@@ -335,6 +364,46 @@ class NodeSpec(BaseModel):
         description="Optional bearer for the remote agent. Prefer READYAGENTS_A2A_TOKEN.",
     )
 
+    # memory
+    op: str | None = Field(
+        default=None,
+        description="memory op: write, read, search, or forget.",
+    )
+    scope: str | None = Field(
+        default=None,
+        description="Explicit memory scope (workflow:, ns:, or subject:). Templates allowed.",
+    )
+    scope_pattern: str | None = Field(
+        default=None,
+        description="Declared scope pattern the interpolated scope must match.",
+    )
+    query: str | None = Field(
+        default=None,
+        description="Search query for memory op=search. Templates allowed.",
+    )
+    text: str | None = Field(
+        default=None,
+        description="Payload for memory op=write. Templates allowed.",
+    )
+    ttl: str | None = Field(
+        default=None,
+        description="Memory TTL duration (30m, 4h, 90d).",
+    )
+    limit: int | None = Field(
+        default=None,
+        ge=1,
+        le=50,
+        description="Max records or hits returned by memory read/search.",
+    )
+    embed: bool = Field(
+        default=False,
+        description="Request BYOK embedding search/write. Degrades to keyword if unavailable.",
+    )
+    context: ContextSpec | None = Field(
+        default=None,
+        description="Declared compaction budget for this memory node.",
+    )
+
     @field_validator("id")
     @classmethod
     def _id_token(cls, value: str) -> str:
@@ -419,6 +488,23 @@ class NodeSpec(BaseModel):
             if mode not in {"gate", "fail"}:
                 raise ValueError(f"Node '{self.id}': on_input_required must be 'gate' or 'fail'")
             self.on_input_required = mode
+        if t == NodeType.memory.value:
+            op = (self.op or "").strip().lower()
+            if op not in {"write", "read", "search", "forget"}:
+                raise ValueError(
+                    f"Node '{self.id}': memory nodes require op write, read, search, or forget"
+                )
+            self.op = op
+            if not (self.scope or "").strip():
+                raise ValueError(f"Node '{self.id}': memory nodes require 'scope'")
+            if op == "write" and not (self.text or self.source or self.prompt):
+                raise ValueError(f"Node '{self.id}': memory write requires 'text'")
+            if op == "search" and not (self.query or self.prompt):
+                raise ValueError(f"Node '{self.id}': memory search requires 'query'")
+            if self.ttl:
+                from readyagents.approvals.gate import parse_expires_in
+
+                parse_expires_in(self.ttl)
         return self
 
     def _hitl_declared(self) -> bool:
@@ -544,6 +630,10 @@ class WorkflowSpec(BaseModel):
     redact: bool | None = Field(
         default=None,
         description="Opt in to PII redaction for this workflow.",
+    )
+    memory_scopes: list[str] = Field(
+        default_factory=list,
+        description="Declared memory scope patterns this workflow may use.",
     )
 
     @model_validator(mode="after")
