@@ -250,8 +250,26 @@ def test_two_sequential_gates_distinct_keys(mrtr_env) -> None:
         time.sleep(0.05)
     assert key2 != key1
     assert ".second." in key2
-    _update(client, task_id, key2, "approve")
-    done = _wait_status(client, task_id, {"completed"})
+    second_update = _update(client, task_id, key2, "approve")
+    assert second_update.status_code == 200, second_update.text
+    done = _wait_status(client, task_id, {"completed"}, timeout=15.0)
+    assert done["status"] == "completed"
+
+
+def test_recorded_paused_decision_retries_resume(mrtr_env) -> None:
+    """A same-key retry must resume if the first submit never left paused."""
+    coord, client, _settings = mrtr_env
+    task_id = _start(client, "approval_gate.yaml")
+    paused = _wait_input_required(client, task_id)
+    key = next(iter(paused["inputRequests"]))
+    state = coord._load_exact(task_id)
+    meta = dict(state.metadata)
+    meta["mcp_input_responses"] = {key: "approve"}
+    state.metadata = meta
+    coord._persist(state)
+    retry = _update(client, task_id, key, "approve")
+    assert retry.status_code == 200, retry.text
+    done = _wait_status(client, task_id, {"completed"}, timeout=15.0)
     assert done["status"] == "completed"
 
 

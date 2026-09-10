@@ -399,16 +399,19 @@ class TaskService:
         applied = _applied_decision(state, key)
         if applied is not None:
             if applied == decision:
-                return {"resultType": RESULT_TYPE_COMPLETE}
-            self._audit(
-                "decision_conflict",
-                run_id=ident,
-                node_id=state.pending_node,
-                decision=decision,
-                actor=actor,
-                input_request_key=key,
-            )
-            raise RunConflict("conflicting input response for this input request key")
+                if map_run_status(state.status) != "input_required":
+                    return {"resultType": RESULT_TYPE_COMPLETE}
+                # Recorded but still paused: resume rather than no-op.
+            else:
+                self._audit(
+                    "decision_conflict",
+                    run_id=ident,
+                    node_id=state.pending_node,
+                    decision=decision,
+                    actor=actor,
+                    input_request_key=key,
+                )
+                raise RunConflict("conflicting input response for this input request key")
         if map_run_status(state.status) != "input_required":
             raise TaskStateError(
                 f"Task {ident} is not input_required (status={map_run_status(state.status)})",

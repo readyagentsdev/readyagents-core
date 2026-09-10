@@ -866,20 +866,26 @@ class RunCoordinator:
                 bucket = state.metadata.get("mcp_input_responses")
                 applied = bucket.get(input_request_key) if isinstance(bucket, dict) else None
                 if applied == decision:
-                    handle = {
-                        "ok": True,
-                        "run_id": run_id,
-                        "status": state.status,
-                        "links": _links(run_id),
-                    }
-                    return handle
-                if applied is not None:
+                    with self._lock:
+                        in_flight = run_id in self._in_flight_resume
+                    if in_flight or state.status != "paused":
+                        return {
+                            "ok": True,
+                            "run_id": run_id,
+                            "status": state.status,
+                            "links": _links(run_id),
+                        }
+                elif applied is not None:
                     raise RunConflict("conflicting input response for this input request key")
             try:
                 self._authorizer.check(actor, "resume", run_id)
                 self._authorizer.check(actor, decision, node_id)
             except Exception:
                 raise
+            with self._lock:
+                if run_id in self._in_flight_resume:
+                    raise RunConflict(f"Run {run_id} already has a resume in flight")
+                self._in_flight_resume.add(run_id)
             if input_request_key:
                 meta = dict(state.metadata)
                 responses = dict(meta.get("mcp_input_responses") or {})
@@ -889,18 +895,16 @@ class RunCoordinator:
                 state.metadata = meta
                 try:
                     self._persist(state)
-                except Exception as exc:  # noqa: BLE001
+                except Exception as extra:  # noqa: BLE001
                     from readyagents.errors import RunStoreConflict
 
-                    if isinstance(exc, RunStoreConflict):
+                    with self._lock:
+                        self._in_flight_resume.discard(run_id)
+                    if isinstance(extra, RunStoreConflict):
                         raise RunConflict(
                             "conflicting input response for this input request key"
-                        ) from exc
+                        ) from extra
                     raise
-            with self._lock:
-                if run_id in self._in_flight_resume:
-                    raise RunConflict(f"Run {run_id} already has a resume in flight")
-                self._in_flight_resume.add(run_id)
             token = self._new_token(run_id)
             with self._lock:
                 self._active.add(run_id)
