@@ -1,18 +1,37 @@
-# Unreleased — sovereign mode (draft, not a release)
+# ReadyAgents Core 1.8.0
 
-`--sovereign` refuses non-loopback egress at the socket boundary. Loopback
-OpenAI-compatible endpoints need no API key. `readyagents attest`,
-`readyagents bundle`, and `readyagents doctor` report residency evidence,
-offline wheels, and whether sovereign would succeed here. In-process is not
-an OS sandbox; MCP stdio is network-uncontrolled.
+**Sovereign mode: process-level egress refuse, attest, bundle, doctor.**
+
+`--sovereign` / `READYAGENTS_SOVEREIGN=1` refuses non-loopback egress at the
+process socket boundary for the run (model calls, tools, packs, threads).
+Loopback is allowed; private endpoints are explicit (`--sovereign-allow`).
+`readyagents attest` emits a residency document that marks MCP stdio
+`network_uncontrolled: true` and does not claim legal compliance.
+`readyagents bundle` writes wheels plus checksums for
+`pip install --no-index --find-links`. `readyagents doctor` reports whether
+sovereign would succeed here and loopback model presence, never secret values.
+Keyless local OpenAI-compatible endpoints are allowed. In-process is not an OS
+sandbox. See [docs/sovereign.md](docs/sovereign.md) and
+[docs/local-models.md](docs/local-models.md).
+
+Also fixed: scoped delegation matches the gate's `approver_roles`; JSON
+run-record reads retry Windows sharing violations; sequential HITL resume waits
+out a prior in-flight executor when the next gate is already paused.
+
+Packs are waitlisted, not for sale.
+
+## Try it
 
 ```bash
+pip install readyagentsdev==1.8.0
 readyagents run examples/calc_pipeline.yaml --sovereign
 readyagents attest RUN --json
 readyagents bundle --out ./offline-wheels
+readyagents doctor
 ```
 
-See [docs/sovereign.md](docs/sovereign.md).
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
 
 
 # ReadyAgents Core 1.7.0
