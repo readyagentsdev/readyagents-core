@@ -119,6 +119,7 @@ jobs:
 
   airgap:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -128,13 +129,18 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-      - name: Block non-loopback egress
-        run: |
-          sudo iptables -P OUTPUT DROP
-          sudo iptables -A OUTPUT -o lo -j ACCEPT
-          sudo iptables -A OUTPUT -p udp --dport 53 -j REJECT || true
-          sudo iptables -A OUTPUT -p tcp --dport 53 -j REJECT || true
       - name: Keyless examples under sovereign
         env:
           READYAGENTS_SOVEREIGN: "1"
-        run: python scripts/smoke.py
+        run: |
+          # Network-namespace only the smoke child. iptables OUTPUT DROP
+          # also severs the runner agent from GitHub and the job hangs.
+          PY="$(python -c 'import sys; print(sys.executable)')"
+          sudo unshare -n --fork --kill-child -- \
+            env HOME="$HOME" \
+                PATH="$(dirname "$PY"):$PATH" \
+                READYAGENTS_SOVEREIGN=1 \
+                RES_OPTIONS="attempts:1 timeout:1" \
+                PYTHONUNBUFFERED=1 \
+            bash -c 'ip link set lo up && cd "$1" && exec "$2" scripts/smoke.py' \
+            bash "$GITHUB_WORKSPACE" "$PY"
