@@ -436,6 +436,11 @@ def run_eval(
                     dry_run=dry_run,
                 )
         except Exception as exc:  # noqa: BLE001
+            attached = getattr(exc, "state", None)
+            if isinstance(attached, RunState):
+                ok, reason = _score(attached, case)
+                results.append(EvalResult(name=case.name, passed=ok, reason=reason, state=attached))
+                continue
             results.append(EvalResult(name=case.name, passed=False, reason=str(exc)))
             continue
         ok, reason = _score(state, case)

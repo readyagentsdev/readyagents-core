@@ -13,12 +13,16 @@ from readyagents.config import clear_settings_cache
 from readyagents.errors import SimulateRefused
 from readyagents.firewall.detect import detect_injection, injection_examples
 from readyagents.firewall.policy_file import load_policy
+from readyagents.simulate.coverage import apply_run, declared_coverage
 from readyagents.simulate.generate import generate_from_path
+from readyagents.simulate.layout import KIND_ERROR
 from readyagents.simulate.personas import generate_personas
 from readyagents.simulate.run import simulate_workflow
-from readyagents.testing.eval import load_eval_suite, run_eval
+from readyagents.testing.eval import EvalCase, load_eval_suite, run_eval
 from readyagents.testing.helpers import ScriptedLLM
 from readyagents.workflow.runner import load_workflow
+from readyagents.workflow.schema import WorkflowSpec
+from readyagents.workflow.state import NodeResult, RunState
 
 runner = CliRunner()
 
@@ -155,7 +159,9 @@ def test_live_side_effects_require_policy(tmp_path: Path, tmp_settings) -> None:
     assert report.dry_run is False
 
 
-def test_cluster_freeze_and_fail_on(tmp_path: Path, tmp_settings) -> None:
+def test_cluster_freeze_and_fail_on(
+    tmp_path: Path, tmp_settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
     flow = _flow(tmp_settings.workspace_path())
     dest = tmp_settings.workspace_path() / "sims"
     first = simulate_workflow(flow, seed=7, cap=16, out_dir=dest, settings=tmp_settings)
@@ -166,6 +172,12 @@ def test_cluster_freeze_and_fail_on(tmp_path: Path, tmp_settings) -> None:
     assert frozen_dirs
     case = frozen_dirs[0].joinpath("case.yaml")
     assert case.is_file()
+    copied = [
+        p
+        for p in frozen_dirs[0].iterdir()
+        if p.is_file() and p.suffix in {".yaml", ".yml"} and p.name != "case.yaml"
+    ]
+    assert copied, f"frozen workflow missing beside case.yaml in {frozen_dirs[0]}"
     blob = ""
     for path in dest.rglob("*"):
         if path.is_file():
@@ -173,7 +185,14 @@ def test_cluster_freeze_and_fail_on(tmp_path: Path, tmp_settings) -> None:
     assert "sk-abcdefghijksecret" not in blob
     suite = load_eval_suite(case)
     scored = run_eval(suite, settings=tmp_settings, dry_run=True)
-    assert scored.passed + scored.failed == len(suite)
+    assert scored.ok
+    assert scored.passed == len(suite)
+    monkeypatch.setenv("READYAGENTS_HOME", str(tmp_settings.home_path()))
+    monkeypatch.setenv("READYAGENTS_WORKSPACE", str(tmp_settings.workspace_path()))
+    clear_settings_cache()
+    eval_cli = runner.invoke(app, ["eval", str(case)])
+    assert eval_cli.exit_code == 0, eval_cli.stdout + eval_cli.stderr
+    clear_settings_cache()
     # Second run: same classes are not new.
     second = simulate_workflow(
         flow, seed=7, cap=16, out_dir=dest, settings=tmp_settings, fail_on_new=True
@@ -252,3 +271,125 @@ def test_cli_simulate_help_twice_and_json(tmp_path: Path, monkeypatch: pytest.Mo
 def test_injection_examples_hit_firewall() -> None:
     hits = [detect_injection(s).reasons for s in injection_examples()]
     assert any(h for h in hits)
+
+
+def test_eval_scores_attached_pause_state(tmp_path: Path, tmp_settings) -> None:
+    flow = tmp_path / "pause.yaml"
+    flow.write_text(
+        "name: pause-eval\n"
+        "start: a\n"
+        "nodes:\n"
+        "  - id: a\n"
+        "    type: approval\n"
+        "    prompt: go?\n"
+        "    then: d\n"
+        "    else: d\n"
+        "  - id: d\n"
+        "    type: transform\n"
+        "    template: ok\n"
+        "    output_key: summary\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    report = run_eval(
+        [EvalCase(name="paused", workflow=flow, expect_status="paused")],
+        settings=tmp_settings,
+        dry_run=True,
+    )
+    assert report.ok
+    assert report.results[0].state is not None
+    assert report.results[0].state.status == "paused"
+
+
+def test_error_coverage_marks_only_the_failed_node() -> None:
+    workflow = WorkflowSpec.model_validate(
+        {
+            "name": "cov",
+            "start": "ok",
+            "nodes": [
+                {
+                    "id": "ok",
+                    "type": "transform",
+                    "template": "x",
+                    "output_key": "s",
+                    "next": "boom",
+                },
+                {"id": "boom", "type": "transform", "template": "y", "output_key": "t"},
+            ],
+        }
+    )
+    report = declared_coverage(workflow)
+    state = RunState.start("cov", {})
+    state.status = "failed"
+    state.pending_node = "boom"
+    state.results = [
+        NodeResult(node_id="ok", type="transform", status="ok"),
+        NodeResult(node_id="boom", type="transform", status="error", error="nope"),
+    ]
+    apply_run(report, state)
+    error_reached = {p.id for p in report.reached() if p.kind == KIND_ERROR}
+    assert error_reached == {"boom:error"}
+
+
+def test_scripted_llm_persona_cases_are_scored(tmp_settings) -> None:
+    llm = ScriptedLLM()
+    llm.enqueue(text='{"draft": "hostile-persona"}', usage={"cost_micros": 100000})
+    report = simulate_workflow(
+        _flow(tmp_settings.workspace_path()),
+        seed=1,
+        cap=4,
+        settings=tmp_settings,
+        model="mock:x",
+        llm=llm,
+        personas=["hostile"],
+    )
+    assert llm.calls
+    assert any(name.startswith("persona-") for name in report.case_names)
+    assert report.cases == 4
+    assert report.spend_usd > 0
+
+
+def test_cli_simulate_model_constructs_provider(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("READYAGENTS_HOME", str(tmp_path / ".readyagents"))
+    monkeypatch.chdir(tmp_path)
+    clear_settings_cache()
+    llm = ScriptedLLM()
+    llm.enqueue(text='{"draft": "hostile-cli"}', usage={"cost_micros": 1000})
+
+    def fake_get_provider(
+        model_ref=None,
+        *,
+        settings=None,
+        implicit=False,
+        secrets=None,
+        offline=False,
+    ):
+        del settings, implicit, secrets, offline
+        assert model_ref == "mock:x"
+        return llm, "x"
+
+    monkeypatch.setattr("readyagents.llm.registry.get_provider", fake_get_provider)
+    flow = _flow(tmp_path)
+    ran = runner.invoke(
+        app,
+        [
+            "simulate",
+            str(flow),
+            "--seed",
+            "1",
+            "--cases",
+            "4",
+            "--model",
+            "mock:x",
+            "--personas",
+            "hostile",
+            "--json",
+        ],
+    )
+    assert ran.exit_code == 0, ran.stdout + ran.stderr
+    payload = json.loads(ran.stdout[ran.stdout.find("{") :])
+    assert llm.calls
+    assert any(str(name).startswith("persona-") for name in payload.get("case_names") or [])
+    clear_settings_cache()

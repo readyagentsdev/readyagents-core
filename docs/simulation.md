@@ -34,8 +34,10 @@ permitting policy the command is refused.
 ## Cluster, freeze, CI
 
 Failures cluster by **shape**, not by raw input. One representative per
-cluster is kept. With `--out DIR`, each distinct cluster is frozen (`case.yaml`
-+ cassette) after secret-shaped generated content is redacted. Re-run with
+cluster is kept. With `--out DIR`, each distinct cluster is frozen (`case.yaml`,
+a copy of the workflow YAML, and cassette) after secret-shaped generated
+content is redacted. Pause and wait trajectories score the attached run
+state, not a stateless exception. Re-run with
 `readyagents eval DIR/fail-*/case.yaml`.
 
 ```bash
@@ -51,6 +53,8 @@ A previously recorded class may still fail and still pass CI.
 readyagents simulate flow.yaml --model openai:gpt-4o-mini --personas hostile,confused --max-spend 1.00
 ```
 
-Metered and capped like other spend. Refused in `--sovereign` mode. Sending
-prompts and schemas to a provider is a disclosure — that is why this path is
-opt-in.
+Metered and capped like other spend. `--model` constructs a provider.
+Persona cases reserve slots in `--cases` so they are scored rather than
+sliced off by the deterministic suite. Refused in `--sovereign` mode.
+Sending prompts and schemas to a provider is a disclosure — that is why
+this path is opt-in.
