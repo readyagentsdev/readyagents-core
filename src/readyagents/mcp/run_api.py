@@ -975,16 +975,7 @@ class RunCoordinator:
                 _OneShotDecisions(raw_decisions) if input_request_key else raw_decisions
             )
             try:
-                # Non-daemon thread: a daemon died when the HTTP worker finished,
-                # so lastUpdatedAt never moved on CI. Do not use the run
-                # executor (start worker may still occupy a slot). Do not run
-                # inline (holds `_run_lock` and hides the 409 in-flight path).
-                threading.Thread(
-                    target=self._resume_job,
-                    args=(run_id, decisions, actor, token),
-                    name=f"readyagents-resume-{run_id[:8]}",
-                    daemon=False,
-                ).start()
+                self._launch_resume(run_id, decisions, actor, token)
             except Exception:
                 with self._lock:
                     self._in_flight_resume.pop(run_id, None)
@@ -996,6 +987,45 @@ class RunCoordinator:
             "status": "running",
             "links": _links(run_id),
         }
+
+    def _launch_resume(
+        self,
+        run_id: str,
+        decisions: dict[str, str],
+        actor: str | None,
+        token: Any,
+    ) -> None:
+        """Start ``_resume_job`` off the decide lock; inline if the thread never runs.
+
+        A daemon thread died with the HTTP worker. The shared run executor can
+        sit behind a just-paused start worker. Inline-only held ``_run_lock``
+        and hid the 409 in-flight path. Claim the job once.
+        """
+        started = threading.Event()
+        claimed = threading.Lock()
+        taken = False
+
+        def _run() -> None:
+            nonlocal taken
+            started.set()
+            with claimed:
+                if taken:
+                    return
+                taken = True
+            self._resume_job(run_id, decisions, actor, token)
+
+        threading.Thread(
+            target=_run,
+            name=f"readyagents-resume-{run_id[:8]}",
+            daemon=False,
+        ).start()
+        if started.wait(timeout=1.0):
+            return
+        with claimed:
+            if taken:
+                return
+            taken = True
+        self._resume_job(run_id, decisions, actor, token)
 
     def _resume_job(
         self,
