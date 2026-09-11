@@ -149,6 +149,7 @@ def test_unauthorised_sse_does_not_stream_run_events(tmp_settings) -> None:
     assert other.run_id not in own
     assert not wants_event_stream(None)
     assert wants_event_stream("text/event-stream")
+    assert not wants_event_stream("application/json, text/event-stream")
 
     inner_called = {"n": 0}
 

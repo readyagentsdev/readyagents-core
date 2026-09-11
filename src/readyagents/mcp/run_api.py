@@ -1182,12 +1182,12 @@ def build_run_routes(coordinator: RunCoordinator) -> list[Any]:
             return _respond(*coordinator._caught(exc, request_id=request_id, run_id=run_id))
 
     async def get_run_events(request: Request) -> Any:
-        from starlette.responses import StreamingResponse
+        from starlette.responses import Response
 
         from readyagents.workflow.stream import (
-            format_sse,
             get_stream_hub,
             snapshot_events,
+            sse_snapshot_bytes,
             wants_event_stream,
         )
 
@@ -1207,35 +1207,12 @@ def build_run_routes(coordinator: RunCoordinator) -> list[Any]:
         queue = hub.try_subscribe(run_id)
         if queue is None:
             return JSONResponse({"error": "stream cap exceeded"}, status_code=429)
-
-        terminal = frozenset({"succeeded", "failed", "cancelled", "paused"})
-
-        async def _gen():
-            try:
-                for item in snapshot_events(state):
-                    yield format_sse(item)
-                if getattr(state, "status", "") in terminal:
-                    return
-                import asyncio
-
-                for _ in range(40):
-                    while queue:
-                        yield format_sse(queue.popleft())
-                    try:
-                        latest = coordinator._load_exact(run_id)
-                    except ReadyAgentsError:
-                        return
-                    if getattr(latest, "status", "") in terminal:
-                        for item in snapshot_events(latest):
-                            if item.get("event") in {"run.finished", "run.cancelled"}:
-                                yield format_sse(item)
-                        return
-                    await asyncio.sleep(0.05)
-            finally:
-                hub.unsubscribe(run_id, queue)
-
-        return StreamingResponse(
-            _gen(),
+        try:
+            extra = list(queue)
+        finally:
+            hub.unsubscribe(run_id, queue)
+        return Response(
+            sse_snapshot_bytes(state, extra),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-store"},
         )

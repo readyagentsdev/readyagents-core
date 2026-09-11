@@ -388,8 +388,16 @@ def get_stream_hub() -> StreamHub:
 
 
 def wants_event_stream(accept: str | None) -> bool:
-    """True only when the client asked for SSE. Default GET is a JSON snapshot."""
-    return "text/event-stream" in (accept or "").lower()
+    """True only when SSE is the preferred Accept type.
+
+    Default GET is a JSON snapshot. MCP clients send
+    ``application/json, text/event-stream`` and must not attach to SSE.
+    """
+    raw = (accept or "").strip().lower()
+    if not raw:
+        return False
+    first = raw.split(",", 1)[0].split(";", 1)[0].strip()
+    return first == "text/event-stream"
 
 
 def snapshot_events(state: Any) -> list[dict[str, Any]]:
@@ -429,6 +437,17 @@ def snapshot_events(state: Any) -> list[dict[str, Any]]:
 
 def format_sse(payload: Mapping[str, Any]) -> bytes:
     return f"data: {json.dumps(dict(payload), ensure_ascii=False)}\n\n".encode()
+
+
+def sse_snapshot_bytes(
+    state: Any,
+    extra: list[Mapping[str, Any]] | None = None,
+) -> bytes:
+    """Finite SSE body: durable snapshot plus any already-queued events."""
+    frames = [format_sse(item) for item in snapshot_events(state)]
+    for item in extra or ():
+        frames.append(format_sse(dict(item)))
+    return b"".join(frames)
 
 
 class VoiceReadySession:

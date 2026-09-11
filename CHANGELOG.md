@@ -41,8 +41,8 @@ All notable changes to ReadyAgents Core.
 ### Fixed
 
 - MCP `GET /runs/{id}/events` and A2A `GET /tasks/{id}/stream` return a JSON
-  event snapshot unless `Accept` contains `text/event-stream`, so a default
-  client never attaches to an SSE generator.
+  event snapshot unless `Accept` prefers `text/event-stream`. SSE is a finite
+  snapshot body (no wait loop), so a client cannot hang on the generator.
 - Provider and connector HTTP 429/`Retry-After` notify the process concurrency
   governor (token bucket + wait), so `readyagents batch` backs off instead of
   retry-storming. `--concurrency` is capped by `READYAGENTS_MAX_CONCURRENCY`
