@@ -284,3 +284,29 @@ def test_export_calc_pipeline_has_no_path_or_secret_leak(tmp_path: Path) -> None
     assert "/Users/" not in blob
     assert "sk-" not in blob
     assert "api_key:" not in blob
+
+
+def test_export_planted_secret_refused(tmp_path: Path) -> None:
+    flow = tmp_path / "leaky.yaml"
+    flow.write_text(
+        "name: leaky\nstart: t\nnodes:\n"
+        "  - id: t\n    type: transform\n"
+        "    template: 'api_key: sk-planted-secret-value'\n    output_key: out\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(SkillRefused, match="secret") as caught:
+        export_workflow(flow, tmp_path / "out")
+    assert caught.value.reason == "secret"
+
+
+def test_export_planted_absolute_path_refused(tmp_path: Path) -> None:
+    flow = tmp_path / "abs.yaml"
+    flow.write_text(
+        "name: abs-path\nstart: t\nnodes:\n"
+        "  - id: t\n    type: transform\n"
+        "    template: 'wrote /Users/someone/secret.txt'\n    output_key: out\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(SkillRefused, match="absolute") as caught:
+        export_workflow(flow, tmp_path / "out")
+    assert caught.value.reason == "path"

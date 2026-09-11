@@ -16,6 +16,7 @@ from readyagents.atomic import atomic_write_text
 from readyagents.errors import TrustError
 from readyagents.trust.digest import (
     KIND_PACK,
+    KIND_SKILL,
     KIND_WORKFLOW,
     canonical_dumps,
     digest_pack_bytes,
@@ -25,7 +26,7 @@ from readyagents.trust.digest import (
 
 SIG_VERSION = 1
 SIG_ALGORITHM = "ed25519"
-KIND_CHOICES = frozenset({KIND_WORKFLOW, KIND_PACK})
+KIND_CHOICES = frozenset({KIND_WORKFLOW, KIND_PACK, KIND_SKILL})
 
 
 def signature_path(path: Path | str) -> Path:
@@ -34,7 +35,14 @@ def signature_path(path: Path | str) -> Path:
 
 
 def infer_kind(path: Path | str) -> str:
-    return KIND_PACK if Path(path).suffix.lower() == ".py" else KIND_WORKFLOW
+    file = Path(path)
+    if file.suffix.lower() == ".py":
+        return KIND_PACK
+    if file.name == "SKILL.md":
+        return KIND_SKILL
+    if file.is_dir() and (file / "SKILL.md").is_file():
+        return KIND_SKILL
+    return KIND_WORKFLOW
 
 
 def digest_artifact(
@@ -47,7 +55,21 @@ def digest_artifact(
     if kind == KIND_PACK:
         payload = data if data is not None else Path(path).read_bytes()
         return digest_pack_bytes(payload)
+    if kind == KIND_SKILL:
+        from readyagents.skills.digest import digest_skill_dir
+
+        target = Path(path)
+        folder = target.parent if target.is_file() else target
+        return digest_skill_dir(folder)
     return digest_workflow(path, source=source)
+
+
+def _skill_md_file(path: Path) -> Path:
+    if path.is_dir():
+        return path / "SKILL.md"
+    if path.name == "SKILL.md":
+        return path
+    return path
 
 
 def signed_message(*, digest: str, kind: str) -> bytes:
@@ -70,18 +92,20 @@ def sign_artifact(
     data: bytes | None = None,
 ) -> dict[str, Any]:
     file = Path(path)
-    if not file.is_file():
-        raise TrustError(
-            f"artifact not found: {file}",
-            artifact=str(file),
-            reason="missing",
-        )
     resolved_kind = kind or infer_kind(file)
     if resolved_kind not in KIND_CHOICES:
         raise TrustError(
             f"unsupported artifact kind {resolved_kind!r} for {file}",
             artifact=str(file),
             reason="malformed",
+        )
+    if resolved_kind == KIND_SKILL:
+        file = _skill_md_file(file)
+    if not file.is_file():
+        raise TrustError(
+            f"artifact not found: {file}",
+            artifact=str(file),
+            reason="missing",
         )
     digest = digest_artifact(file, kind=resolved_kind, data=data)
     private, public = _load_private_key(Path(key))
@@ -167,6 +191,8 @@ def verify_artifact(
     """Verify a detached signature against the local keyring. Fail closed."""
     file = Path(path)
     resolved_kind = kind or infer_kind(file)
+    if resolved_kind == KIND_SKILL:
+        file = _skill_md_file(file)
     dest = Path(sig_path) if sig_path is not None else signature_path(file)
     if not dest.is_file():
         raise TrustError(

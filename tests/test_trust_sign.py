@@ -197,6 +197,11 @@ def test_cli_sign_verify_json_stable(tmp_path: Path, monkeypatch: pytest.MonkeyP
     clear_settings_cache()
 
 
-def test_infer_kind() -> None:
+def test_infer_kind(tmp_path: Path) -> None:
     assert infer_kind("x.py") == "pack"
     assert infer_kind("flow.yaml") == "workflow"
+    assert infer_kind("SKILL.md") == "skill"
+    folder = tmp_path / "house-writing-style"
+    folder.mkdir()
+    (folder / "SKILL.md").write_text("placeholder", encoding="utf-8")
+    assert infer_kind(folder) == "skill"

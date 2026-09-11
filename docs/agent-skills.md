@@ -31,9 +31,13 @@ is a request; the policy engine filters it and never auto-grants.
   output_key: styled
 ```
 
-Install refuses zip-slip, symlinks, and oversized archives. Each skill is
-digested (`sha256:…`). Optional `SKILL.md.sig` can pin the digest. A changed
-folder after install is drift and the node refuses.
+Install refuses zip-slip, symlinks, and oversized archives. Each skill
+folder is digested (`sha256:…`); `*.sig` files are excluded so signing does
+not change the digest. Optional detached Ed25519 `SKILL.md.sig`
+(`readyagents sign SKILL.md`) is verified through the publisher keyring.
+A digest-only `.sig` is forged, not signed. `readyagents lock` pins
+installed skills like packs; `--frozen` refuses folder drift. A changed
+folder after install is also catalog drift and the node refuses.
 
 ## Outbound
 

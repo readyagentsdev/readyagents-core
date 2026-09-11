@@ -17,6 +17,7 @@ from readyagents.trust.digest import (
     KIND_INCLUDE,
     KIND_MCP,
     KIND_PACK,
+    KIND_SKILL,
     KIND_WORKFLOW,
     inspect_workflow,
 )
@@ -51,7 +52,7 @@ def build_sbom(
     spec = load_workflow(source)
     components: list[dict[str, Any]] = []
     for item in lock.artifacts:
-        if item.kind in {KIND_WORKFLOW, KIND_INCLUDE, KIND_PACK}:
+        if item.kind in {KIND_WORKFLOW, KIND_INCLUDE, KIND_PACK, KIND_SKILL}:
             components.append(
                 _file_component(item.path or source.name, item.digest or "", item.kind)
             )

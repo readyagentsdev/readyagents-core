@@ -4033,7 +4033,7 @@ def identity_trust_remove(
 
 @app.command("sign")
 def sign_cmd(
-    path: Path = typer.Argument(..., help="Workflow or pack path."),
+    path: Path = typer.Argument(..., help="Workflow, pack, or SKILL.md path."),
     key: Path = typer.Option(..., "--key", help="Operator-supplied Ed25519 private key."),
     out: Path | None = typer.Option(None, "--out", help="Signature path (default: PATH.sig)."),
     as_json: bool = typer.Option(False, "--json"),
@@ -4068,7 +4068,7 @@ def sign_cmd(
 
 @app.command("verify")
 def verify_cmd(
-    path: Path = typer.Argument(..., help="Workflow or pack path."),
+    path: Path = typer.Argument(..., help="Workflow, pack, or SKILL.md path."),
     as_json: bool = typer.Option(False, "--json"),
     sig: Path | None = typer.Option(None, "--sig", help="Detached signature path."),
 ) -> None:
@@ -4204,7 +4204,7 @@ def lock_cmd(
     pack: list[str] = typer.Option([], "--pack", help=_PACK_HELP),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
-    """Write readyagents.lock pinning workflow, include, pack, and MCP surface digests."""
+    """Write readyagents.lock pinning workflow, include, pack, MCP, and skill digests."""
     from readyagents.config import get_settings
     from readyagents.trust.lock import (
         build_lockfile,
@@ -4228,6 +4228,7 @@ def lock_cmd(
             pack_specs=collect_pack_specs(pack),
             workspace=pack_root,
             mcp_surfaces=surfaces,
+            skill_home=settings.home_path(),
         )
         dest = out if out is not None else default_lock_path(source)
         write_lockfile(lock, dest)

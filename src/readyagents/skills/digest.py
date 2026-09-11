@@ -6,9 +6,9 @@ import hashlib
 from pathlib import Path
 
 from readyagents.errors import SkillRefused
-from readyagents.trust.digest import prefixed
+from readyagents.trust.digest import KIND_SKILL, prefixed
 
-KIND_SKILL = "skill"
+__all__ = ["KIND_SKILL", "digest_skill_dir"]
 
 
 def digest_skill_dir(root: Path) -> str:
@@ -29,5 +29,5 @@ def _iter_files(folder: Path):
     for path in sorted(folder.rglob("*")):
         if path.is_symlink():
             raise SkillRefused(f"skill contains a symlink: {path}", reason="symlink")
-        if path.is_file():
+        if path.is_file() and path.suffix.lower() != ".sig":
             yield path
