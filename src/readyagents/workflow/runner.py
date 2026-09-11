@@ -163,6 +163,7 @@ def run_workflow_file(
     governor: Any | None = None,
     priority: Any | None = None,
     stream: Any | None = None,
+    started_by: Mapping[str, Any] | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     source_file = Path(path)
@@ -629,6 +630,20 @@ def run_workflow_file(
         "workspace": str(workspace),
         "actor": resolved_actor,
     }
+    prior_start = None
+    if (
+        resume_state is None
+        and initial_state is not None
+        and isinstance(initial_state.metadata, dict)
+    ):
+        prior_start = initial_state.metadata.get("started_by")
+    if resume_state is None:
+        if started_by:
+            metadata["started_by"] = dict(started_by)
+        elif isinstance(prior_start, dict) and prior_start:
+            metadata["started_by"] = dict(prior_start)
+        else:
+            metadata["started_by"] = {"kind": "cli"}
     if want_sovereign:
         metadata["sovereign"] = True
         metadata["network"] = {

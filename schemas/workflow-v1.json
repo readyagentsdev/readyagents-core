@@ -3102,6 +3102,138 @@
       },
       "title": "RunawaySpec",
       "type": "object"
+    },
+    "TriggerAcceptsSpec": {
+      "additionalProperties": false,
+      "description": "Which event kind and payload shape a trigger accepts.",
+      "properties": {
+        "kind": {
+          "description": "webhook, file, queue, or schedule.",
+          "title": "Kind",
+          "type": "string"
+        },
+        "schema": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "JSON Schema fragment for the event object (type: object).",
+          "title": "Schema"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "TriggerAcceptsSpec",
+      "type": "object"
+    },
+    "TriggerBudgetSpec": {
+      "additionalProperties": false,
+      "description": "Per-trigger spend ceiling. Distinct from the workflow budget.",
+      "properties": {
+        "max_cost_usd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Cost Usd"
+        },
+        "max_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Tokens"
+        }
+      },
+      "title": "TriggerBudgetSpec",
+      "type": "object"
+    },
+    "TriggerSpec": {
+      "additionalProperties": false,
+      "description": "Declared event contract. Core validates; core starts no listener.",
+      "properties": {
+        "accepts": {
+          "$ref": "#/$defs/TriggerAcceptsSpec"
+        },
+        "budget": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TriggerBudgetSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "concurrency": {
+          "default": 1,
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Concurrency",
+          "type": "integer"
+        },
+        "idempotency_key": {
+          "description": "Required template; missing is a schema error.",
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "idempotency_window": {
+          "default": "24h",
+          "title": "Idempotency Window",
+          "type": "string"
+        },
+        "inputs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Map event fields to workflow inputs via {{ event.* }} templates.",
+          "title": "Inputs",
+          "type": "object"
+        },
+        "name": {
+          "description": "Trigger name recorded on run provenance.",
+          "title": "Name",
+          "type": "string"
+        },
+        "on_ceiling": {
+          "default": "defer",
+          "description": "When concurrency is full: drop (refuse) or defer (bounded queue).",
+          "title": "On Ceiling",
+          "type": "string"
+        },
+        "require_signature": {
+          "default": false,
+          "title": "Require Signature",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "accepts",
+        "idempotency_key"
+      ],
+      "title": "TriggerSpec",
+      "type": "object"
     }
   },
   "$id": "https://readyagents.dev/schema/workflow/v1.json",
@@ -3314,6 +3446,14 @@
       "default": null,
       "description": "First node id (defaults to the first node).",
       "title": "Start"
+    },
+    "triggers": {
+      "description": "Optional event contracts that may start this workflow. Core validates and decides; core starts no listener.",
+      "items": {
+        "$ref": "#/$defs/TriggerSpec"
+      },
+      "title": "Triggers",
+      "type": "array"
     },
     "version": {
       "default": "1",

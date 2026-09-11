@@ -184,6 +184,31 @@ class TableRowError(TableError):
         super().__init__(f"Table row error at row {self.row}{where}: {reason}")
 
 
+class TriggerError(ReadyAgentsError):
+    """Trigger contract, event, or start-decision failure."""
+
+
+class TriggerRefused(TriggerError):
+    """Event refused: unsigned, cap, ceiling, budget, or mapping. Dead-lettered."""
+
+    def __init__(self, message: str, *, reason: str = "refused") -> None:
+        self.reason = reason
+        super().__init__(message)
+
+
+class TriggerCeiling(TriggerRefused):
+    """Per-trigger concurrency ceiling. Drop or defer as declared."""
+
+    def __init__(self, used: int, limit: int, *, action: str = "drop") -> None:
+        self.used = int(used)
+        self.limit = int(limit)
+        self.action = action
+        super().__init__(
+            f"Trigger concurrency ceiling: used={self.used} limit={self.limit} action={action}",
+            reason="ceiling",
+        )
+
+
 class WaitError(ReadyAgentsError):
     """Wait node, wake, event, or dormant-run failure."""
 

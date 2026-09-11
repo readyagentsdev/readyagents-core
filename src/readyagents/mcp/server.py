@@ -316,5 +316,5 @@ def _register_server_tools(server: Any, tools: dict[str, Any], *, workspace: Pat
         except ConfigError as exc:
             raise MCPError(str(exc)) from exc
         bound = get_settings().model_copy(update={"workspace": Path(root)})
-        state = run_workflow_file(wf_path, inputs=data, settings=bound)
+        state = run_workflow_file(wf_path, inputs=data, settings=bound, started_by={"kind": "mcp"})
         return json.dumps(state.to_record(), ensure_ascii=False)

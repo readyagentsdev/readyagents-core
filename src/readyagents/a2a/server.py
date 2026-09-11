@@ -508,6 +508,7 @@ def serve_a2a(
                 print(token, file=sys.stderr)
     settings = get_settings()
     coordinator = RunCoordinator(settings=settings, workspace=wf.parent)
+    coordinator.started_by_kind = "a2a"
     app = compose_a2a_app(
         workflow_path=wf,
         coordinator=coordinator,
