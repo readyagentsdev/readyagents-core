@@ -127,6 +127,10 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- Concurrent foreach checkpoints the contiguous completed prefix on a later
+  item failure, so resume does not redo earlier ok rows.
+- Schema-inference table ingest stops at ``max_rows + 1`` instead of slurp-
+  then-check, so ``limits.max_rows`` bounds the read.
 - Table `on_row_error` skip/quarantine applies on ingest schema mismatches as
   well as classify, so a single bad row does not poison the result table.
 - `type: ingest` with `embed: true` persists BYOK vectors on each chunk

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import time
 from pathlib import Path
 
@@ -151,6 +152,77 @@ def test_foreach_resume_skips_completed_items(tmp_path, tmp_settings) -> None:
     assert state.output_keys["results"] == [2, 4]
     # item 0 not re-run: first resume call is item 1 only (hit 3)
     assert hits["n"] == 3
+
+
+def test_concurrent_foreach_failure_keeps_prefix(tmp_path, tmp_settings) -> None:
+    hits = {"seen": []}
+    ready = threading.Event()
+
+    def calc_flaky(expression: str):
+        hits["seen"].append(expression)
+        if expression == "1+1":
+            out = tool_calc(expression)
+            ready.set()
+            return out
+        if expression == "2+2":
+            ready.wait(timeout=2)
+            if hits["seen"].count("2+2") == 1:
+                raise ToolError("boom")
+        return tool_calc(expression)
+
+    tools = _tools(tmp_path)
+    tools._tools["calc"] = FunctionTool(
+        name="calc",
+        description="flaky calc",
+        schema={"type": "object", "properties": {"expression": {"type": "string"}}},
+        handler=calc_flaky,
+    )
+    spec = WorkflowSpec.model_validate(
+        {
+            "name": "foreach-conc",
+            "inputs": {"expressions": ["1+1", "2+2", "3+3"]},
+            "nodes": [
+                {
+                    "id": "each",
+                    "type": "foreach",
+                    "items": "expressions",
+                    "concurrency": 2,
+                    "output_key": "results",
+                    "body": {
+                        "id": "math",
+                        "type": "tool",
+                        "tool": "calc",
+                        "arguments": {"expression": "{{item}}"},
+                    },
+                }
+            ],
+        }
+    )
+
+    def on_persist(state) -> None:
+        persist_run(state, tmp_settings.runs_dir())
+
+    ctx = ExecutionContext(spec, tools, on_persist=on_persist, default_model="mock:test")
+    with pytest.raises(NodeError, match="boom"):
+        run_workflow(spec, spec.input_defaults(), ctx)
+    from readyagents.workflow.state import list_runs, load_run
+
+    found = list_runs(tmp_settings.runs_dir(), status="failed")
+    assert found
+    meta = found[0].metadata.get("_foreach") or {}
+    rows = meta.get("each") or []
+    assert rows, "contiguous prefix of ok items must be checkpointed"
+    assert rows[0]["output"] == 2
+    assert all(row.get("status") == "ok" for row in rows)
+    first_count = hits["seen"].count("1+1")
+    assert first_count == 1
+
+    ctx2 = ExecutionContext(spec, tools, on_persist=on_persist, default_model="mock:test")
+    loaded = load_run(tmp_settings.runs_dir(), found[0].run_id)
+    state = run_workflow(spec, spec.input_defaults(), ctx2, state=loaded)
+    assert state.status == "succeeded"
+    assert state.output_keys["results"] == [2, 4, 6]
+    assert hits["seen"].count("1+1") == 1
 
 
 def test_foreach_example_cli(tmp_path, tmp_settings, monkeypatch) -> None:
