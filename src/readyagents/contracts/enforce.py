@@ -7,7 +7,7 @@ import re
 from typing import Any
 
 from readyagents.contracts.repair import deterministic_repair
-from readyagents.contracts.rules import eval_rule, payload_text
+from readyagents.contracts.rules import eval_rule, mask_firing_match, payload_text
 from readyagents.contracts.spec import ACTIONS, ContractSpec
 from readyagents.errors import (
     ApprovalRequired,
@@ -30,10 +30,15 @@ _REJECT = {"reject", "rejected", "deny", "denied", "no", "false"}
 
 
 def sanitize_rejected(
-    value: Any, redactor: Any | None = None, *, limit: int = _REJECT_SNIPPET
+    value: Any,
+    redactor: Any | None = None,
+    *,
+    rule: Any | None = None,
+    limit: int = _REJECT_SNIPPET,
 ) -> str:
+    masked = mask_firing_match(value, rule)
     r = redactor if redactor is not None else Redactor()
-    text = payload_text(value)
+    text = payload_text(masked)
     fn = getattr(r, "redact_text", None)
     out = fn(text) if callable(fn) else text
     if len(out) > limit:
@@ -41,7 +46,15 @@ def sanitize_rejected(
     return out
 
 
-def enforce_contract(node: Any, output: Any, state: Any, ctx: Any) -> Any:
+def enforce_contract(
+    node: Any,
+    output: Any,
+    state: Any,
+    ctx: Any,
+    *,
+    allow_fallback: bool = True,
+    from_fallback: bool = False,
+) -> Any:
     spec = getattr(node, "contract", None)
     if spec is None:
         return output
@@ -80,6 +93,8 @@ def enforce_contract(node: Any, output: Any, state: Any, ctx: Any) -> Any:
             action=spec.on_refusal or "fail",
             reason="refusal",
             refused=True,
+            allow_fallback=allow_fallback,
+            from_fallback=from_fallback,
         )
 
     schema = spec.schema_body
@@ -108,6 +123,8 @@ def enforce_contract(node: Any, output: Any, state: Any, ctx: Any) -> Any:
                     action=action or "fail",
                     reason=err,
                     exhausted=spec.on_invalid == "repair",
+                    allow_fallback=allow_fallback,
+                    from_fallback=from_fallback,
                 )
         else:
             current = parsed
@@ -128,6 +145,9 @@ def enforce_contract(node: Any, output: Any, state: Any, ctx: Any) -> Any:
         report["rules"].append(row)
         if not fired:
             continue
+        action = rule.on_fail
+        if action == "fallback" and not allow_fallback:
+            action = "fail"
         return _finish(
             node,
             current,
@@ -135,12 +155,15 @@ def enforce_contract(node: Any, output: Any, state: Any, ctx: Any) -> Any:
             ctx,
             spec,
             report,
-            action=rule.on_fail,
+            action=action,
             reason=reason,
             rule_name=rule.recorded_name(),
+            firing_rule=rule,
+            allow_fallback=allow_fallback,
+            from_fallback=from_fallback,
         )
 
-    return _commit(node, current, state, ctx, report)
+    return _commit(node, current, state, ctx, report, from_fallback=from_fallback)
 
 
 def _is_refusal(text: str) -> bool:
@@ -252,11 +275,20 @@ def _finish(
     rule_name: str | None = None,
     refused: bool = False,
     exhausted: bool = False,
+    firing_rule: Any | None = None,
+    allow_fallback: bool = True,
+    from_fallback: bool = False,
 ) -> Any:
     if action not in ACTIONS:
         action = "fail"
-    shown = sanitize_rejected(output, getattr(ctx, "redactor", None))
-    shown_reason = sanitize_rejected(reason, getattr(ctx, "redactor", None)) if reason else ""
+    if action == "fallback" and not allow_fallback:
+        action = "fail"
+    shown = sanitize_rejected(output, getattr(ctx, "redactor", None), rule=firing_rule)
+    shown_reason = (
+        sanitize_rejected(reason, getattr(ctx, "redactor", None), rule=firing_rule)
+        if reason
+        else ""
+    )
     report["rejected"] = shown
     report["disposition"] = action
     report["reason"] = shown_reason or None
@@ -266,8 +298,10 @@ def _finish(
 
     if action == "redact_and_continue":
         redactor = getattr(ctx, "redactor", None) or Redactor()
-        redacted = redactor.redact(output) if hasattr(redactor, "redact") else shown
+        masked = mask_firing_match(output, firing_rule)
+        redacted = redactor.redact(masked) if hasattr(redactor, "redact") else shown
         report["disposition"] = "redact_and_continue"
+        report["rejected"] = shown
         _store_report(state, ctx, node.id, report)
         _record_cassette(ctx, node.id, redacted, report)
         return redacted
@@ -296,10 +330,14 @@ def _finish(
     if action == "fallback":
         recovered = _fallback_once(node, state, ctx, spec)
         if recovered is not None:
-            report["disposition"] = "fallback"
-            _store_report(state, ctx, node.id, report)
-            _record_cassette(ctx, node.id, recovered, report)
-            return recovered
+            return enforce_contract(
+                node,
+                recovered,
+                state,
+                ctx,
+                allow_fallback=False,
+                from_fallback=True,
+            )
         action = "fail"
 
     message = shown_reason or "contract was not met"
@@ -331,8 +369,16 @@ def _fallback_once(node: Any, state: Any, ctx: Any, spec: ContractSpec) -> Any |
     return None
 
 
-def _commit(node: Any, output: Any, state: Any, ctx: Any, report: dict[str, Any]) -> Any:
-    report["disposition"] = "ok"
+def _commit(
+    node: Any,
+    output: Any,
+    state: Any,
+    ctx: Any,
+    report: dict[str, Any],
+    *,
+    from_fallback: bool = False,
+) -> Any:
+    report["disposition"] = "fallback" if from_fallback else "ok"
     _store_report(state, ctx, node.id, report)
     _record_cassette(ctx, node.id, output, report)
     return output

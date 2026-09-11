@@ -165,6 +165,72 @@ def test_pii_uses_existing_detectors() -> None:
     assert state.metadata["contracts"]["n"]["disposition"] == "redact_and_continue"
 
 
+def test_redact_and_continue_masks_pan_in_output_rejected_cassette_audit() -> None:
+    pan = "4111111111111111"
+    llm = ScriptedLLM()
+    llm.enqueue(f"pay with {pan} please", model="x")
+    tape = Cassette.new(run_id="pan", workflow="c")
+    events: list[dict] = []
+
+    def auditor(event: str, **fields: object) -> None:
+        events.append({"event": event, **fields})
+
+    state = run_workflow_spec(
+        _agent(
+            {
+                "rules": [{"deny_regex": r"\b\d{16}\b", "on_fail": "redact_and_continue"}],
+                "on_invalid": "fail",
+            }
+        ),
+        llm=llm,
+        cassette=tape,
+        recording=True,
+        auditor=auditor,
+    )
+    assert pan not in str(state.output_keys["out"])
+    assert "[redacted]" in str(state.output_keys["out"])
+    rejected = str(state.metadata["contracts"]["n"]["rejected"])
+    assert pan not in rejected
+    contract_rows = [row for row in tape.entries.values() if row.get("kind") == "contract"]
+    assert contract_rows
+    assert pan not in json.dumps(contract_rows, default=str)
+    assert pan not in json.dumps(events, default=str)
+
+
+def test_require_citation_without_input_rejects_output_field() -> None:
+    llm = ScriptedLLM()
+    llm.enqueue('{"summary": "see T-FAKE", "ticket_id": "T-FAKE"}', model="x")
+    with pytest.raises(ContractError) as exc:
+        run_workflow_spec(
+            _agent(
+                {
+                    "schema": {
+                        "type": "object",
+                        "required": ["summary", "ticket_id"],
+                        "properties": {
+                            "summary": {"type": "string"},
+                            "ticket_id": {"type": "string"},
+                        },
+                    },
+                    "rules": [{"require_citation": {"from": "ticket_id"}}],
+                    "on_invalid": "fail",
+                }
+            ),
+            llm=llm,
+        )
+    assert "citation" in str(exc.value).lower()
+
+
+def test_fallback_that_still_matches_deny_does_not_succeed() -> None:
+    llm = ScriptedLLM()
+    llm.enqueue("secret", model="x")
+    llm.enqueue("still secret here", model="fb")
+    spec = _agent({"rules": [{"deny": "secret", "on_fail": "fallback"}], "on_invalid": "fail"})
+    spec["nodes"][0]["fallback_models"] = ["mock:fb"]
+    with pytest.raises(ContractError):
+        run_workflow_spec(spec, llm=llm)
+
+
 def test_deny_regex_catastrophic_pattern_fails_at_validate() -> None:
     with pytest.raises((WorkflowError, ValueError, Exception)):
         WorkflowSpec.model_validate(
@@ -369,11 +435,13 @@ def test_record_and_offline_replay(tmp_settings, tmp_path: Path) -> None:
     path.write_text(
         """
 name: rec
+inputs:
+  ticket_id: T-1
 nodes:
   - id: n
     type: transform
     parse_json: true
-    template: '{"summary": "Ticket T-1 is closed", "ticket_id": "T-1"}'
+    template: '{"summary": "Ticket {{ ticket_id }} is closed", "ticket_id": "{{ ticket_id }}"}'
     output_key: summary
     contract:
       schema:

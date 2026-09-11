@@ -58,6 +58,10 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- `redact_and_continue` masks the firing `deny` / `deny_regex` / PII match
+  (not only email/key patterns) in the continued output, `rejected` field,
+  cassette, and audit. `require_citation` uses inputs/prior outputs only, not
+  the node's own fields. Fallback recovery is re-checked against the contract.
 - Code-node wall-clock is `communicate` timeout only; CPU is `RLIMIT_CPU` plus
   a child `process_time` watchdog so `time.sleep` under wall is not a CPU kill.
   `memory_mb` is an RSS watchdog in the child plus a parent RSS poll (macOS
