@@ -6,6 +6,12 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Opt-in `readyagents studio`.** Foreground loopback canvas and run
+  inspector from bundled vanilla HTML/CSS/JS. Token-protected, `--read-only`
+  disables writes server-side, schema-backed YAML edit preserves comments
+  and refuses a disk change, fork/freeze/diff/approvals reuse the shipped
+  paths. The file on disk stays the source of truth. Not a hosted product
+  and not a safety claim. See [docs/studio.md](docs/studio.md).
 - **Opt-in `type: team`.** Supervisor plus a closed declared member set
   (`route`, `plan_then_execute`, `debate`, `pipeline`). Engine-enforced
   `max_rounds` / spend / wall-clock / goal with distinct typed reasons,

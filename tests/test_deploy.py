@@ -71,6 +71,9 @@ _ALLOWED_RUNTIME = {
     ("src/readyagents/approvals/server.py", "HTTPServer"),
     ("src/readyagents/approvals/server.py", "BaseHTTPRequestHandler"),
     ("src/readyagents/approvals/server.py", "ThreadingHTTPServer"),
+    ("src/readyagents/studio/server.py", "HTTPServer"),
+    ("src/readyagents/studio/server.py", "BaseHTTPRequestHandler"),
+    ("src/readyagents/studio/server.py", "ThreadingHTTPServer"),
 }
 
 
