@@ -28,9 +28,21 @@ value written to stdout. A schema mismatch is a typed error, not `None`.
 | `subprocess` (default) | Separate interpreter, minimal env (no inherited secrets), closed parent fds on POSIX, cwd confined to a per-run temp dir, rlimits where `resource` exists. |
 | `container` | Optional pack using the operator's runtime. Core never vendors Docker/Podman. A required container tier **fails closed** if the pack/runtime is missing. |
 
-`readyagents doctor` reports whether OS rlimits are available. On Windows there
-is no `resource` module: wall-clock, output size, child file-size caps, and the
-import allowlist still apply; CPU / address-space / nproc are not OS rlimits.
+`readyagents doctor` reports whether OS rlimits are available.
+
+- **`wall_seconds`** is the parent `communicate` timeout. It is not CPU time:
+  `time.sleep` under wall with CPU remaining succeeds.
+- **`cpu_seconds`** is `RLIMIT_CPU` where the OS accepts it, plus a child
+  `process_time` watchdog (sleep does not count).
+- **`memory_mb`** is `RLIMIT_AS` on Linux, plus a child RSS watchdog everywhere.
+  macOS does not let a process lower `RLIMIT_AS`; Windows has no `resource`.
+- **`file_size_bytes`** is `RLIMIT_FSIZE` where the OS accepts it, plus a capped
+  `open` in the child.
+- **`nproc`** is spawn wrappers (`os.fork` / `os.system` / `subprocess`), not a
+  kernel process-count rlimit.
+
+On Windows, CPU / address-space / nproc are not OS rlimits; the child watches
+and parent wall/output caps still apply.
 
 ## Defaults
 

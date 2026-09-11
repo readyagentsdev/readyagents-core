@@ -47,6 +47,10 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- Code-node wall-clock is `communicate` timeout only; CPU is `RLIMIT_CPU` plus
+  a child `process_time` watchdog so `time.sleep` under wall is not a CPU kill.
+  `memory_mb` is an RSS watchdog in the child (macOS cannot lower `RLIMIT_AS`;
+  Windows has no `resource`). Each limit still maps to its own typed error.
 - Incremental streaming redaction uses a common-prefix holdback so a secret
   that straddles the lookback split is not emitted unredacted.
 - OpenAI and Anthropic `stream()` re-raise `CancellationRequested` (and other

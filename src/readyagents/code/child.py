@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import builtins
 import json
+import os
 import sys
+import threading
+import time
 from pathlib import Path
 
 EXIT_OK = 0
@@ -174,8 +177,111 @@ def _import(name, globals=None, locals=None, fromlist=(), level=0):
     return mod
 
 
+def _arm_cpu_watch(seconds: float) -> None:
+    """Exit EXIT_CPU when process CPU time hits the declared limit.
+
+    Wall-clock sleep does not count. Used on Windows (no RLIMIT_CPU) and as
+    a backup on Unix.
+    """
+    limit = float(seconds)
+    if limit <= 0:
+        return
+
+    def _watch() -> None:
+        while True:
+            time.sleep(0.05)
+            if time.process_time() >= limit:
+                sys.stderr.write("CPU time limit exceeded\n")
+                os._exit(EXIT_CPU)
+
+    threading.Thread(target=_watch, daemon=True).start()
+
+
+def _rss_bytes() -> int:
+    """Current resident set. 0 if the platform cannot measure it."""
+    if os.name == "nt":
+        return _rss_windows()
+    try:
+        statm = Path("/proc/self/statm").read_text(encoding="ascii")
+        parts = statm.split()
+        if len(parts) >= 2:
+            return int(parts[1]) * int(os.sysconf("SC_PAGE_SIZE"))
+    except (OSError, ValueError):
+        pass
+    try:
+        import resource
+
+        rss = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+        # Linux is KB; macOS/BSD is bytes.
+        if sys.platform.startswith("linux"):
+            return rss * 1024
+        return rss
+    except Exception:
+        return 0
+
+
+def _rss_windows() -> int:
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except ImportError:
+        return 0
+
+    class PROCESS_MEMORY_COUNTERS_EX(ctypes.Structure):
+        _fields_ = (
+            ("cb", wintypes.DWORD),
+            ("PageFaultCount", wintypes.DWORD),
+            ("PeakWorkingSetSize", ctypes.c_size_t),
+            ("WorkingSetSize", ctypes.c_size_t),
+            ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+            ("PagefileUsage", ctypes.c_size_t),
+            ("PeakPagefileUsage", ctypes.c_size_t),
+            ("PrivateUsage", ctypes.c_size_t),
+        )
+
+    counters = PROCESS_MEMORY_COUNTERS_EX()
+    counters.cb = ctypes.sizeof(counters)
+    try:
+        psapi = ctypes.WinDLL("psapi", use_last_error=True)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        handle = kernel32.GetCurrentProcess()
+        ok = psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb)
+        if ok:
+            return int(counters.WorkingSetSize or counters.PrivateUsage)
+    except Exception:
+        return 0
+    return 0
+
+
+def _arm_mem_watch(memory_mb: float) -> None:
+    """Exit EXIT_MEM when RSS reaches the declared megabyte cap.
+
+    macOS cannot lower RLIMIT_AS; Windows has no resource module. This watch
+    is the portable memory limit.
+    """
+    limit = int(float(memory_mb) * 1024 * 1024)
+    if limit <= 0:
+        return
+
+    def _watch() -> None:
+        while True:
+            time.sleep(0.02)
+            rss = _rss_bytes()
+            if rss >= limit:
+                sys.stderr.write("memory / address-space limit exceeded\n")
+                os._exit(EXIT_MEM)
+
+    threading.Thread(target=_watch, daemon=True).start()
+
+
 def main() -> int:
     _cfg_load()
+    limits = _CFG.get("limits") or {}
+    _arm_cpu_watch(float(limits.get("cpu_seconds") or 0))
+    _arm_mem_watch(float(limits.get("memory_mb") or 0))
     builtins.open = _sandbox_open
     builtins.__import__ = _import
     try:
@@ -197,6 +303,12 @@ def main() -> int:
     except MemoryError:
         sys.stderr.write("memory / address-space limit exceeded\n")
         return EXIT_MEM
+    except OSError as exc:
+        if getattr(exc, "errno", None) == 12:  # ENOMEM
+            sys.stderr.write("memory / address-space limit exceeded\n")
+            return EXIT_MEM
+        sys.stderr.write(f"{type(exc).__name__}: {exc}\n")
+        return EXIT_OTHER
     except SystemExit as exc:
         code = exc.code
         if isinstance(code, int):
