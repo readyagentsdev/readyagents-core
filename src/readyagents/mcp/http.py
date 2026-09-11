@@ -415,6 +415,16 @@ def _tokens_match(provided: str, expected: str) -> bool:
     return hmac.compare_digest(got, want)
 
 
+def bearer_authorized(*, authorization: str | None, token: str | None) -> bool:
+    """True when no token is configured, or the Authorization header matches."""
+    if token is None:
+        return True
+    provided = _extract_bearer(authorization)
+    if provided is None:
+        return False
+    return _tokens_match(provided, token)
+
+
 class BodyLimitMiddleware:
     """Reject oversized HTTP bodies with 413 before the inner app."""
 
@@ -615,8 +625,10 @@ class AuthMiddleware:
             await self.app(scope, receive, send)
             return
         request_id = _ensure_request_id(scope)
-        provided = _extract_bearer(_header(scope, "authorization"))
-        if provided is None or not _tokens_match(provided, self.token):
+        if not bearer_authorized(
+            authorization=_header(scope, "authorization"),
+            token=self.token,
+        ):
             await _send_json(
                 send,
                 status=401,
