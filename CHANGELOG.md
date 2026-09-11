@@ -14,8 +14,9 @@ All notable changes to ReadyAgents Core.
   `gate`, and `redact_and_continue` (declared, never inferred). Refusal is
   distinct from malformed. An opt-in `judge:` is never default and never the
   only check. Rejected content is redacted and truncated. No classifier extra,
-  no hosted moderation, no claim that guardrails make outputs safe. See
-  [docs/guardrails.md](docs/guardrails.md).
+  no hosted moderation, no claim that guardrails make outputs safe. Judge
+  rule rows record a numeric score. `gate` pause extras do not store the
+  unredacted payload. See [docs/guardrails.md](docs/guardrails.md).
 - **Sandboxed `type: code`.** Opt-in Python node: JSON stdin, JSON stdout
   validated against `output_schema`, `subprocess` isolation by default
   (minimal env, closed fds, confined cwd, import allowlist, rlimits where

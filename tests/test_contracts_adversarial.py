@@ -5,11 +5,15 @@ Hostile inputs must fail closed on the shipped path. No skip/xfail.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
 from readyagents.errors import ApprovalRequired, ContractError
 from readyagents.testing import ScriptedLLM, run_workflow_spec
+from readyagents.workflow.runner import run_workflow_file
 from readyagents.workflow.schema import WorkflowSpec
 
 _Validate = (ValidationError, ValueError)
@@ -83,6 +87,42 @@ def test_rejected_email_not_in_error_or_gate_prompt() -> None:
     report = (gated.value.state.metadata.get("contracts") or {}).get("n") or {}
     rejected = str(report.get("rejected") or "")
     assert email not in rejected
+    pause = json.dumps(gated.value.pause or {}, default=str)
+    assert email not in pause
+    assert "contract_output" not in (gated.value.pause or {})
+
+
+def test_rejected_email_absent_from_persisted_run_and_audit(tmp_settings, tmp_path: Path) -> None:
+    email = "alice@example.com"
+    path = tmp_path / "leak.yaml"
+    path.write_text(
+        f"""
+name: leak
+nodes:
+  - id: n
+    type: transform
+    template: "{email}"
+    output_key: out
+    contract:
+      rules:
+        - pii: true
+          on_fail: fail
+      on_invalid: fail
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(ContractError):
+        run_workflow_file(path, settings=tmp_settings, persist=True)
+    blob = ""
+    home = tmp_settings.home_path()
+    for item in home.rglob("*"):
+        if not item.is_file():
+            continue
+        try:
+            blob += item.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+    assert email not in blob
 
 
 def test_judge_injection_does_not_flip_verdict() -> None:
