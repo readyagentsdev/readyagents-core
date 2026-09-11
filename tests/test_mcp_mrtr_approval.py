@@ -290,6 +290,12 @@ def test_recorded_paused_decision_retries_resume(mrtr_env) -> None:
     task_id = _start(client, "approval_gate.yaml")
     paused = _wait_input_required(client, task_id)
     key = next(iter(paused["inputRequests"]))
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        with coord._lock:
+            if task_id not in coord._active:
+                break
+        time.sleep(0.02)
     state = coord._load_exact(task_id)
     meta = dict(state.metadata)
     meta["mcp_input_responses"] = {key: "approve"}
