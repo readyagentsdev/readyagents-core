@@ -16,10 +16,11 @@ from readyagents.decisions.signing import sign_body
 from readyagents.errors import PolicyDenied
 from readyagents.firewall.policy_file import load_policy
 from readyagents.firewall.taint import provenance_of
+from readyagents.testing.helpers import ScriptedLLM
 from readyagents.triggers.caps import RateLimiter
 from readyagents.triggers.decide import decide_trigger, event_id_for, replay_dead_letter
 from readyagents.triggers.sources import fire_file, fire_queue, fire_schedule, fire_webhook
-from readyagents.triggers.store import ConcurrencyGate, DeadLetterLog, TriggerSpend
+from readyagents.triggers.store import ConcurrencyGate, DeadLetterLog
 from readyagents.workflow.runner import run_workflow_file
 from readyagents.workflow.schema import WorkflowSpec
 
@@ -336,13 +337,42 @@ def test_poisoned_payload_cannot_dispatch_denied_tool(tmp_path: Path) -> None:
     assert "denied" in (decision.reason or "").lower() or decision.reason == "start"
 
 
+def test_second_event_refuses_after_run_cost_accrues(tmp_path: Path) -> None:
+    spec = {
+        "name": "trig",
+        "default_model": "mock:test",
+        "nodes": [
+            {"id": "a", "type": "agent", "prompt": "{{ text }}", "output_key": "out"},
+        ],
+        "triggers": [
+            {
+                "name": "support_email",
+                "accepts": {"kind": "webhook"},
+                "idempotency_key": "{{ event.message_id }}",
+                "inputs": {"text": "{{ event.body }}"},
+                "budget": {"max_cost_usd": 0.01},
+                "concurrency": 4,
+                "on_ceiling": "drop",
+            }
+        ],
+    }
+    llm = ScriptedLLM()
+    llm.enqueue(
+        "ok",
+        usage={"prompt_tokens": 10_000, "completion_tokens": 10_000, "cost_micros": 20_000},
+    )
+    first = _decide(spec, _payload(), home=tmp_path, llm=llm)
+    assert first.action == "start"
+    assert first.state is not None
+    assert first.state.status == "succeeded"
+    assert int(first.state.usage.get("cost_micros") or 0) >= 20_000
+    second = _decide(spec, _payload(message_id="m2"), home=tmp_path, llm=llm)
+    assert second.action == "refuse"
+    assert second.reason == "budget"
+
+
 def test_budget_and_concurrency_drop_or_defer(tmp_path: Path) -> None:
-    spec = _spec(concurrency=1, on_ceiling="drop", budget={"max_cost_usd": 0.01})
-    spend = TriggerSpend()
-    spend.add("support_email", usd=0.05)
-    budgeted = _decide(spec, _payload(), home=tmp_path, spend=spend)
-    assert budgeted.action == "refuse"
-    assert budgeted.reason == "budget"
+    spec = _spec(concurrency=1, on_ceiling="drop")
     gate = ConcurrencyGate(max_defer=1)
     assert gate.try_enter("support_email", 1, on_ceiling="drop") == "enter"
     dropped = _decide(spec, _payload(message_id="m2"), home=tmp_path, gate=gate)
