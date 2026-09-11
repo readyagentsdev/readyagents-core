@@ -84,6 +84,7 @@ class IncrementalRedactor:
         self._redactor = redactor
         self._hold = ""
         self._window = _lookback(redactor)
+        self._emitted = 0
 
     def push(self, chunk: str) -> str:
         if not chunk:
@@ -91,26 +92,48 @@ class IncrementalRedactor:
         if self._redactor is None:
             return chunk
         self._hold += chunk
-        if len(self._hold) <= self._window:
-            return ""
-        ready = self._hold[: -self._window]
-        self._hold = self._hold[-self._window :]
-        return self._redact(ready)
+        return self._stable(final=False)
 
     def flush(self) -> str:
         if self._redactor is None:
             text = self._hold
             self._hold = ""
+            self._emitted = 0
             return text
-        text = self._redact(self._hold)
+        text = self._stable(final=True)
         self._hold = ""
+        self._emitted = 0
         return text
+
+    def _stable(self, *, final: bool) -> str:
+        full = self._redact(self._hold)
+        if final:
+            out = full[self._emitted :]
+            self._emitted = len(full)
+            return out
+        if len(self._hold) <= self._window:
+            return ""
+        head = self._redact(self._hold[: -self._window])
+        n = _common_prefix_len(head, full)
+        if n <= self._emitted:
+            return ""
+        out = full[self._emitted : n]
+        self._emitted = n
+        return out
 
     def _redact(self, text: str) -> str:
         fn = getattr(self._redactor, "redact_text", None)
         if callable(fn):
             return str(fn(text))
         return text
+
+
+def _common_prefix_len(left: str, right: str) -> int:
+    n = 0
+    limit = min(len(left), len(right))
+    while n < limit and left[n] == right[n]:
+        n += 1
+    return n
 
 
 def _lookback(redactor: Any | None) -> int:

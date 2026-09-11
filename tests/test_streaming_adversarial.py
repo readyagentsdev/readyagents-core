@@ -80,6 +80,19 @@ def test_boundary_split_secret_not_in_joined_token_text(tmp_settings) -> None:
     hub.unsubscribe("r", queue)
 
 
+def test_boundary_split_secret_straddles_lookback_window(tmp_settings) -> None:
+    redactor = Redactor(literals=[_SECRET])
+    session = StreamSession(redactor=redactor)
+    session.on_token("n", "LEAKME")
+    session.on_token("n", "SECRET" + "z" * 54)
+    session.on_event(_node_finished("n"))
+    joined = _token_text(session.events)
+    assert "[redacted]" in joined
+    assert _SECRET not in joined
+    blob = "".join(str(e.as_dict()) for e in session.events)
+    assert _SECRET not in blob
+
+
 def test_unauthorised_sse_does_not_stream_run_events(tmp_settings) -> None:
     from readyagents.mcp.http import bearer_authorized
 
