@@ -28,6 +28,27 @@ ROOT = Path(__file__).resolve().parents[1]
 _SECRET = "adv-partner-token-LEAK-ME-99"
 
 
+def _b64url(raw: bytes) -> str:
+    import base64
+
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+
+
+def _hs256_token(body: dict, secret: bytes | str, *, kid: str) -> str:
+    """Hand-rolled HS256 JWT so encode-time library guards cannot skip the check."""
+    import hashlib
+    import hmac
+
+    key = secret.encode("utf-8") if isinstance(secret, str) else secret
+    header = {"alg": "HS256", "typ": "JWT", "kid": kid}
+    signing_input = (
+        f"{_b64url(json.dumps(header, separators=(',', ':')).encode())}."
+        f"{_b64url(json.dumps(body, separators=(',', ':')).encode())}"
+    )
+    sig = hmac.new(key, signing_input.encode("ascii"), hashlib.sha256).digest()
+    return f"{signing_input}.{_b64url(sig)}"
+
+
 def _stdout_json(text: str) -> dict:
     start = text.find("{")
     assert start != -1, text
@@ -110,7 +131,10 @@ def test_hs256_vs_rsa_jwks_confusion_refused(tmp_path: Path) -> None:
         "jti": "hs-confusion",
     }
     # Classic confusion: HMAC with the RSA public key material as the secret.
-    confused = jwt.encode(body, pub_der, algorithm="HS256", headers={"kid": "k1"})
+    # Mint outside PyJWT — recent PyJWT refuses to encode HS256 with asymmetric
+    # key material, which is the right library default, but attackers do not
+    # use jwt.encode.
+    confused = _hs256_token(body, pub_der, kid="k1")
     with pytest.raises(IdentityError, match="algorithm"):
         verify_token(confused, anchors, base=tmp_path)
     # Also refuse a random HMAC secret presented as HS256 against RSA JWKS.
