@@ -25,11 +25,16 @@ def reconstruct_after(
     workflow: WorkflowSpec | None = None,
     overrides: Mapping[str, Any] | None = None,
 ) -> RunState:
-    """Return a new RunState as it existed after ``node_id`` completed."""
+    """Return a new RunState after ``node_id`` completed, or at a paused team."""
     if workflow is not None:
         _refuse_parallel_interior(workflow, node_id)
     matches = [i for i, row in enumerate(parent.results) if row.node_id == node_id]
     if not matches:
+        teams = parent.metadata.get(_TEAMS_META)
+        if isinstance(teams, dict) and isinstance(teams.get(node_id), dict):
+            return _fork_child(
+                parent, node_id, list(parent.results), overrides, extra_ids={node_id}
+            )
         raise ForkError(f"Cannot fork from node '{node_id}': it never ran in {parent.run_id}.")
     if len(matches) > 1 and occurrence is None:
         raise ForkError(
@@ -46,6 +51,18 @@ def reconstruct_after(
         cut = matches[0]
     chosen = parent.results[cut]
     kept = list(parent.results[: cut + 1])
+    return _fork_child(parent, node_id, kept, overrides, chosen=chosen)
+
+
+def _fork_child(
+    parent: RunState,
+    node_id: str,
+    kept: list[Any],
+    overrides: Mapping[str, Any] | None,
+    *,
+    chosen: Any = None,
+    extra_ids: set[str] | None = None,
+) -> RunState:
     child = RunState.start(
         parent.workflow_name,
         dict(parent.inputs),
@@ -70,7 +87,10 @@ def reconstruct_after(
             usage=row.usage,
             tool_rounds=list(row.tool_rounds),
         )
-    child.metadata.update(_truncated_buckets(parent.metadata, {r.node_id for r in kept}))
+    kept_ids = {r.node_id for r in kept}
+    if extra_ids:
+        kept_ids |= extra_ids
+    child.metadata.update(_truncated_buckets(parent.metadata, kept_ids))
     child.status = "queued"
     child.pending_node = None
     child.pending = None
