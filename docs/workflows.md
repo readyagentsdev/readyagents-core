@@ -58,7 +58,7 @@ Many rows of one workflow: [scale.md](scale.md) (`readyagents batch`, opt-in, fo
 | Field | Meaning |
 | --- | --- |
 | `id` | Unique id |
-| `type` | `agent` \| `tool` \| `condition` \| `transform` \| `approval` \| `parallel` \| `include` \| `foreach` \| `a2a` \| `memory` \| `code` \| `team` \| `document` \| `transcribe` |
+| `type` | `agent` \| `tool` \| `condition` \| `transform` \| `approval` \| `parallel` \| `include` \| `foreach` \| `a2a` \| `memory` \| `code` \| `team` \| `document` \| `transcribe` \| `ingest` |
 | `next` | Default successor if no edges |
 | `output_key` | Alias for templates (`{{brief}}` instead of `{{write}}`) |
 | `timeout_seconds` | Soft timeout |
@@ -277,6 +277,21 @@ scopes cannot expand into another subject. See [memory.md](memory.md).
   text: "{{ note }}"
   ttl: 90d
   output_key: stored
+```
+
+## Knowledge (`type: ingest`)
+
+Opt-in ingest into the shipped memory store with declared chunking, document
+versioning, and citations. See [knowledge](knowledge.md). Unreleased. Not a
+retrieval-quality claim. Plain `type: memory` writes are unchanged.
+
+```yaml
+- id: load
+  type: ingest
+  source: {kind: directory, path: docs, glob: "*.md"}
+  chunk: {strategy: heading, max_chars: 1200}
+  scope: "ns:policies"
+  on_change: supersede
 ```
 
 ## Transform

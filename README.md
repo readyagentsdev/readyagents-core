@@ -55,6 +55,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Optional [workflow studio](docs/studio.md) (`readyagents studio`) — **Unreleased**; loopback canvas and run inspector; YAML on disk stays the source of truth; not a hosted product
 - Optional [model routing](docs/model-routing.md) (`routing:`, Gemini/Bedrock/Vertex extras, `readyagents models`) — **Unreleased**; declared policy, not quality inference; no-policy selection unchanged
 - Optional [multimodal I/O](docs/multimodal.md) (`MediaPart`, `type: document`, `type: transcribe`, image/pdf/audio extras) — **Unreleased**; plumbing and governance, not extraction accuracy; text-only runs unchanged
+- Optional [knowledge pipelines](docs/knowledge.md) (`type: ingest`, `readyagents knowledge`) — **Unreleased**; citations and freshness, not a retrieval-quality claim; plain memory writes unchanged
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -186,6 +187,7 @@ flowchart LR
 - [Multi-agent teams](docs/teams.md) (opt-in `type: team`; Unreleased; closed members; no quality claim)
 - [Model routing](docs/model-routing.md) (opt-in `routing:`; Unreleased; declared policy, not a quality claim)
 - [Multimodal I/O](docs/multimodal.md) (opt-in `MediaPart` / `type: document` / `type: transcribe`; Unreleased; extras; not an OCR claim)
+- [Knowledge pipelines](docs/knowledge.md) (opt-in `type: ingest`; Unreleased; citations/freshness; not a retrieval-quality claim)
 - [Packs](docs/packs.md)
 - [Supply-chain trust](docs/supply-chain.md) (signatures prove origin, not safety)
 - [Continuous pack](docs/continuous-pack.md) (optional, separate distribution)
