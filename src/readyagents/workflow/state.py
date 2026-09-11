@@ -309,6 +309,8 @@ def gc_runs(
     for state in found:
         if state.status == "paused" and not include_paused:
             continue
+        if state.status == "waiting":
+            continue
         if state.status not in wanted:
             continue
         if in_retention_window(state, min_age_seconds) and not override_retention:
