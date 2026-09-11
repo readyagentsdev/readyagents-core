@@ -186,7 +186,10 @@ def _raise_exit(node_id: str, code: int, stderr: str) -> None:
         sig = -int(code)
         if hasattr(signal, "SIGXCPU") and sig == signal.SIGXCPU:
             raise CodeCpuLimitExceeded(node_id)
-        if sig in {signal.SIGKILL, getattr(signal, "SIGSEGV", 0)}:
+        if hasattr(signal, "SIGKILL") and sig == signal.SIGKILL:
+            # Linux escalates RLIMIT_CPU from SIGXCPU to SIGKILL.
+            raise CodeCpuLimitExceeded(node_id)
+        if hasattr(signal, "SIGSEGV") and sig == signal.SIGSEGV:
             raise CodeMemoryLimitExceeded(node_id)
     raise CodeError(node_id, stderr.strip() or f"code child exited {code}")
 
