@@ -215,6 +215,18 @@ class SkillDrift(SkillRefused):
         )
 
 
+class HealthError(ReadyAgentsError):
+    """Health query, fingerprint, or explain-bundle failure."""
+
+
+class HealthRefused(HealthError):
+    """Health query or quarantine refused (bounds, untrusted threshold, skip)."""
+
+    def __init__(self, message: str, *, reason: str = "refused") -> None:
+        self.reason = reason
+        super().__init__(message)
+
+
 class SimulateError(ReadyAgentsError):
     """Simulation generation, scoring, or freeze failure."""
 

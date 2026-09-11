@@ -6,6 +6,20 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Self-healing reliability.** `readyagents health` fingerprints failures
+  (typed error, node, tool, provider, normalised message — rules are data)
+  through the shipped redactor, clusters them over the existing run store,
+  and ranks by impact including cost burned. Queries are bounded. A node may
+  declare `recovery.on` per class (`truncation`/`retry_with`,
+  `rate_limit`/`backoff`, `schema_violation`/`repair`,
+  `provider_error`/`fallback`); undeclared classes use existing retry only;
+  every adaptation is recorded. Cassette-identical inputs distinguish flaky
+  from broken. A declared health threshold **gates** (or takes a declared
+  fallback successor) and never skips the node. `health explain` writes a
+  confined, redacted, audited root-cause bundle (`--yes`). No telemetry, no
+  hosted service, no automatic code or prompt edits, no prediction. Workflows
+  without `recovery:` are unchanged. See
+  [docs/self-healing.md](docs/self-healing.md).
 - **Simulation.** `readyagents simulate` generates declaration-driven cases
   (seed-stable, no model required): boundaries, types, Unicode, control
   characters, firewall injection strings, and declared branches. Scoring

@@ -145,6 +145,21 @@ readyagents simulate flow.yaml --seed 42 --json
 readyagents simulate flow.yaml --out sims/ --fail-on new-failure
 ```
 
+## `readyagents health`
+
+Cluster failures by fingerprint over the existing run store. Rank by impact
+(count and cost burned). Bounded. No daemon. See
+[self-healing.md](self-healing.md).
+
+```bash
+readyagents health --json
+readyagents health --workflow my-flow --window 50 --limit 64
+readyagents health explain FINGERPRINT --out explain/ --yes
+```
+
+`--yes` is required for `explain` (diagnostic data). Not a hosted reliability
+service and it does not predict failures.
+
 ## `readyagents eval PATH`
 
 Score fixture workflows from a suite file using the same local harness as `readyagents.testing.run_eval`. **No network and no API keys** — cases must be keyless fixtures (builtin tools, transforms, recorded/scripted LLM), not live vendors.

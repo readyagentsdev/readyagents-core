@@ -360,6 +360,51 @@
       "title": "EdgeSpec",
       "type": "object"
     },
+    "HealthGateSpec": {
+      "additionalProperties": false,
+      "description": "Declared health threshold. below=gate only; skip is refused.",
+      "properties": {
+        "below": {
+          "default": "gate",
+          "description": "Must be gate (fail-safe to a human).",
+          "title": "Below",
+          "type": "string"
+        },
+        "fallback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional successor node id when quarantined. Never skip.",
+          "title": "Fallback"
+        },
+        "min_success_rate": {
+          "description": "Literal threshold, never a template.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Min Success Rate",
+          "type": "number"
+        },
+        "window": {
+          "description": "Recent samples of this node.",
+          "maximum": 500,
+          "minimum": 1,
+          "title": "Window",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "min_success_rate",
+        "window"
+      ],
+      "title": "HealthGateSpec",
+      "type": "object"
+    },
     "JudgeSpec": {
       "additionalProperties": false,
       "description": "Opt-in model-graded check. Never the only rule on a contract.",
@@ -2714,6 +2759,18 @@
           "description": "Alias for this node's output in templates ({{key}}).",
           "title": "Output Key"
         },
+        "recovery": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecoverySpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Opt-in per-class recovery and health gate. Omitted keeps retry unchanged."
+        },
         "retry": {
           "anyOf": [
             {
@@ -2799,6 +2856,97 @@
         "type"
       ],
       "title": "NodeSpec",
+      "type": "object"
+    },
+    "RecoveryActionSpec": {
+      "additionalProperties": false,
+      "description": "One declared recovery response. Nothing is inferred.",
+      "properties": {
+        "action": {
+          "description": "retry_with, backoff, repair, or fallback.",
+          "title": "Action",
+          "type": "string"
+        },
+        "class": {
+          "description": "truncation, rate_limit, schema_violation, or provider_error.",
+          "title": "Class",
+          "type": "string"
+        },
+        "max_repairs": {
+          "anyOf": [
+            {
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "repair attempts.",
+          "title": "Max Repairs"
+        },
+        "max_tokens": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "retry_with budget.",
+          "title": "Max Tokens"
+        },
+        "seconds": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "backoff seconds.",
+          "title": "Seconds"
+        }
+      },
+      "required": [
+        "class",
+        "action"
+      ],
+      "title": "RecoveryActionSpec",
+      "type": "object"
+    },
+    "RecoverySpec": {
+      "additionalProperties": false,
+      "description": "Opt-in per-class recovery and health gate. Omitted is byte-identical.",
+      "properties": {
+        "health": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HealthGateSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "on": {
+          "items": {
+            "$ref": "#/$defs/RecoveryActionSpec"
+          },
+          "title": "On",
+          "type": "array"
+        }
+      },
+      "title": "RecoverySpec",
       "type": "object"
     },
     "RetrySpec": {

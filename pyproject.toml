@@ -95,6 +95,7 @@ packages = ["src/readyagents"]
 "schemas/workflow-v1.json" = "readyagents/schemas/workflow-v1.json"
 "src/readyagents/cost/prices.json" = "readyagents/cost/prices.json"
 "src/readyagents/llm/capabilities.json" = "readyagents/llm/capabilities.json"
+"src/readyagents/health/normalize_rules.json" = "readyagents/health/normalize_rules.json"
 
 [tool.hatch.build.targets.sdist]
 include = [
