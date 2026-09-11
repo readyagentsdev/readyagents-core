@@ -21,6 +21,7 @@ from readyagents.workflow.state import utc_now
 from readyagents.workflow.templates import interpolate
 
 _NOW = time.monotonic
+_UNSET = object()
 
 
 def run_team_node(node: NodeSpec, state: Any, ctx: Any) -> Any:
@@ -32,7 +33,6 @@ def run_team_node(node: NodeSpec, state: Any, ctx: Any) -> Any:
         bucket["started_mono"] = started
     else:
         started = float(started)
-    state.metadata["scratchpad"] = bucket["scratchpad"]
 
     pending_member = bucket.get("pending_member")
     if pending_member:
@@ -101,7 +101,24 @@ def _bucket(state: Any, team_id: str, spec: TeamSpec) -> dict[str, Any]:
 
 def _checkpoint(state: Any, team_id: str, bucket: dict[str, Any]) -> None:
     state.metadata.setdefault("teams", {})[team_id] = bucket
-    state.metadata["scratchpad"] = bucket.get("scratchpad")
+
+
+def _push_scratchpad(state: Any, view: dict[str, Any]) -> Any:
+    previous = state.metadata["scratchpad"] if "scratchpad" in state.metadata else _UNSET
+    state.metadata["scratchpad"] = view
+    return previous
+
+
+def _pop_scratchpad(state: Any, previous: Any) -> None:
+    if previous is _UNSET:
+        state.metadata.pop("scratchpad", None)
+    else:
+        state.metadata["scratchpad"] = previous
+
+
+def _granted_view(member: TeamMemberSpec, spec: TeamSpec, pad: dict[str, Any]) -> dict[str, Any]:
+    readable = _readable(member, spec)
+    return {key: pad[key] for key in readable if key in pad}
 
 
 def _check_terminate(node_id: str, spec: TeamSpec, bucket: dict[str, Any], ctx: Any) -> None:
@@ -202,7 +219,8 @@ def _supervisor_choice(
     from readyagents.workflow.nodes import _run_agent
 
     ids = spec.member_ids()
-    pad = json.dumps(bucket.get("scratchpad") or {}, ensure_ascii=False, default=str)
+    full = dict(bucket.get("scratchpad") or {})
+    pad = json.dumps(full, ensure_ascii=False, default=str)
     prompt = (
         f"{spec.supervisor.prompt}\n"
         f"Declared members: {', '.join(ids)}.\n"
@@ -218,7 +236,11 @@ def _supervisor_choice(
         model=spec.supervisor.model or node.model,
     )
     before = dict(state.usage)
-    raw = _run_agent(sup, state, ctx)
+    previous = _push_scratchpad(state, full)
+    try:
+        raw = _run_agent(sup, state, ctx)
+    finally:
+        _pop_scratchpad(state, previous)
     _note_usage(bucket, "supervisor", state, ctx, before=before)
     data = _parse_json(raw)
     if not isinstance(data, dict):
@@ -236,9 +258,8 @@ def _run_member(
 ) -> Any:
     from readyagents.workflow.nodes import execute_node
 
-    pad = bucket.get("scratchpad") or {}
-    readable = _readable(member, spec)
-    view = {k: pad.get(k) for k in readable if k in pad}
+    pad = dict(bucket.get("scratchpad") or {})
+    view = _granted_view(member, spec, pad)
     prompt = member.prompt or f"You are {member.role or member.id}. Work the task."
     prompt = f"{prompt}\nScratchpad (granted): {json.dumps(view, ensure_ascii=False, default=str)}"
     kind = member.type
@@ -263,7 +284,11 @@ def _run_member(
         if used >= limit:
             raise TeamSpendExceeded(team.id, used, limit)
     before = dict(state.usage)
-    output = execute_node(spec_node, state, ctx)
+    previous = _push_scratchpad(state, view)
+    try:
+        output = execute_node(spec_node, state, ctx)
+    finally:
+        _pop_scratchpad(state, previous)
     _note_usage(bucket, member.id, state, ctx, before=before)
     return output
 

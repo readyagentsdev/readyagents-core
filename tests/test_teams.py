@@ -234,6 +234,67 @@ def test_scratchpad_grants_and_taint() -> None:
     assert state.provenance["scratchpad.findings"]["node_id"] == "a"
 
 
+def test_scratchpad_template_cannot_read_ungranted_key() -> None:
+    secret = "classified-token-9f3a"
+    spec = _team(
+        strategy="pipeline",
+        scratchpad={"keys": ["public", "secret"]},
+        members=[
+            {
+                "id": "writer",
+                "type": "transform",
+                "template": json.dumps({"scratchpad": {"secret": secret, "public": "ok"}}),
+                "parse_json": True,
+                "scratchpad": {"read": [], "write": ["public", "secret"]},
+            },
+            {
+                "id": "reader",
+                "type": "transform",
+                "template": '{{ scratchpad.secret | default "" }}',
+                "scratchpad": {"read": ["public"], "write": []},
+            },
+        ],
+    )
+    state = run_workflow_spec(spec, llm=ScriptedLLM())
+    last = state.output_keys["out"]["last"]
+    assert secret not in str(last)
+    assert str(last).strip() in {"", "None"}
+
+    llm = ScriptedLLM()
+    llm.enqueue('{"next": "writer", "reason": "w"}', model="sup")
+    llm.enqueue(json.dumps({"scratchpad": {"secret": secret, "public": "ok"}}), model="writer")
+    llm.enqueue('{"next": "reader", "reason": "r"}', model="sup")
+    llm.enqueue("ok", model="reader")
+    llm.enqueue('{"done": true}', model="sup")
+    run_workflow_spec(
+        _team(
+            scratchpad={"keys": ["public", "secret"]},
+            members=[
+                {
+                    "id": "writer",
+                    "type": "agent",
+                    "prompt": "write",
+                    "model": "mock:writer",
+                    "scratchpad": {"read": [], "write": ["public", "secret"]},
+                },
+                {
+                    "id": "reader",
+                    "type": "agent",
+                    "prompt": 'Repeat {{ scratchpad.secret | default "" }}',
+                    "model": "mock:reader",
+                    "scratchpad": {"read": ["public"], "write": []},
+                },
+            ],
+        ),
+        llm=llm,
+    )
+    for call in llm.calls:
+        if call["model"] != "reader":
+            continue
+        blob = " ".join(str(getattr(m, "content", m)) for m in call["messages"])
+        assert secret not in blob
+
+
 def test_per_member_usage_sums() -> None:
     llm = ScriptedLLM()
     llm.enqueue(
@@ -449,6 +510,59 @@ def test_fork_restores_scratchpad_and_handoff() -> None:
     child = reconstruct_after(state, "crew")
     assert child.metadata["teams"]["crew"]["scratchpad"]["findings"] == ["forked"]
     assert child.metadata["teams"]["crew"]["handoffs"]
+
+
+def test_fork_from_paused_mid_team_checkpoint() -> None:
+    llm = ScriptedLLM()
+    llm.enqueue('{"next": "sign_off", "reason": "human"}', model="sup")
+    spec = _team(
+        members=[
+            {
+                "id": "sign_off",
+                "role": "human",
+                "type": "approval",
+                "prompt": "Approve the draft.",
+                "scratchpad": {"read": ["findings"], "write": []},
+            }
+        ]
+    )
+    with pytest.raises(ApprovalRequired) as paused:
+        run_workflow_spec(spec, llm=llm)
+    state = paused.value.state
+    assert state.results == []
+    assert "crew" not in state.node_outputs
+    bucket = state.metadata["teams"]["crew"]
+    assert bucket["pending_member"] == "sign_off"
+    child = reconstruct_after(state, "crew")
+    assert child.metadata["forked_from"] == state.run_id
+    assert child.metadata["forked_at_node"] == "crew"
+    assert child.metadata["teams"]["crew"]["pending_member"] == "sign_off"
+    assert child.metadata["teams"]["crew"]["scratchpad"] == bucket["scratchpad"]
+    assert child.metadata["teams"]["crew"]["handoffs"] == bucket["handoffs"]
+
+    llm = ScriptedLLM()
+    llm.enqueue('{"next": "sign_off", "reason": "human"}', model="sup")
+    with_setup = _team(
+        members=[
+            {
+                "id": "sign_off",
+                "role": "human",
+                "type": "approval",
+                "prompt": "Approve the draft.",
+                "scratchpad": {"read": ["findings"], "write": []},
+            }
+        ],
+        extra_nodes=[{"id": "setup", "type": "transform", "template": "ready", "next": "crew"}],
+    )
+    with_setup["start"] = "setup"
+    with pytest.raises(ApprovalRequired) as paused_setup:
+        run_workflow_spec(with_setup, llm=llm)
+    parent = paused_setup.value.state
+    assert all(row.node_id != "crew" for row in parent.results)
+    forked = reconstruct_after(parent, "crew")
+    assert forked.node_outputs["setup"] == "ready"
+    assert forked.metadata["teams"]["crew"]["handoffs"]
+    assert forked.metadata["teams"]["crew"]["pending_member"] == "sign_off"
 
 
 def test_cli_team_example_twice() -> None:
