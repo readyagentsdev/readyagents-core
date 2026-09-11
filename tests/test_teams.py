@@ -295,6 +295,96 @@ def test_approval_member_pauses_and_resumes() -> None:
     assert state.status == "succeeded"
 
 
+def test_member_budget_slice_enforced() -> None:
+    llm = ScriptedLLM()
+    llm.enqueue('{"next": "a", "reason": "x"}', model="sup")
+    llm.enqueue(
+        '{"scratchpad": {"findings": ["c"]}}',
+        model="a",
+        usage={"prompt_tokens": 1, "cost_micros": 50},
+    )
+    llm.enqueue('{"next": "a", "reason": "again"}', model="sup")
+    spec = _team(members=[_agent_member("a")])
+    spec["nodes"][0]["members"][0]["max_cost_usd"] = 0.00005
+    with pytest.raises(TeamSpendExceeded):
+        run_workflow_spec(spec, llm=llm)
+
+
+def test_paused_team_resumes_mid_conversation(tmp_settings, tmp_path: Path) -> None:
+    path = tmp_path / "pause.yaml"
+    path.write_text(
+        json.dumps(
+            _team(
+                members=[
+                    {
+                        "id": "sign_off",
+                        "role": "human",
+                        "type": "approval",
+                        "prompt": "Approve the draft.",
+                        "scratchpad": {"read": ["findings"], "write": []},
+                    }
+                ]
+            )
+        ),
+        encoding="utf-8",
+    )
+    llm = ScriptedLLM()
+    llm.enqueue('{"next": "sign_off", "reason": "human"}', model="sup")
+    with pytest.raises(ApprovalRequired) as paused:
+        run_workflow_file(path, settings=tmp_settings, persist=True, llm=llm)
+    assert paused.value.state.metadata["teams"]["crew"]["pending_member"] == "sign_off"
+    resume_llm = ScriptedLLM()
+    resume_llm.enqueue('{"done": true}', model="sup")
+    state = run_workflow_file(
+        path,
+        settings=tmp_settings,
+        persist=True,
+        llm=resume_llm,
+        decisions={"sign_off": "approve"},
+        resume_state=paused.value.state,
+    )
+    assert state.status == "succeeded"
+    assert any(h.get("to") == "sign_off" for h in state.metadata["teams"]["crew"]["handoffs"])
+
+
+def test_offline_replay_does_not_complete(tmp_settings, tmp_path: Path, monkeypatch) -> None:
+    path = tmp_path / "rec.yaml"
+    path.write_text(
+        json.dumps(
+            _team(
+                strategy="pipeline",
+                members=[
+                    {
+                        "id": "one",
+                        "type": "transform",
+                        "template": '{"scratchpad": {"findings": ["r"]}}',
+                        "parse_json": True,
+                        "scratchpad": {"read": [], "write": ["findings"]},
+                    }
+                ],
+            )
+        ),
+        encoding="utf-8",
+    )
+    first = run_workflow_file(path, settings=tmp_settings, persist=True, record=True)
+    cassette_path = Path(first.metadata["cassette"])
+
+    def boom(*_a, **_k):
+        raise AssertionError("offline replay must not call complete()")
+
+    monkeypatch.setattr("readyagents.llm.base.LLMProvider.complete", boom, raising=False)
+    monkeypatch.setattr("readyagents.testing.helpers.ScriptedLLM.complete", boom)
+    replayed = run_workflow_file(
+        path,
+        settings=tmp_settings,
+        persist=False,
+        offline=True,
+        cassette_path=cassette_path,
+        llm=ScriptedLLM(),
+    )
+    assert replayed.status == "succeeded"
+
+
 def test_nested_team_fails_at_validate() -> None:
     with pytest.raises((ValidationError, ValueError)):
         WorkflowSpec.model_validate(

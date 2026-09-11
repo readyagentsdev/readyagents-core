@@ -64,6 +64,8 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- Team member `max_cost_usd` is enforced before the next member call. A paused
+  team resumes from `metadata.teams` pending_member.
 - `redact_and_continue` masks the firing `deny` / `deny_regex` / PII match
   (not only email/key patterns) in the continued output, `rejected` field,
   cassette, and audit. `require_citation` uses inputs/prior outputs only, not

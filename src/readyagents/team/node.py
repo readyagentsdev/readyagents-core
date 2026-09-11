@@ -257,6 +257,11 @@ def _run_member(
         kwargs["then"] = "__continue__"
         kwargs["next"] = "__continue__"
     spec_node = NodeSpec.model_validate(kwargs)
+    if member.max_cost_usd is not None:
+        used = int((bucket.get("usage") or {}).get(member.id, {}).get("cost_micros") or 0)
+        limit = int(round(float(member.max_cost_usd) * 1_000_000))
+        if used >= limit:
+            raise TeamSpendExceeded(team.id, used, limit)
     before = dict(state.usage)
     output = execute_node(spec_node, state, ctx)
     _note_usage(bucket, member.id, state, ctx, before=before)
