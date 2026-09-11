@@ -194,6 +194,9 @@ class ExecutionContext:
         self.wait_world = wait_world
         self.max_waiting = max_waiting
         self.waiting_count = waiting_count
+        self.recovery_force_fallback = False
+        self.recovery_repair = False
+        self.recovery_repairs = 0
         self._persist_lock = threading.RLock()
         self._in_flight = 0
         self._in_flight_lock = threading.Lock()
@@ -442,7 +445,13 @@ def _run_agent(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
         result = _agent_tool_loop(node, state, ctx, messages, result, allowlist, tool_specs)
     ctx.last_agent_messages = list(messages)
     if node.output_schema and getattr(node, "contract", None) is None:
-        return validate_structured_output(result.text, node.output_schema, node_id=node.id)
+        text = result.text
+        if getattr(ctx, "recovery_repair", False):
+            from readyagents.contracts.repair import deterministic_repair
+
+            text = deterministic_repair(text, node.output_schema)
+            ctx.recovery_repair = False
+        return validate_structured_output(text, node.output_schema, node_id=node.id)
     return result.text
 
 
@@ -688,6 +697,9 @@ def _complete_agent(
         candidates = list(decision.candidates) or [decision.model]
     else:
         candidates = legacy
+    if getattr(ctx, "recovery_force_fallback", False) and len(candidates) > 1:
+        candidates = list(candidates[1:])
+        ctx.recovery_force_fallback = False
     if ctx.offline and ctx.cassette is not None:
         recorded = ctx.cassette.recorded_route(node.id)
         if recorded and str(recorded.get("model") or "").strip():
@@ -1416,13 +1428,19 @@ def execute_node_with_policy(
     node: NodeSpec, state: RunState, ctx: ExecutionContext
 ) -> tuple[Any, int]:
     """Run a node with timeout_seconds / retry. Does not record the result."""
+    quarantined = _maybe_health_quarantine(node, state, ctx)
+    if quarantined is not None:
+        return quarantined
     retry = node.retry
     attempts = retry.max_attempts if retry else 1
     backoff = retry.backoff_seconds if retry else 1.0
     multiplier = retry.backoff_multiplier if retry else 2.0
     last_error: BaseException | None = None
-
-    for attempt in range(1, attempts + 1):
+    max_tries = attempts
+    recovery_bonus = 0
+    attempt = 0
+    while attempt < max_tries:
+        attempt += 1
         if ctx.cancellation is not None:
             ctx.cancellation.raise_if_requested(run_id=state.run_id)
         try:
@@ -1448,8 +1466,16 @@ def execute_node_with_policy(
             raise
         except TeamError:
             raise
-        except (BudgetExceeded, AuthorizationError, CircuitOpen, RunawayGuard):
+        except (AuthorizationError, RunawayGuard):
             raise
+        except (BudgetExceeded, CircuitOpen) as exc:
+            last_error = exc
+            extra = _apply_declared_recovery(node, state, ctx, exc)
+            if extra is None:
+                raise
+            if recovery_bonus == 0:
+                recovery_bonus = 1
+                max_tries = attempts + 1
         except (RoutingError, CapabilityError, RouteBudgetExceeded):
             raise
         except MediaError:
@@ -1462,17 +1488,26 @@ def execute_node_with_policy(
             raise
         except ReadyAgentsError as exc:
             last_error = exc
+            extra = _apply_declared_recovery(node, state, ctx, exc)
+            if extra is not None and recovery_bonus == 0:
+                recovery_bonus = 1
+                max_tries = attempts + 1
+            if extra is not None and extra.get("action") == "backoff":
+                cancellable_sleep(float(extra.get("seconds") or 0.0), ctx.cancellation)
+                if attempt >= max_tries:
+                    break
+                continue
         except Exception as exc:  # noqa: BLE001
             last_error = exc
         log.warning(
             "Node %s attempt %s/%s failed: %s",
             node.id,
             attempt,
-            attempts,
+            max_tries,
             last_error,
             extra={"run_id": state.run_id, "node_id": node.id},
         )
-        if attempt >= attempts:
+        if attempt >= max_tries:
             break
         # Retry backoff is a cooperative safe point, not an in-flight node body.
         cancellable_sleep(backoff * (multiplier ** (attempt - 1)), ctx.cancellation)
@@ -1481,6 +1516,72 @@ def execute_node_with_policy(
         raise last_error
     message = str(last_error) if last_error else "unknown error"
     raise NodeError(node.id, message, cause=last_error) from last_error
+
+
+def _apply_declared_recovery(
+    node: NodeSpec, state: RunState, ctx: ExecutionContext, exc: BaseException
+) -> dict[str, Any] | None:
+    spec = getattr(node, "recovery", None)
+    if spec is None:
+        return None
+    from readyagents.health.recover import apply_recovery, match_recovery, record_adaptation
+
+    match = match_recovery(spec, exc)
+    if match is None:
+        return None
+    note = apply_recovery(ctx, match)
+    record_adaptation(state, node.id, note)
+    if ctx.auditor is not None:
+        ctx.auditor(
+            "recovery",
+            run_id=state.run_id,
+            node_id=node.id,
+            action=match.action,
+            klass=match.klass,
+        )
+    return note
+
+
+def _maybe_health_quarantine(
+    node: NodeSpec, state: RunState, ctx: ExecutionContext
+) -> tuple[Any, int] | None:
+    spec = getattr(node, "recovery", None)
+    if spec is None or getattr(spec, "health", None) is None:
+        return None
+    store = getattr(ctx, "run_store", None)
+    if store is None:
+        return None
+    from readyagents.health.quarantine import evaluate_quarantine, raise_gate
+
+    decision = evaluate_quarantine(
+        store,
+        node,
+        workflow=state.workflow_name,
+        current_run_id=state.run_id,
+    )
+    if decision is None:
+        return None
+    bucket = state.metadata.setdefault("quarantine", {})
+    if isinstance(bucket, dict):
+        bucket[node.id] = {
+            "action": decision.action,
+            "reason": decision.reason,
+            "fallback": decision.fallback,
+        }
+    if ctx.auditor is not None:
+        ctx.auditor(
+            "health_quarantine",
+            run_id=state.run_id,
+            node_id=node.id,
+            action=decision.action,
+        )
+    if decision.action == "gate":
+        raise_gate(decision, state)
+    if decision.action == "fallback" and decision.fallback:
+        state.metadata["quarantine_next"] = decision.fallback
+        return {"quarantined": True, "next": decision.fallback, "reason": decision.reason}, 1
+    raise_gate(decision, state)
+    return None
 
 
 def _call_with_timeout(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:

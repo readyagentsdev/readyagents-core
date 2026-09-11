@@ -147,6 +147,84 @@ class ContextSpec(BaseModel):
         return cleaned
 
 
+class RecoveryActionSpec(BaseModel):
+    """One declared recovery response. Nothing is inferred."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    class_: str = Field(
+        alias="class",
+        description="truncation, rate_limit, schema_violation, or provider_error.",
+    )
+    action: str = Field(description="retry_with, backoff, repair, or fallback.")
+    max_tokens: int | None = Field(default=None, ge=1, description="retry_with budget.")
+    seconds: float | None = Field(default=None, ge=0, description="backoff seconds.")
+    max_repairs: int | None = Field(default=None, ge=1, le=8, description="repair attempts.")
+
+    @field_validator("class_")
+    @classmethod
+    def _class(cls, value: str) -> str:
+        from readyagents.health.layout import FAILURE_CLASSES
+
+        cleaned = str(value or "").strip().lower()
+        if cleaned not in FAILURE_CLASSES:
+            raise ValueError(
+                "recovery.on.class must be truncation, rate_limit, "
+                "schema_violation, or provider_error"
+            )
+        return cleaned
+
+    @field_validator("action")
+    @classmethod
+    def _action(cls, value: str) -> str:
+        from readyagents.health.layout import RECOVERY_ACTIONS
+
+        cleaned = str(value or "").strip().lower()
+        if cleaned not in RECOVERY_ACTIONS:
+            raise ValueError("recovery.on.action must be retry_with, backoff, repair, or fallback")
+        return cleaned
+
+
+class HealthGateSpec(BaseModel):
+    """Declared health threshold. below=gate only; skip is refused."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    min_success_rate: float = Field(
+        ge=0.0, le=1.0, description="Literal threshold, never a template."
+    )
+    window: int = Field(ge=1, le=500, description="Recent samples of this node.")
+    below: str = Field(default="gate", description="Must be gate (fail-safe to a human).")
+    fallback: str | None = Field(
+        default=None,
+        description="Optional successor node id when quarantined. Never skip.",
+    )
+
+    @field_validator("below")
+    @classmethod
+    def _below(cls, value: str) -> str:
+        cleaned = str(value or "gate").strip().lower()
+        if cleaned != "gate":
+            raise ValueError("health.below must be gate; skip/open would fail open")
+        return cleaned
+
+    @field_validator("min_success_rate")
+    @classmethod
+    def _rate(cls, value: float) -> float:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("health.min_success_rate must be a numeric literal")
+        return float(value)
+
+
+class RecoverySpec(BaseModel):
+    """Opt-in per-class recovery and health gate. Omitted is byte-identical."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    on: list[RecoveryActionSpec] = Field(default_factory=list)
+    health: HealthGateSpec | None = None
+
+
 class CircuitSpec(BaseModel):
     """Process-local circuit breaker for LLM providers."""
 
@@ -385,6 +463,10 @@ class NodeSpec(BaseModel):
         description="Soft timeout in seconds for this node.",
     )
     retry: RetrySpec | None = Field(default=None, description="Retry policy for this node.")
+    recovery: RecoverySpec | None = Field(
+        default=None,
+        description="Opt-in per-class recovery and health gate. Omitted keeps retry unchanged.",
+    )
     next: str | None = Field(default=None, description="Default successor node id.")
     output_key: str | None = Field(
         default=None,
