@@ -1046,6 +1046,121 @@ class NodeSpec(BaseModel):
                 raise ValueError(f"Node '{self.id}': webhook notify requires url")
 
 
+class TriggerAcceptsSpec(BaseModel):
+    """Which event kind and payload shape a trigger accepts."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    kind: str = Field(description="webhook, file, queue, or schedule.")
+    payload_schema: dict[str, Any] | None = Field(
+        default=None,
+        alias="schema",
+        description="JSON Schema fragment for the event object (type: object).",
+    )
+
+    @field_validator("kind")
+    @classmethod
+    def _kind(cls, value: str) -> str:
+        cleaned = str(value or "").strip().lower()
+        if cleaned not in {"webhook", "file", "queue", "schedule"}:
+            raise ValueError("accepts.kind must be webhook, file, queue, or schedule")
+        return cleaned
+
+    @field_validator("payload_schema")
+    @classmethod
+    def _schema(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            raise ValueError("accepts.schema must be a mapping")
+        kind = value.get("type")
+        if kind is not None and str(kind).strip().lower() != "object":
+            raise ValueError("accepts.schema type must be object")
+        required = value.get("required")
+        if required is not None:
+            if not isinstance(required, list) or any(not isinstance(x, str) for x in required):
+                raise ValueError("accepts.schema required must be a list of strings")
+        return value
+
+
+class TriggerBudgetSpec(BaseModel):
+    """Per-trigger spend ceiling. Distinct from the workflow budget."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_cost_usd: float | None = Field(default=None, ge=0)
+    max_tokens: int | None = Field(default=None, ge=0)
+
+
+class TriggerSpec(BaseModel):
+    """Declared event contract. Core validates; core starts no listener."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    name: str = Field(description="Trigger name recorded on run provenance.")
+    accepts: TriggerAcceptsSpec
+    require_signature: bool = Field(default=False)
+    inputs: dict[str, str] = Field(
+        default_factory=dict,
+        description="Map event fields to workflow inputs via {{ event.* }} templates.",
+    )
+    idempotency_key: str = Field(description="Required template; missing is a schema error.")
+    idempotency_window: str = Field(default="24h")
+    budget: TriggerBudgetSpec | None = None
+    concurrency: int = Field(default=1, ge=1, le=64)
+    on_ceiling: str = Field(
+        default="defer",
+        description="When concurrency is full: drop (refuse) or defer (bounded queue).",
+    )
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, value: str) -> str:
+        token = str(value or "").strip()
+        if not token.replace("_", "").replace("-", "").isalnum():
+            raise ValueError(f"Invalid trigger name '{value}'")
+        return token
+
+    @field_validator("idempotency_key")
+    @classmethod
+    def _idem(cls, value: str) -> str:
+        text = str(value or "").strip()
+        if not text:
+            raise ValueError("idempotency_key is required")
+        return text
+
+    @field_validator("idempotency_window")
+    @classmethod
+    def _window(cls, value: str) -> str:
+        from readyagents.approvals.gate import parse_expires_in
+
+        text = str(value or "").strip() or "24h"
+        parse_expires_in(text)
+        return text
+
+    @field_validator("inputs")
+    @classmethod
+    def _inputs(cls, value: dict[str, str]) -> dict[str, str]:
+        if not isinstance(value, dict):
+            raise ValueError("inputs must be a mapping of name to template string")
+        out: dict[str, str] = {}
+        for key, item in value.items():
+            if not str(key).strip():
+                raise ValueError("trigger input names must be non-empty")
+            if not isinstance(item, str):
+                raise ValueError(f"trigger input '{key}' mapping must be a string template")
+            out[str(key)] = item
+        return out
+
+    @field_validator("on_ceiling")
+    @classmethod
+    def _ceiling(cls, value: str) -> str:
+        cleaned = str(value or "defer").strip().lower()
+        if cleaned not in {"drop", "defer"}:
+            raise ValueError("on_ceiling must be drop or defer")
+        return cleaned
+
+
 class EdgeSpec(BaseModel):
     """Optional explicit edge between two nodes."""
 
@@ -1140,6 +1255,13 @@ class WorkflowSpec(BaseModel):
         default=None,
         description="Optional media caps and redaction policy. Absent: engine defaults.",
     )
+    triggers: list[TriggerSpec] = Field(
+        default_factory=list,
+        description=(
+            "Optional event contracts that may start this workflow. Core validates "
+            "and decides; core starts no listener."
+        ),
+    )
 
     @model_validator(mode="after")
     def _graph(self) -> WorkflowSpec:
@@ -1167,6 +1289,9 @@ class WorkflowSpec(BaseModel):
             if edge.to not in known:
                 raise ValueError(f"Edge to unknown node '{edge.to}'")
         self._assert_acyclic()
+        names = [t.name for t in self.triggers]
+        if len(names) != len(set(names)):
+            raise ValueError("Duplicate trigger names")
         return self
 
     def _assert_acyclic(self) -> None:
