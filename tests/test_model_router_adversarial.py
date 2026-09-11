@@ -19,6 +19,7 @@ from readyagents.llm.registry import get_provider
 from readyagents.llm.resilience import CircuitBreaker
 from readyagents.llm.vertex_provider import VertexProvider
 from readyagents.routing.select import select_route
+from readyagents.routing.taint import resolve_routing_taint
 from readyagents.sovereign.egress import install_guard
 from readyagents.testing.helpers import ScriptedLLM, run_workflow_spec
 from readyagents.tools import FunctionTool, ToolRegistry
@@ -55,9 +56,12 @@ class HostedTrapLLM:
 
     def __init__(self) -> None:
         self.calls: list[str] = []
+        self.prompts: list[str] = []
 
     def complete(self, messages, *, model, tools=None, **kwargs):
+        blob = "\n".join(getattr(m, "content", "") or "" for m in messages)
         self.calls.append(model)
+        self.prompts.append(blob)
         if model in _HOSTED_MODEL_IDS or any(model.startswith(p) for p in _HOSTED_PREFIXES):
             raise AssertionError(f"hosted complete() forbidden (model={model})")
         return CompletionResult(text="local-ok", model=model, usage={})
@@ -253,6 +257,21 @@ def test_memory_provenance_blocks_hosted_under_taint_rule() -> None:
     assert llm.calls == ["llama3"]
 
 
+def test_resolve_routing_taint_outputs_seed_is_untrusted() -> None:
+    state = RunState.start("taint-outputs", {})
+    state.node_outputs["seed"] = "tainted-blob"
+    state.provenance["seed"] = untrusted(source="tool:leak", node_id="seed").as_dict()
+    node = WorkflowSpec.model_validate(
+        {
+            "name": "n",
+            "nodes": [
+                {"id": "draft", "type": "agent", "prompt": "classify {{outputs.seed}}"},
+            ],
+        }
+    ).nodes[0]
+    assert resolve_routing_taint(state, node) == "untrusted"
+
+
 def test_outputs_namespace_interpolation_never_calls_hosted() -> None:
     """{{outputs.seed}} must not skip taint; hosted pin must not fire."""
     tools = _leak_tools()
@@ -291,8 +310,9 @@ def test_outputs_namespace_interpolation_never_calls_hosted() -> None:
     assert state.status == "succeeded"
     assert llm.calls == ["llama3"]
     assert "gpt-4o-mini" not in llm.calls
+    assert any("tainted-blob" in prompt for prompt in llm.prompts)
     route = state.metadata["routes"][0]
-    assert route["taint"] in {"untrusted", "indeterminate"}
+    assert route["taint"] == "untrusted"
     assert route["local_only"] is True
     assert route["model"] == "ollama:llama3"
 
