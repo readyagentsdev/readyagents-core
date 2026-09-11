@@ -63,6 +63,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Optional [workflow packaging](docs/packaging.md) (`readyagents package`) — **Unreleased**; review-before-install archives with policy, fixtures, and signature; signed static index; not a hosted marketplace
 - Optional [simulation](docs/simulation.md) (`readyagents simulate`) — **Unreleased**; declaration-driven cases, honest coverage, dry-run default; not exhaustive, not a hosted simulator
 - Optional [self-healing](docs/self-healing.md) (`readyagents health`, `recovery:`) — **Unreleased**; fingerprints and fail-safe gates; not prediction; not a hosted reliability service
+- Optional [benchmark harness](docs/benchmarks.md) (`readyagents bench`) — **Unreleased**; offline cassettes, labelled engine vs live timing; not a model-quality or competitor ranking
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -203,6 +204,7 @@ flowchart LR
 - [Packaging](docs/packaging.md) (opt-in `readyagents package`; Unreleased; review-before-install; not a marketplace)
 - [Simulation](docs/simulation.md) (opt-in `readyagents simulate`; Unreleased; not exhaustive; not a hosted simulator)
 - [Self-healing](docs/self-healing.md) (opt-in `readyagents health` / `recovery:`; Unreleased; not prediction; not a hosted service)
+- [Benchmarks](docs/benchmarks.md) (opt-in `readyagents bench`; Unreleased; offline cassettes; not a quality ranking)
 - [Packs](docs/packs.md)
 - [Supply-chain trust](docs/supply-chain.md) (signatures prove origin, not safety)
 - [Continuous pack](docs/continuous-pack.md) (optional, separate distribution)
