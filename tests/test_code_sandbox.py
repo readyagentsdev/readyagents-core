@@ -14,6 +14,7 @@ from readyagents.errors import (
     CodeContainerUnavailable,
     CodeCpuLimitExceeded,
     CodeError,
+    CodeFileSizeLimitExceeded,
     CodeFilesystemDenied,
     CodeImportDenied,
     CodeMemoryLimitExceeded,
@@ -155,14 +156,87 @@ nodes:
     source: |
       while True:
           pass
-      result = {"ok": true}
+      result = {"ok": True}
     limits:
       cpu_seconds: 1
-      wall_seconds: 8
+      wall_seconds: 15
       output_bytes: 65536
 """,
     )
-    with pytest.raises((CodeCpuLimitExceeded, CodeWallLimitExceeded, CodeMemoryLimitExceeded)):
+    with pytest.raises(CodeCpuLimitExceeded):
+        _run(path, tmp_settings)
+
+
+def test_sleep_over_cpu_under_wall_succeeds(tmp_settings, tmp_path: Path) -> None:
+    """Wall-clock sleep is not CPU time; communicate timeout is wall_seconds."""
+    path = _wf(
+        tmp_path,
+        """
+name: nap
+nodes:
+  - id: reshape
+    type: code
+    source: |
+      import time
+      time.sleep(6)
+      result = {"ok": True}
+    limits:
+      cpu_seconds: 5
+      wall_seconds: 15
+      output_bytes: 65536
+""",
+    )
+    state = _run(path, tmp_settings)
+    assert state.status == "succeeded"
+    assert state.node_outputs["reshape"]["ok"] is True
+
+
+def test_file_size_limit(tmp_settings, tmp_path: Path) -> None:
+    path = _wf(
+        tmp_path,
+        """
+name: fatfile
+nodes:
+  - id: reshape
+    type: code
+    source: |
+      handle = open("blob.bin", "wb")
+      handle.write(b"x" * 10000)
+      handle.close()
+      result = {"ok": True}
+    limits:
+      cpu_seconds: 5
+      wall_seconds: 10
+      file_size_bytes: 100
+      output_bytes: 65536
+""",
+    )
+    with pytest.raises(CodeFileSizeLimitExceeded):
+        _run(path, tmp_settings)
+
+
+def test_memory_limit(tmp_settings, tmp_path: Path) -> None:
+    """Chunked alloc over memory_mb; a terabyte memset is CPU, not MemoryError."""
+    path = _wf(
+        tmp_path,
+        """
+name: hog
+nodes:
+  - id: reshape
+    type: code
+    source: |
+      blocks = []
+      while True:
+          blocks.append(bytearray(8 * 1024 * 1024))
+      result = {"n": len(blocks)}
+    limits:
+      cpu_seconds: 30
+      wall_seconds: 20
+      memory_mb: 64
+      output_bytes: 65536
+""",
+    )
+    with pytest.raises(CodeMemoryLimitExceeded):
         _run(path, tmp_settings)
 
 
@@ -341,3 +415,7 @@ def test_doctor_mentions_code_sandbox() -> None:
     assert block["subprocess"] is True
     assert "honesty" in block
     assert "accident" in block["honesty"]
+    always = block["always"]
+    assert "cpu_process_time" in always
+    assert "memory_rss" in always
+    assert "file_size_capped_open" in always

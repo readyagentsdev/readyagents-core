@@ -7,6 +7,7 @@ import os
 import signal
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -112,9 +113,6 @@ def _run_subprocess(
     env = _minimal_env(sandbox)
     stdin_blob = json.dumps(inputs, ensure_ascii=False).encode("utf-8")
     wall = float(bound["wall_seconds"])
-    cpu = float(bound["cpu_seconds"])
-    timeout = min(wall, cpu)
-    cpu_is_tighter = cpu <= wall
     preexec = None
     if os.name != "nt":
         preexec = _unix_preexec(sandbox, bound)
@@ -131,22 +129,28 @@ def _run_subprocess(
         kwargs["close_fds"] = True
         kwargs["preexec_fn"] = preexec
     proc = subprocess.Popen(**kwargs)  # noqa: S603
+    started = time.monotonic()
     try:
-        stdout, stderr = proc.communicate(input=stdin_blob, timeout=timeout)
+        stdout, stderr = proc.communicate(input=stdin_blob, timeout=wall)
     except subprocess.TimeoutExpired:
         _kill(proc)
         leftover = proc.communicate()
         stdout, stderr = leftover[0] or b"", leftover[1] or b""
-        if cpu_is_tighter:
-            raise CodeCpuLimitExceeded(node_id) from None
         raise CodeWallLimitExceeded(node_id) from None
+    elapsed = time.monotonic() - started
     out_limit = int(bound["output_bytes"])
     if len(stdout) + len(stderr) > out_limit:
         raise CodeOutputLimitExceeded(node_id)
     code = int(proc.returncode or 0)
     text_out = stdout.decode("utf-8", "replace")
     text_err = stderr.decode("utf-8", "replace")
-    _raise_exit(node_id, code, text_err)
+    _raise_exit(
+        node_id,
+        code,
+        text_err,
+        cpu_seconds=float(bound["cpu_seconds"]),
+        elapsed=elapsed,
+    )
     if not text_out.strip():
         raise CodeSchemaError(node_id, "code node produced empty stdout")
     try:
@@ -163,7 +167,14 @@ def _run_subprocess(
     }
 
 
-def _raise_exit(node_id: str, code: int, stderr: str) -> None:
+def _raise_exit(
+    node_id: str,
+    code: int,
+    stderr: str,
+    *,
+    cpu_seconds: float = 0.0,
+    elapsed: float = 0.0,
+) -> None:
     if code in {0, None}:
         return
     mapping = {
@@ -186,11 +197,15 @@ def _raise_exit(node_id: str, code: int, stderr: str) -> None:
         sig = -int(code)
         if hasattr(signal, "SIGXCPU") and sig == signal.SIGXCPU:
             raise CodeCpuLimitExceeded(node_id)
-        if hasattr(signal, "SIGKILL") and sig == signal.SIGKILL:
-            # Linux escalates RLIMIT_CPU from SIGXCPU to SIGKILL.
-            raise CodeCpuLimitExceeded(node_id)
+        if hasattr(signal, "SIGXFSZ") and sig == signal.SIGXFSZ:
+            raise CodeFileSizeLimitExceeded(node_id)
         if hasattr(signal, "SIGSEGV") and sig == signal.SIGSEGV:
             raise CodeMemoryLimitExceeded(node_id)
+        if hasattr(signal, "SIGKILL") and sig == signal.SIGKILL:
+            # Immediate SIGKILL is usually RLIMIT_AS; CPU rlimit fires near cpu_seconds.
+            if elapsed < max(0.4, float(cpu_seconds) * 0.4):
+                raise CodeMemoryLimitExceeded(node_id)
+            raise CodeCpuLimitExceeded(node_id)
     raise CodeError(node_id, stderr.strip() or f"code child exited {code}")
 
 

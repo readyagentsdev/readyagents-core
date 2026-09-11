@@ -177,26 +177,51 @@ def _code_sandbox_report() -> dict[str, Any]:
             resource_ok = True
         except ImportError:
             resource_ok = False
+    os_rlimits: list[str] = []
+    if resource_ok:
+        os_rlimits.append("cpu_seconds")
+        if sys.platform.startswith("linux"):
+            os_rlimits.append("memory_mb")
+        os_rlimits.append("file_size_bytes")
+    if not resource_ok:
+        platform_note = (
+            "Windows has no resource module; OS rlimits for CPU/address-space/nproc "
+            "are absent. The child still enforces cpu_seconds via process_time, "
+            "memory_mb via RSS, file_size_bytes via capped open, and nproc via spawn "
+            "wrappers. wall_seconds and output_bytes are enforced by the parent. "
+            "subprocess isolation is accident-grade, not hostile-code-proof."
+        )
+    elif sys.platform == "darwin":
+        platform_note = (
+            "macOS does not let a process lower RLIMIT_AS; memory_mb is a child RSS "
+            "watchdog, not an OS address-space cap. RLIMIT_CPU and RLIMIT_FSIZE apply."
+        )
+    else:
+        platform_note = None
     return {
         "subprocess": True,
         "container_pack": False,
         "resource_module": resource_ok,
-        "os_rlimits": ["cpu_seconds", "memory_mb", "file_size_bytes"] if resource_ok else [],
-        "always": ["wall_seconds", "output_bytes", "import_allowlist", "filesystem_grants"],
-        "windows_note": None
-        if resource_ok
-        else (
-            "Windows has no resource module; CPU/address-space/nproc are not OS rlimits. "
-            "wall_seconds, output_bytes, child file-size caps, and the import allowlist "
-            "still apply. subprocess isolation is accident-grade, not hostile-code-proof."
-        ),
+        "os_rlimits": os_rlimits,
+        "always": [
+            "wall_seconds",
+            "output_bytes",
+            "import_allowlist",
+            "filesystem_grants",
+            "cpu_process_time",
+            "memory_rss",
+            "file_size_capped_open",
+            "nproc_spawn_wrappers",
+        ],
+        "windows_note": platform_note if not resource_ok else None,
+        "platform_note": platform_note,
         "honesty": "subprocess defends against accident and careless code, not hostile code.",
     }
 
 
 def _format_code_sandbox(block: dict[str, Any]) -> str:
     rlimits = ",".join(block.get("os_rlimits") or []) or "none"
-    note = block.get("windows_note") or block.get("honesty") or ""
+    note = block.get("platform_note") or block.get("windows_note") or block.get("honesty") or ""
     return (
         f"Code sandbox subprocess=yes resource_module={block.get('resource_module')} "
         f"os_rlimits={rlimits}. {note}"
