@@ -844,6 +844,7 @@ class RunCoordinator:
                 initial_state=state,
                 store=self._store,
                 stream=session,
+                started_by={"kind": getattr(self, "started_by_kind", "mcp")},
             )
         except ApprovalRequired:
             paused = True
