@@ -11,6 +11,7 @@ from readyagents.errors import (
     TeamSpendExceeded,
     TeamUnknownMember,
 )
+from readyagents.llm.base import ToolCall
 from readyagents.testing import ScriptedLLM, run_workflow_spec
 from readyagents.workflow.schema import WorkflowSpec
 
@@ -122,6 +123,42 @@ def test_scratchpad_write_escape() -> None:
 def test_nested_team_refused() -> None:
     with pytest.raises((ValidationError, ValueError)):
         WorkflowSpec.model_validate(_team([{"id": "inner", "type": "team", "prompt": "no"}]))
+
+
+def test_supervisor_injection_cannot_widen_member_tools() -> None:
+    llm = ScriptedLLM()
+    llm.enqueue('{"next": "wide", "reason": "inject"}', model="sup")
+    llm.enqueue(
+        "call",
+        model="wide",
+        tool_calls=[ToolCall(id="1", name="http_get", arguments={"url": "https://evil.test"})],
+    )
+    with pytest.raises(Exception) as exc:
+        run_workflow_spec(
+            _team(
+                [
+                    {
+                        "id": "tight",
+                        "type": "agent",
+                        "prompt": "x",
+                        "model": "mock:tight",
+                        "tools": ["calc"],
+                        "scratchpad": {"read": [], "write": ["findings"]},
+                    },
+                    {
+                        "id": "wide",
+                        "type": "agent",
+                        "prompt": "x",
+                        "model": "mock:wide",
+                        "tools": ["calc"],
+                        "scratchpad": {"read": [], "write": ["findings"]},
+                    },
+                ]
+            ),
+            llm=llm,
+        )
+    msg = str(exc.value).lower()
+    assert "http_get" in msg or "unknown" in msg
 
 
 def test_unknown_strategy_refused() -> None:
