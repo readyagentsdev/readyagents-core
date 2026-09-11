@@ -16,8 +16,10 @@ All notable changes to ReadyAgents Core.
   idempotent; unsigned events do not wake. File waits use containment.
   Credentials are re-brokered on wake. `runs gc` never deletes `waiting`.
   `runs list --waiting` and `runs timeline` tell the truth. Approval/resume
-  without wait nodes are unchanged. See
-  [docs/long-horizon.md](docs/long-horizon.md).
+  without wait nodes are unchanged. `for_file` `on: changed` compares mtime
+  as instants (unix epoch or ISO), not a unix string against ISO
+  `created_at`. A symlink at the watched path is refused before follow.
+  See [docs/long-horizon.md](docs/long-horizon.md).
 - **Data pipeline nodes (`type: table`, `type: classify`).** A typed table
   part (columns, row count, content hash) stores rows on disk, never in the
   run record or cassette. Eight deterministic ops (`select`, `filter`, `join`,

@@ -24,7 +24,7 @@ def run_wait_node(node: Any, state: Any, ctx: Any) -> Any:
         return {"dry_run": True, "type": "wait"}
     now = _now(ctx)
     record = _record_from_state(state, node) or _build_record(node, state, now)
-    world = world_from_ctx(ctx, state)
+    world = world_from_ctx(ctx, state, record=record)
     outcome = evaluate_wait(record, now=now, world=world)
     if outcome.satisfied:
         _clear_wait(state)
@@ -213,10 +213,10 @@ def _now(ctx: Any) -> datetime:
     return datetime.now(UTC)
 
 
-def world_from_ctx(ctx: Any, state: Any) -> WaitWorld:
+def world_from_ctx(ctx: Any, state: Any, record: Any = None) -> WaitWorld:
     injected = getattr(ctx, "wait_world", None)
     if isinstance(injected, WaitWorld):
         return injected
     from readyagents.wait.world import load_world
 
-    return load_world(ctx, state)
+    return load_world(ctx, state, record=record)
