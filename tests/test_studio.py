@@ -48,16 +48,24 @@ def _make_studio(tmp_settings, store, *, read_only: bool = False, tokens=None):
     return application, coordinator
 
 
+def _unlock(application, token: str):
+    headers = _host_headers(application, origin=True)
+    headers["Content-Type"] = "application/json"
+    return application.handle(
+        "POST",
+        "/studio/session",
+        headers=headers,
+        body=json.dumps({"token": token}).encode(),
+    )
+
+
 def _session(application) -> str:
     token = application.tokens.issue_bootstrap()
-    response = application.handle(
-        "GET",
-        "/studio",
-        query={"token": token},
-        headers=_host_headers(application),
-        body=b"",
-    )
+    response = _unlock(application, token)
     assert response.status == 303, response.body
+    location = dict(response.headers).get("Location", "")
+    assert location == "/studio"
+    assert token not in location
     cookie = dict(response.headers).get("Set-Cookie", "")
     assert "HttpOnly" in cookie
     assert "SameSite=Strict" in cookie
@@ -77,6 +85,33 @@ def _json(response) -> dict:
 
 def _plain(text: str) -> str:
     return re.sub(r"\s+", "", re.sub(r"\x1b\[[0-9;]*m", "", text))
+
+
+def test_unlock_post_does_not_put_token_in_url(tmp_settings) -> None:
+    store = JsonRunStore(tmp_settings.runs_dir())
+    application, _c = _make_studio(tmp_settings, store)
+    token = application.tokens.issue_bootstrap()
+    leaked = application.handle(
+        "GET",
+        "/studio",
+        query={"token": token},
+        headers=_host_headers(application),
+        body=b"",
+    )
+    assert leaked.status == 200
+    assert dict(leaked.headers).get("Location") in {None, ""}
+    still = _unlock(application, token)
+    assert still.status == 303, still.body
+    location = dict(still.headers).get("Location", "")
+    assert location == "/studio"
+    assert token not in location
+    assert token not in still.body.decode("utf-8", errors="replace")
+    html = application.handle("GET", "/studio", headers=_host_headers(application)).body.decode()
+    assert 'method="post"' in html
+    assert 'action="/studio/session"' in html
+    assert 'method="get"' not in html.lower()
+    replay = _unlock(application, token)
+    assert replay.status == 401
 
 
 def test_studio_help_lists_flags() -> None:
@@ -121,22 +156,16 @@ def test_bootstrap_token_single_use_and_expiry(tmp_settings, monkeypatch) -> Non
     tokens = TokenService(bootstrap_ttl=30)
     application, _c = _make_studio(tmp_settings, store, tokens=tokens)
     token = application.tokens.issue_bootstrap()
-    first = application.handle(
-        "GET", "/studio", query={"token": token}, headers=_host_headers(application)
-    )
+    first = _unlock(application, token)
     assert first.status == 303
-    second = application.handle(
-        "GET", "/studio", query={"token": token}, headers=_host_headers(application)
-    )
+    second = _unlock(application, token)
     assert second.status == 401
     expired = TokenService(bootstrap_ttl=0.01)
     application2, _c2 = _make_studio(tmp_settings, store, tokens=expired)
     tok = application2.tokens.issue_bootstrap()
     real = time.time
     monkeypatch.setattr("readyagents.approvals.tokens.time.time", lambda: real() + 10)
-    late = application2.handle(
-        "GET", "/studio", query={"token": tok}, headers=_host_headers(application2)
-    )
+    late = _unlock(application2, tok)
     assert late.status == 401
 
 
@@ -257,6 +286,8 @@ def test_save_preserves_comments_and_refuses_external_change(tmp_settings, tmp_p
 
 
 def test_live_validation_matches_cli(tmp_settings, tmp_path: Path) -> None:
+    from readyagents.studio.edit import apply_field_edit
+
     store = JsonRunStore(tmp_settings.runs_dir())
     application, _c = _make_studio(tmp_settings, store)
     session = _session(application)
@@ -265,22 +296,30 @@ def test_live_validation_matches_cli(tmp_settings, tmp_path: Path) -> None:
         "name: bad\nnodes:\n  - id: a\n    type: transform\n    template: ok\n",
         encoding="utf-8",
     )
+    patched = apply_field_edit(dest.read_text(encoding="utf-8"), "a", "next", "ghost")
+    dest.write_text(patched, encoding="utf-8")
     headers = _cookie_headers(application, session, origin=True)
     studio = application.handle(
         "POST",
         "/studio/api/workflow/validate",
         headers=headers,
-        body=json.dumps(
-            {"path": str(dest), "node_id": "a", "field": "next", "value": "ghost"}
-        ).encode(),
+        body=json.dumps({"path": str(dest)}).encode(),
     )
     cli = runner.invoke(app, ["validate", str(dest), "--json"])
-    # CLI still sees the file on disk (valid). Studio validates the patched source.
     assert studio.status == 400, studio.body
+    assert cli.exit_code == 1, cli.stdout + cli.stderr
     body = _json(studio)
-    assert body["error"] == "WorkflowError"
-    assert body["problems"]
-    assert cli.exit_code == 0
+    cli_payload = json.loads(cli.stdout[cli.stdout.find("{") :])
+    assert body["error"] == cli_payload["error"] == "WorkflowError"
+    studio_probs = [
+        (row.get("loc"), row.get("message"), row.get("line")) for row in body["problems"]
+    ]
+    cli_probs = [
+        (row.get("loc"), row.get("message"), row.get("line"))
+        for row in cli_payload.get("problems") or []
+    ]
+    assert studio_probs
+    assert studio_probs == cli_probs
 
 
 def test_invalid_edit_cannot_save(tmp_settings, tmp_path: Path) -> None:

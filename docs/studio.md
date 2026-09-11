@@ -11,9 +11,10 @@ readyagents studio --open
 ```
 
 The process binds loopback only, prints a **single-use bootstrap token on
-stderr** (not in the URL), and stops when you stop the command. `--read-only`
-disables every write path on the server (save, fork, freeze, decide), not
-just in the UI.
+stderr** (not in the URL), and stops when you stop the command. Unlock is
+`POST /studio/session` with the token in the body; it is never placed in a
+query string or `Location`. `--read-only` disables every write path on the
+server (save, fork, freeze, decide), not just in the UI.
 
 ## What it shows
 
