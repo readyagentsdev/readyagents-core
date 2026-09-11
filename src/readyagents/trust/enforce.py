@@ -14,6 +14,7 @@ from readyagents.trust.digest import (
     KIND_INCLUDE,
     KIND_MCP,
     KIND_PACK,
+    KIND_SKILL,
     KIND_WORKFLOW,
     digest_pack_bytes,
     include_source_map,
@@ -25,10 +26,11 @@ from readyagents.trust.lock import (
     default_lock_path,
     diff_lockfile,
     load_lockfile,
+    skill_lock_artifacts,
 )
 
 LOCK_GATE_NODE = "supply_chain_lock"
-FILE_LOCK_KINDS = (KIND_WORKFLOW, KIND_INCLUDE, KIND_PACK)
+FILE_LOCK_KINDS = (KIND_WORKFLOW, KIND_INCLUDE, KIND_PACK, KIND_SKILL)
 _APPROVE = {"approve", "approved", "yes", "true", "accept", "ok"}
 
 
@@ -117,6 +119,7 @@ def evaluate_workflow(
     check_lock: bool = True,
     source_text: str | None = None,
     require_resolved_includes: bool = False,
+    skill_home: Path | str | None = None,
 ) -> TrustReport:
     source = Path(workflow_path)
     enforce = bool(require_signed or frozen)
@@ -161,6 +164,28 @@ def evaluate_workflow(
         statuses.append(
             ArtifactStatus(kind=KIND_MCP, name=name, digest=prefixed(digest), signature="n/a")
         )
+
+    if skill_home is not None:
+        home = Path(skill_home)
+    else:
+        from readyagents.config import get_settings
+
+        home = get_settings().home_path()
+    for item in skill_lock_artifacts(report.document, home=home, missing="skip"):
+        status = ArtifactStatus(
+            kind=KIND_SKILL,
+            path=item.path,
+            name=item.name,
+            digest=item.digest or "",
+        )
+        skill_md = home / (item.path or "") / "SKILL.md"
+        if require_signed:
+            status.signature = _verify_or_raise(
+                skill_md, kind=KIND_SKILL, keyring=keyring, digest=item.digest
+            )
+        else:
+            status.signature = _peek_signature(skill_md, kind=KIND_SKILL)
+        statuses.append(status)
 
     result = TrustReport(
         artifacts=statuses,
@@ -271,6 +296,10 @@ def _lock_from_report(result: TrustReport, *, generated_at: str = "") -> Lockfil
     for row in result.artifacts:
         if row.kind == KIND_MCP:
             items.append(LockArtifact(kind=KIND_MCP, name=row.name, surface_digest=row.digest))
+        elif row.kind == KIND_SKILL:
+            items.append(
+                LockArtifact(kind=KIND_SKILL, path=row.path, name=row.name, digest=row.digest)
+            )
         else:
             items.append(LockArtifact(kind=row.kind, path=row.path, digest=row.digest))
     return Lockfile(artifacts=items, generated_at=generated_at)

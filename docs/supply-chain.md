@@ -20,6 +20,7 @@ every platform.
 | --- | --- |
 | Workflow | Parsed YAML/JSON plus every resolved `include`, in sorted path order, with each include's digest embedded. Changing an include changes the parent. Includes stay confined to the parent workflow directory. |
 | Pack | File bytes. |
+| Skill | Installed skill folder bytes (relative paths, regular files). `*.sig` files are excluded so a detached signature does not change the digest. |
 | MCP server | Advertised tool names, descriptions, and schemas (same canonical JSON as the firewall pin). A description-only change is a digest change. |
 
 ## Detached signatures
@@ -109,6 +110,10 @@ artifacts:
   - kind: mcp_server
     name: files
     surface_digest: "sha256:..."
+  - kind: skill
+    path: skills/house-writing-style
+    name: house-writing-style
+    digest: "sha256:..."
 ```
 
 Detection happens at run time. There is no always-on watcher.

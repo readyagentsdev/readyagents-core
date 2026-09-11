@@ -290,6 +290,27 @@ def _is_template(text: str) -> bool:
     return "{{" in text or "{%" in text
 
 
+def skill_names(document: Mapping[str, Any]) -> list[str]:
+    """Declared ``type: skill`` names, skipping templated references."""
+    found: list[str] = []
+    seen: set[str] = set()
+    for node in _iter_nodes(document):
+        kind = str(node.get("type") or "").strip().lower()
+        if kind != "skill":
+            continue
+        raw = node.get("skill")
+        if not isinstance(raw, str):
+            continue
+        text = raw.strip()
+        if not text or _is_template(text):
+            continue
+        if text in seen:
+            continue
+        seen.add(text)
+        found.append(text)
+    return found
+
+
 def _include_paths(
     document: Mapping[str, Any],
     *,

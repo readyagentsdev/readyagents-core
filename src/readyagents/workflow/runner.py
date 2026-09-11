@@ -250,6 +250,7 @@ def run_workflow_file(
             run_id=resume_state.run_id if resume_state is not None else run_id,
             check_lock=False,
             source_text=workflow_text,
+            skill_home=settings.home_path(),
         )
     except TrustError:
         if required or lock_frozen:

@@ -23,6 +23,7 @@ from readyagents.trust.digest import (
     digest_pack_bytes,
     inspect_workflow,
     prefixed,
+    skill_names,
 )
 
 LOCK_VERSION = 1
@@ -179,6 +180,7 @@ def build_lockfile(
     workspace: Path | None = None,
     mcp_surfaces: Mapping[str, str] | None = None,
     generated_at: str | None = None,
+    skill_home: Path | None = None,
 ) -> Lockfile:
     source = Path(workflow_path).resolve()
     report = inspect_workflow(source)
@@ -197,8 +199,51 @@ def build_lockfile(
         artifacts.append(LockArtifact(kind=KIND_PACK, path=rel, digest=digest_pack_bytes(data)))
     for name, digest in sorted((mcp_surfaces or {}).items()):
         artifacts.append(LockArtifact(kind=KIND_MCP, name=name, surface_digest=prefixed(digest)))
+    artifacts.extend(
+        skill_lock_artifacts(report.document, home=_skill_home(skill_home), missing="error")
+    )
     stamp = generated_at or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     return Lockfile(artifacts=artifacts, generated_at=stamp)
+
+
+def skill_lock_artifacts(
+    document: Mapping[str, Any],
+    *,
+    home: Path,
+    missing: str = "error",
+) -> list[LockArtifact]:
+    """Pin installed skill folders declared by ``type: skill`` nodes."""
+    from readyagents.skills.catalog import skill_dir
+    from readyagents.skills.digest import digest_skill_dir
+
+    artifacts: list[LockArtifact] = []
+    for name in skill_names(document):
+        folder = skill_dir(home, name)
+        if not folder.is_dir():
+            if missing == "skip":
+                continue
+            raise TrustError(
+                f"skill not installed: {name}",
+                artifact=f"skills/{name}",
+                reason="missing",
+            )
+        artifacts.append(
+            LockArtifact(
+                kind=KIND_SKILL,
+                name=name,
+                path=f"skills/{name}",
+                digest=digest_skill_dir(folder),
+            )
+        )
+    return artifacts
+
+
+def _skill_home(explicit: Path | None) -> Path:
+    if explicit is not None:
+        return Path(explicit)
+    from readyagents.config import get_settings
+
+    return get_settings().home_path()
 
 
 def snapshot_mcp_surfaces(workflow: Any, workspace: Path) -> dict[str, str]:

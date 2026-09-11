@@ -13,9 +13,7 @@ from urllib.parse import urlparse
 
 from readyagents.errors import SkillPathDenied, SkillRefused
 from readyagents.skills.catalog import catalog_dir, skill_dir, upsert
-from readyagents.skills.digest import digest_skill_dir
 from readyagents.skills.parse import load_skill_dir
-from readyagents.trust.digest import prefixed
 
 MAX_ARCHIVE_BYTES = 1_048_576
 MAX_URL_BYTES = 1_048_576
@@ -70,7 +68,7 @@ def _install_dir(
         shutil.rmtree(dest)
     _copy_confined(src, dest)
     record.path = str(dest)
-    status = _signature_status(dest, require_signature=require_signature)
+    status = _signature_status(dest, home=home, require_signature=require_signature)
     return upsert(home, record, source=source, signature_status=status)
 
 
@@ -177,21 +175,25 @@ def _fetch_url(url: str, home: Path) -> Path:
     raise SkillRefused("skill URL must be a zip archive", reason="source")
 
 
-def _signature_status(folder: Path, *, require_signature: bool) -> str:
+def _signature_status(folder: Path, *, home: Path, require_signature: bool) -> str:
     sig = folder / "SKILL.md.sig"
-    digest = digest_skill_dir(folder)
     if not sig.is_file():
         if require_signature:
             raise SkillRefused("unsigned skill: signature required", reason="unsigned")
         return "unsigned"
-    try:
-        from readyagents.skills.digest import KIND_SKILL
-        from readyagents.trust.sign import verify_artifact
+    from readyagents.errors import TrustError
+    from readyagents.trust.digest import KIND_SKILL
+    from readyagents.trust.keyring import load_keyring
+    from readyagents.trust.sign import verify_artifact
 
-        verify_artifact(folder / "SKILL.md", kind=KIND_SKILL)
+    try:
+        verify_artifact(
+            folder / "SKILL.md",
+            kind=KIND_SKILL,
+            keyring=load_keyring(home=home),
+        )
         return "signed"
-    except Exception:
-        text = sig.read_text(encoding="utf-8").strip()
-        if prefixed(text) == digest or text == digest:
-            return "signed"
-        raise SkillRefused("skill signature mismatch", reason="forged") from None
+    except TrustError as extra:
+        if extra.reason == "unsigned":
+            raise SkillRefused("unsigned skill: signature required", reason="unsigned") from extra
+        raise SkillRefused("skill signature mismatch", reason="forged") from extra
