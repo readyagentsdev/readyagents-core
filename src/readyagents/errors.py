@@ -215,6 +215,19 @@ class SkillDrift(SkillRefused):
         )
 
 
+class SimulateError(ReadyAgentsError):
+    """Simulation generation, scoring, or freeze failure."""
+
+
+class SimulateRefused(SimulateError):
+    """Simulation refused: live side effects, sovereign model, or malformed."""
+
+    def __init__(self, message: str, *, reason: str = "refused", report: Any = None) -> None:
+        self.reason = reason
+        self.report = report
+        super().__init__(message)
+
+
 class PackageError(ReadyAgentsError):
     """Workflow package build, install, catalog, or index failure."""
 

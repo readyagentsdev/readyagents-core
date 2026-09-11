@@ -512,6 +512,105 @@ def eval_cmd(
         raise typer.Exit(code=1)
 
 
+@app.command("simulate")
+def simulate_cmd(
+    path: Path = _WORKFLOW_ARG,
+    seed: int = typer.Option(42, "--seed", help="Deterministic generator seed."),
+    cases: int = typer.Option(64, "--cases", help="Maximum generated cases."),
+    deterministic_only: bool = typer.Option(
+        False, "--deterministic-only", help="Do not call a model even if --model is set."
+    ),
+    model: str | None = typer.Option(None, "--model", help="Opt-in model-assisted personas."),
+    personas: str | None = typer.Option(
+        None, "--personas", help="Comma-separated persona names (with --model)."
+    ),
+    max_spend: float | None = typer.Option(None, "--max-spend", help="Spend cap for --model."),
+    fail_on: str | None = typer.Option(
+        None, "--fail-on", help="CI mode: new-failure blocks unseen failure classes."
+    ),
+    out: Path | None = typer.Option(None, "--out", help="Directory for frozen fixtures."),
+    live: bool = typer.Option(
+        False,
+        "--live-side-effects",
+        help="Allow real write_file/http_get. Requires a permitting policy.",
+    ),
+    policy: Path | None = typer.Option(None, "--policy", help="Policy file for live side effects."),
+    sovereign: bool = typer.Option(False, "--sovereign"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Generate declaration-driven cases, score with eval, freeze distinct failures."""
+    from readyagents.config import get_settings
+    from readyagents.errors import SimulateRefused
+    from readyagents.firewall.policy_file import load_resolved
+    from readyagents.simulate.run import simulate_workflow
+
+    settings = get_settings()
+    loaded = load_resolved(
+        explicit=policy, workflow_dir=path.parent if path.is_file() else None, stored=None
+    )
+    persona_list = [p.strip() for p in (personas or "").split(",") if p.strip()]
+    use_model = None if deterministic_only else model
+    try:
+        report = simulate_workflow(
+            path,
+            seed=seed,
+            cap=cases,
+            out_dir=out,
+            fail_on_new=fail_on == "new-failure",
+            live_side_effects=live,
+            policy=loaded,
+            settings=settings,
+            model=use_model,
+            personas=persona_list or None,
+            max_spend=max_spend,
+            sovereign=sovereign or bool(settings.sovereign),
+        )
+    except SimulateRefused as extra:
+        payload = extra.report.as_dict() if getattr(extra, "report", None) is not None else {}
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "simulate",
+                    ok=False,
+                    error="SimulateRefused",
+                    message=str(extra),
+                    reason=extra.reason,
+                    **payload,
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "simulate",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    body = report.as_dict()
+    if as_json:
+        _print_json(_json_envelope("simulate", ok=True, **body))
+        return
+    console.print(
+        f"cases={report.cases} passed={report.passed} failed={report.failed} "
+        f"clusters={len(report.clusters)} dry_run={report.dry_run}"
+    )
+    cov = report.coverage
+    console.print(
+        f"coverage reached={len(cov.get('reached') or [])} "
+        f"unreached={len(cov.get('unreached') or [])} declared={cov.get('declared')}"
+    )
+    if report.new_failures:
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def run(
     path: Path = _WORKFLOW_ARG,

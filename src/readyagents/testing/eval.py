@@ -402,15 +402,19 @@ def run_eval(
     llm: Any = None,
     tools: ToolRegistry | None = None,
     settings: Any | None = None,
+    dry_run: bool = False,
+    record: bool = False,
 ) -> EvalReport:
     results: list[EvalResult] = []
     for case in cases:
         try:
-            extra: dict[str, Any] = {}
+            extra: dict[str, Any] = {"dry_run": dry_run}
             if case.cassette is not None:
                 extra["offline"] = True
                 extra["cassette_path"] = case.cassette
                 extra["record"] = False
+            elif record:
+                extra["record"] = True
             if isinstance(case.workflow, (Path, str)):
                 state = run_workflow_file_test(
                     case.workflow,
@@ -429,6 +433,7 @@ def run_eval(
                     llm=llm,
                     tools=tools,
                     decisions=case.decisions,
+                    dry_run=dry_run,
                 )
         except Exception as exc:  # noqa: BLE001
             results.append(EvalResult(name=case.name, passed=False, reason=str(exc)))
