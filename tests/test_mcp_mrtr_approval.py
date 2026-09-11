@@ -335,9 +335,9 @@ def test_duplicate_update_noop(mrtr_env) -> None:
     paused = _wait_input_required(client, task_id)
     key = next(iter(paused["inputRequests"]))
     first = _update(client, task_id, key, "approve")
-    assert first.status_code == 200
+    assert first.status_code == 200, first.text[:800]
     second = _update(client, task_id, key, "approve")
-    assert second.status_code == 200
+    assert second.status_code == 200, second.text[:800]
     _wait_status(client, task_id, {"completed"})
     events = read_audit_events(_settings.audit_dir(), task_id)
     decisions = [row for row in events if row.get("event") == "decision"]

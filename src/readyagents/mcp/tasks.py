@@ -413,6 +413,10 @@ class TaskService:
                 )
                 raise RunConflict("conflicting input response for this input request key")
         if map_run_status(state.status) != "input_required":
+            state = self._load(ident)
+            applied = _applied_decision(state, key)
+            if applied == decision:
+                return {"resultType": RESULT_TYPE_COMPLETE}
             raise TaskStateError(
                 f"Task {ident} is not input_required (status={map_run_status(state.status)})",
                 run_id=ident,
@@ -420,6 +424,10 @@ class TaskService:
         state = self._ensure_pending_key(state)
         expected = current_input_request_key(state)
         if expected is None or key != expected:
+            state = self._load(ident)
+            applied = _applied_decision(state, key)
+            if applied == decision:
+                return {"resultType": RESULT_TYPE_COMPLETE}
             raise HttpRequestError("inputResponses key is not currently outstanding")
         node_id = state.pending_node
         if not isinstance(node_id, str) or not node_id.strip():
