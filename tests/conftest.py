@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import faulthandler
-import os
-import sys
-from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -25,20 +21,6 @@ class MockLLM:
     ) -> CompletionResult:
         self.calls.append(messages)
         return CompletionResult(text=self.text, model=model)
-
-
-@pytest.fixture(scope="session", autouse=True)
-def _ci_stack_dumps() -> Iterator[None]:
-    """On Windows Actions, dump all threads every 60s so a hang has a stack."""
-    if os.environ.get("GITHUB_ACTIONS") != "true" or os.name != "nt":
-        yield
-        return
-    faulthandler.enable(file=sys.stderr, all_threads=True)
-    faulthandler.dump_traceback_later(60, repeat=True, file=sys.stderr)
-    try:
-        yield
-    finally:
-        faulthandler.cancel_dump_traceback_later()
 
 
 @pytest.fixture(autouse=True)

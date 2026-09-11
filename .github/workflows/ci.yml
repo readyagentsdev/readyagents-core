@@ -53,7 +53,7 @@ jobs:
           pip install -e ".[dev]"
       - name: Pytest
         timeout-minutes: 10
-        run: python -m pytest -v --tb=line
+        run: python -m pytest
       - name: Keyless smoke
         run: python scripts/smoke.py
 
