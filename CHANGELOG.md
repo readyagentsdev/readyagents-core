@@ -82,6 +82,9 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- Routing taint follows ``{{outputs.<id>}}`` / ``{{inputs.<key>}}`` to the
+  nested provenance key. Skipping the ``outputs`` namespace let a hosted pin
+  fire on untrusted tool output.
 - Offline replay uses the cassette-recorded route (surviving model and
   fallback), not a fresh `select_route` that can CassetteMiss on a recovered
   primary. Capability checks honour `routing.capability_matrix` / ctx matrix

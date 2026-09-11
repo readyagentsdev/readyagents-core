@@ -70,6 +70,16 @@ def template_roots(template: str) -> list[str]:
     return names
 
 
+def template_paths(template: str) -> list[str]:
+    """Full dotted interpolation paths (``outputs.seed``, not just ``outputs``)."""
+    paths: list[str] = []
+    for match in _VAR.finditer(template or ""):
+        path = (match.group(1) or "").strip()
+        if path and path not in paths:
+            paths.append(path)
+    return paths
+
+
 def walk_strings(value: Any) -> list[str]:
     found: list[str] = []
     if isinstance(value, str):
