@@ -31,6 +31,9 @@ Model references:
 - `openai-compat:llama-3.1-8b-instant` (requires `OPENAI_COMPAT_BASE_URL`)
 - `groq:llama-3.1-8b-instant` (defaults Groq base URL)
 - `ollama:llama3.2` (loopback `http://127.0.0.1:11434/v1`, no API key)
+- `gemini:gemini-2.0-flash` (extra `gemini`, `GEMINI_API_KEY`)
+- `bedrock:amazon.nova-lite-v1:0` (extra `bedrock`, AWS keys)
+- `vertex:gemini-2.0-flash` (extra `vertex`, `VERTEX_PROJECT`)
 
 Loopback (and allowlisted private) OpenAI-compatible bases need no placeholder key. Remote compat URLs still do. See [local-models.md](local-models.md) and [sovereign.md](sovereign.md).
 - `ollama:llama3` (defaults `http://127.0.0.1:11434/v1`)
@@ -40,6 +43,9 @@ Install extras to talk to a provider:
 ```bash
 pip install "readyagentsdev[openai]"
 pip install "readyagentsdev[anthropic]"
+pip install "readyagentsdev[gemini]"    # optional; not in all
+pip install "readyagentsdev[bedrock]"   # optional; not in all
+pip install "readyagentsdev[vertex]"    # optional; not in all
 pip install "readyagentsdev[all]"
 pip install "readyagentsdev[sign]"   # Ed25519 artifact signatures; not in all
 # from a clone: pip install -e ".[openai]" (same extras)
@@ -63,6 +69,10 @@ If the node has no explicit `model:` and the default provider has no key, the en
 | `READYAGENTS_MAX_TOKENS` | Stop further LLM calls when run `total_tokens` reaches this |
 | `READYAGENTS_MAX_COST_USD` | Same for estimated USD (`cost_micros` on the run) |
 | `READYAGENTS_PRICES` | Override path for the model price table (JSON). Unknown models stay unpriced, never silent zero. |
+| `READYAGENTS_CAPABILITY_MATRIX` | Override path for the model capability matrix (JSON). Malformed or stale overrides are refused. |
+| `GEMINI_API_KEY` / `GOOGLE_API_KEY` | Gemini extra (`gemini:` refs) |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` | Bedrock extra (`bedrock:` refs). Loaded only when that route is selected. |
+| `VERTEX_PROJECT` / `GOOGLE_CLOUD_PROJECT` | Vertex extra (`vertex:` refs) |
 | `READYAGENTS_FALLBACK_MODELS` | Comma-separated `provider:model` list tried after the primary fails |
 | `READYAGENTS_CIRCUIT_FAILURE_THRESHOLD` | Consecutive failures before skipping a model (default 3) |
 | `READYAGENTS_CIRCUIT_COOLDOWN_SECONDS` | How long a skipped model stays skipped (default 60) |

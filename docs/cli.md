@@ -499,6 +499,20 @@ readyagents studio --open
 
 See [studio.md](studio.md).
 
+## `readyagents models list|show|route`
+
+Dry catalog of the shipped capability matrix and a dry explanation of which
+model a node would use. **No provider call, no API key, no execution.**
+`--explain` uses the same selector as a real run. See
+[model-routing.md](model-routing.md).
+
+```bash
+readyagents models list
+readyagents models show openai:gpt-4o-mini
+readyagents models route workflow.yaml --node draft --explain
+readyagents models list --json
+```
+
 ## `readyagents approvals list`
 
 Queue of paused approval gates this caller may see. Unauthorized and missing
