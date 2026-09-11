@@ -900,15 +900,26 @@ class RunCoordinator:
                 bucket = state.metadata.get("mcp_input_responses")
                 applied = bucket.get(input_request_key) if isinstance(bucket, dict) else None
                 if applied == decision:
-                    with self._lock:
-                        in_flight = run_id in self._in_flight_resume
-                    if in_flight or state.status != "paused":
+                    if state.status != "paused":
                         return {
                             "ok": True,
                             "run_id": run_id,
                             "status": state.status,
                             "links": _links(run_id),
                         }
+                    with self._lock:
+                        in_flight = run_id in self._in_flight_resume
+                    if in_flight:
+                        self._wait_resume_idle(run_id, timeout=2.0)
+                        state = self._load_exact(run_id)
+                        if state.status != "paused":
+                            return {
+                                "ok": True,
+                                "run_id": run_id,
+                                "status": state.status,
+                                "links": _links(run_id),
+                            }
+                        # Still paused: fall through and resume again.
                 elif applied is not None:
                     raise RunConflict("conflicting input response for this input request key")
             try:

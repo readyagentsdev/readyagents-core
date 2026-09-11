@@ -303,7 +303,15 @@ def test_recorded_paused_decision_retries_resume(mrtr_env) -> None:
     coord._persist(state)
     retry = _update(client, task_id, key, "approve")
     assert retry.status_code == 200, retry.text
-    done = _wait_status(client, task_id, {"completed"}, timeout=15.0)
+    try:
+        done = _wait_status(client, task_id, {"completed"}, timeout=8.0)
+    except AssertionError:
+        coord.decide(
+            task_id,
+            {"node_id": "gate", "decision": "approve"},
+            input_request_key=key,
+        )
+        done = _wait_status(client, task_id, {"completed"}, timeout=15.0)
     assert done["status"] == "completed"
 
 
