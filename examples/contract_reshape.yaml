@@ -1,10 +1,12 @@
 name: contract_reshape
 description: Keyless transform with an opt-in output contract. Enforces declared rules only.
+inputs:
+  ticket_id: T-1
 nodes:
   - id: reshape
     type: transform
     parse_json: true
-    template: '{"summary": "Ticket T-1 is closed", "ticket_id": "T-1"}'
+    template: '{"summary": "Ticket {{ ticket_id }} is closed", "ticket_id": "{{ ticket_id }}"}'
     output_key: summary
     contract:
       schema:

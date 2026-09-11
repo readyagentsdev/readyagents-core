@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from readyagents.contracts.regex import search_bounded
+from readyagents.contracts.regex import compile_bounded, search_bounded
 from readyagents.contracts.spec import ContractRule, _normalize_citation, _normalize_max_chars
-from readyagents.policy import DEFAULT_REDACT_PATTERNS
+from readyagents.policy import DEFAULT_REDACT_PATTERNS, REDACTED, Redactor
 
 
 def payload_text(value: Any) -> str:
@@ -48,9 +48,9 @@ def eval_rule(
     if kind == "require_citation":
         spec = _normalize_citation(rule.require_citation)
         source = str(spec["from"])
+        if source not in mapping or mapping.get(source) is None:
+            return True, f"{rule.recorded_name()} missing citation source {source}"
         expected = mapping.get(source)
-        if expected is None and isinstance(output, dict):
-            expected = output.get(source)
         token = payload_text(expected).strip().strip('"')
         if not token or token in {"null", "None"}:
             return True, f"{rule.recorded_name()} missing citation source {source}"
@@ -74,6 +74,36 @@ def eval_rule(
     if kind == "judge":
         return False, ""
     return False, ""
+
+
+def mask_firing_match(value: Any, rule: ContractRule | None) -> Any:
+    """Replace the deny / deny_regex / PII match with the standard redaction token."""
+    if rule is None:
+        return value
+    kind = rule.kind()
+    if kind == "deny":
+        needle = str(rule.deny or "")
+        if not needle:
+            return value
+        return _map_strings(value, lambda text: text.replace(needle, REDACTED))
+    if kind == "deny_regex":
+        compiled = compile_bounded(str(rule.deny_regex))
+        return _map_strings(value, lambda text: compiled.sub(REDACTED, text))
+    if kind == "pii":
+        return Redactor().redact(value)
+    return value
+
+
+def _map_strings(value: Any, fn: Any) -> Any:
+    if isinstance(value, str):
+        return fn(value)
+    if isinstance(value, dict):
+        return {str(k): _map_strings(v, fn) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_map_strings(v, fn) for v in value]
+    if isinstance(value, tuple):
+        return [_map_strings(v, fn) for v in value]
+    return value
 
 
 def _pii_hit(text: str) -> bool:
