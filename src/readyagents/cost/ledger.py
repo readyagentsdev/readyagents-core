@@ -108,7 +108,8 @@ def spend_entry_from_state(
     if isinstance(getattr(state, "metadata", None), dict):
         actor = state.metadata.get("actor")
     by_model = spend.get("by_model") if isinstance(spend.get("by_model"), dict) else {}
-    return {
+    by_member, by_role = _member_spend_from_state(state, spend)
+    payload = {
         "event": "spend",
         "run_id": getattr(state, "run_id", None),
         "workflow": getattr(state, "workflow_name", None),
@@ -131,6 +132,74 @@ def spend_entry_from_state(
         "by_model": {str(k): dict(v) for k, v in by_model.items() if isinstance(v, dict)},
         "models": list(by_model.keys()),
     }
+    if by_member:
+        payload["by_member"] = by_member
+        payload["by_role"] = by_role
+    return payload
+
+
+def _member_spend_from_state(
+    state: Any, spend: Mapping[str, Any] | None = None
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Per-member / per-role tokens, cost, and tool calls from a team run."""
+    spend = spend or {}
+    raw_members = spend.get("by_member") if isinstance(spend.get("by_member"), dict) else {}
+    raw_roles = spend.get("by_role") if isinstance(spend.get("by_role"), dict) else {}
+    if raw_members:
+        by_member = {
+            str(key): dict(row) for key, row in raw_members.items() if isinstance(row, dict)
+        }
+        by_role = {str(key): dict(row) for key, row in raw_roles.items() if isinstance(row, dict)}
+        return by_member, by_role
+    by_member: dict[str, Any] = {}
+    by_role: dict[str, Any] = {}
+    meta = getattr(state, "metadata", None)
+    if not isinstance(meta, dict):
+        return by_member, by_role
+    teams = meta.get("teams")
+    if not isinstance(teams, dict):
+        return by_member, by_role
+    for team_id, bucket in teams.items():
+        if not isinstance(bucket, dict):
+            continue
+        usage = bucket.get("usage")
+        if not isinstance(usage, dict):
+            continue
+        for who, row in usage.items():
+            if not isinstance(row, dict):
+                continue
+            member_id = str(who)
+            role = str(row.get("role") or member_id)
+            payload = {
+                "prompt_tokens": int(row.get("prompt_tokens") or 0),
+                "completion_tokens": int(row.get("completion_tokens") or 0),
+                "total_tokens": int(row.get("total_tokens") or 0),
+                "cost_micros": int(row.get("cost_micros") or 0),
+                "tool_calls": int(row.get("tool_calls") or 0),
+                "role": role,
+                "team": str(team_id),
+            }
+            key = member_id if member_id not in by_member else f"{team_id}:{member_id}"
+            by_member[key] = payload
+            agg = by_role.setdefault(
+                role,
+                {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                    "cost_micros": 0,
+                    "tool_calls": 0,
+                },
+            )
+            for name in (
+                "prompt_tokens",
+                "completion_tokens",
+                "total_tokens",
+                "cost_micros",
+                "tool_calls",
+            ):
+                agg[name] += int(payload[name])
+    return by_member, by_role
 
 
 def _prefer_int(spend: Mapping[str, Any], usage: Mapping[str, Any], key: str) -> int:

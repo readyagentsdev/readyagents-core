@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 
 from readyagents.cli import app
 from readyagents.config import clear_settings_cache
+from readyagents.cost.ledger import read_spend_entries
 from readyagents.errors import (
     ApprovalRequired,
     TeamRoundsExceeded,
@@ -323,6 +324,58 @@ def test_per_member_usage_sums() -> None:
     assert summed == 9
 
 
+def test_per_member_spend_ledger(tmp_settings, tmp_path: Path) -> None:
+    path = tmp_path / "ledger.yaml"
+    spec = _team(members=[_agent_member("a")])
+    spec["nodes"][0]["members"][0]["role"] = "researcher"
+    path.write_text(json.dumps(spec), encoding="utf-8")
+    llm = ScriptedLLM()
+    llm.enqueue(
+        '{"next": "a", "reason": "x"}',
+        model="sup",
+        usage={"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3, "cost_micros": 10},
+    )
+    llm.enqueue(
+        '{"scratchpad": {"findings": ["u"]}}',
+        model="a",
+        usage={"prompt_tokens": 4, "completion_tokens": 1, "total_tokens": 5, "cost_micros": 20},
+    )
+    llm.enqueue(
+        '{"done": true}',
+        model="sup",
+        usage={"prompt_tokens": 1, "total_tokens": 1, "cost_micros": 5},
+    )
+    state = run_workflow_file(path, settings=tmp_settings, persist=True, llm=llm)
+    assert state.status == "succeeded"
+    entries = read_spend_entries(tmp_settings.ledger_dir())
+    row = next(item for item in entries if item.get("run_id") == state.run_id)
+    by_member = row["by_member"]
+    by_role = row["by_role"]
+    assert by_member["a"]["role"] == "researcher"
+    assert by_member["a"]["team"] == "crew"
+    assert by_member["supervisor"]["role"] == "supervisor"
+    token_sum = sum(int(item.get("total_tokens") or 0) for item in by_member.values())
+    cost_sum = sum(int(item.get("cost_micros") or 0) for item in by_member.values())
+    tools_sum = sum(int(item.get("tool_calls") or 0) for item in by_member.values())
+    team_usage = state.output_keys["out"]["usage"]
+    assert token_sum == int(state.usage.get("total_tokens") or 0)
+    assert token_sum == int(row["total_tokens"])
+    assert token_sum == sum(int(item.get("total_tokens") or 0) for item in team_usage.values())
+    assert cost_sum == int(state.usage.get("cost_micros") or 0)
+    assert cost_sum == sum(int(item.get("cost_micros") or 0) for item in team_usage.values())
+    assert tools_sum == sum(int(item.get("tool_calls") or 0) for item in team_usage.values())
+    role_tokens = sum(int(item.get("total_tokens") or 0) for item in by_role.values())
+    role_cost = sum(int(item.get("cost_micros") or 0) for item in by_role.values())
+    role_tools = sum(int(item.get("tool_calls") or 0) for item in by_role.values())
+    assert "researcher" in by_role and "supervisor" in by_role
+    assert role_tokens == token_sum
+    assert role_cost == cost_sum
+    assert role_tools == tools_sum
+    spend = state.metadata.get("spend") or {}
+    assert spend.get("by_member") == by_member
+    assert spend.get("by_role") == by_role
+
+
 def test_member_unknown_tool_denied() -> None:
     from readyagents.llm.base import ToolCall
 
@@ -418,25 +471,20 @@ def test_paused_team_resumes_mid_conversation(tmp_settings, tmp_path: Path) -> N
 
 def test_offline_replay_does_not_complete(tmp_settings, tmp_path: Path, monkeypatch) -> None:
     path = tmp_path / "rec.yaml"
-    path.write_text(
-        json.dumps(
-            _team(
-                strategy="pipeline",
-                members=[
-                    {
-                        "id": "one",
-                        "type": "transform",
-                        "template": '{"scratchpad": {"findings": ["r"]}}',
-                        "parse_json": True,
-                        "scratchpad": {"read": [], "write": ["findings"]},
-                    }
-                ],
-            )
-        ),
-        encoding="utf-8",
-    )
-    first = run_workflow_file(path, settings=tmp_settings, persist=True, record=True)
+    spec = _team(members=[_agent_member("a")])
+    path.write_text(json.dumps(spec), encoding="utf-8")
+    llm = ScriptedLLM()
+    llm.enqueue('{"next": "a", "reason": "x"}', model="sup")
+    llm.enqueue('{"scratchpad": {"findings": ["r"]}}', model="a")
+    llm.enqueue('{"done": true}', model="sup")
+    first = run_workflow_file(path, settings=tmp_settings, persist=True, record=True, llm=llm)
     cassette_path = Path(first.metadata["cassette"])
+    tape = Cassette.load(cassette_path)
+    llm_rows = [row for row in tape.entries.values() if row.get("kind") == "llm"]
+    nodes = {str(row.get("node_id")) for row in llm_rows}
+    assert "crew__supervisor" in nodes
+    assert "a" in nodes
+    assert len(llm_rows) >= 3
 
     def boom(*_a, **_k):
         raise AssertionError("offline replay must not call complete()")
@@ -452,6 +500,7 @@ def test_offline_replay_does_not_complete(tmp_settings, tmp_path: Path, monkeypa
         llm=ScriptedLLM(),
     )
     assert replayed.status == "succeeded"
+    assert replayed.output_keys["out"]["scratchpad"]["findings"] == ["r"]
 
 
 def test_nested_team_fails_at_validate() -> None:
@@ -469,39 +518,51 @@ def test_nested_team_fails_at_validate() -> None:
         )
 
 
-def test_record_offline_replay(tmp_settings, tmp_path: Path) -> None:
+def test_record_offline_replay(
+    tmp_settings, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     path = tmp_path / "team.yaml"
-    path.write_text(
-        json.dumps(
-            _team(
-                strategy="pipeline",
-                members=[
-                    {
-                        "id": "one",
-                        "type": "transform",
-                        "template": '{"scratchpad": {"findings": ["r"]}}',
-                        "parse_json": True,
-                        "scratchpad": {"read": [], "write": ["findings"]},
-                    }
-                ],
-            )
-        ),
-        encoding="utf-8",
-    )
-    first = run_workflow_file(path, settings=tmp_settings, persist=True, record=True)
+    spec = _team(members=[_agent_member("a")])
+    path.write_text(json.dumps(spec), encoding="utf-8")
+    llm = ScriptedLLM()
+    llm.enqueue('{"next": "a", "reason": "go"}', model="sup")
+    llm.enqueue('{"scratchpad": {"findings": ["r"]}}', model="a")
+    llm.enqueue('{"done": true}', model="sup")
+    first = run_workflow_file(path, settings=tmp_settings, persist=True, record=True, llm=llm)
     assert first.status == "succeeded"
     cassette_path = Path(first.metadata["cassette"])
     tape = Cassette.load(cassette_path)
+    llm_rows = [row for row in tape.entries.values() if row.get("kind") == "llm"]
+    nodes = {str(row.get("node_id")) for row in llm_rows}
+    assert "crew__supervisor" in nodes
+    assert "a" in nodes
+    assert len(llm_rows) >= 3
+
+    def boom(*_a, **_k):
+        raise AssertionError("offline replay must not call complete()")
+
+    monkeypatch.setattr("readyagents.llm.base.LLMProvider.complete", boom, raising=False)
+    monkeypatch.setattr("readyagents.testing.helpers.ScriptedLLM.complete", boom)
     replayed = run_workflow_file(
         path,
         settings=tmp_settings,
         persist=False,
         offline=True,
         cassette_path=cassette_path,
+        llm=ScriptedLLM(),
     )
     assert replayed.status == "succeeded"
     assert replayed.output_keys["out"]["scratchpad"]["findings"] == ["r"]
-    assert tape.entries is not None
+
+    monkeypatch.setenv("READYAGENTS_HOME", str(tmp_settings.home))
+    clear_settings_cache()
+    cli = runner.invoke(
+        app, ["runs", "replay", first.run_id, "--offline", "--json", "--no-persist"]
+    )
+    assert cli.exit_code == 0, cli.stdout + cli.stderr
+    payload = json.loads(cli.stdout[cli.stdout.find("{") :])
+    assert payload.get("ok") is True
+    clear_settings_cache()
 
 
 def test_fork_restores_scratchpad_and_handoff() -> None:

@@ -118,7 +118,8 @@ readyagents spend --by label
 
 `--label KEY=VALUE` is stored on the run metadata and in the ledger. Labels
 are redacted when redaction is on. The ledger is local; share it only after
-review.
+review. A `type: team` run also stores `by_member` and `by_role` (tokens,
+cost, tool calls) that sum to the run total.
 
 ## Cache savings
 

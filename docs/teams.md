@@ -50,5 +50,10 @@ resumes with `--approve <member_id>`. `runs fork` copies `metadata.teams`,
 including a mid-team pause that has no completed team `NodeResult`. Offline
 replay uses the existing cassette.
 
+Per-member tokens, cost, and tool calls are attributed on the team output,
+on `metadata.spend`, and on `$READYAGENTS_HOME/ledger/spend.jsonl` as
+`by_member` / `by_role`. They sum to the run total. Offline replay of a
+recorded team uses the cassette and does not call `complete()`.
+
 A team never widens the workflow's tool or egress permissions. See
 [examples/team_pipeline.yaml](../examples/team_pipeline.yaml).
