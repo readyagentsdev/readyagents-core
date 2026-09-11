@@ -1,0 +1,24 @@
+name: bench-approval
+description: "Approval-gate round trip. Keyless; pin the decision in the suite."
+start: add
+nodes:
+  - id: add
+    type: tool
+    tool: calc
+    arguments:
+      expression: "19+23"
+    output_key: total
+    next: gate
+  - id: gate
+    type: approval
+    prompt: "Release payment of {{total}}?"
+    then: receipt
+    else: denied
+  - id: receipt
+    type: transform
+    template: "paid {{total}}"
+    output_key: summary
+  - id: denied
+    type: transform
+    template: "denied {{total}}"
+    output_key: summary

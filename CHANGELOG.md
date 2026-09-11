@@ -6,6 +6,20 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Benchmark harness.** `readyagents bench run` executes a six-shape
+  scenario suite (classify, research-with-tools, approval, foreach, team,
+  document) offline by default from synthetic cassettes — zero cost, no
+  network (socket guard). Metrics: wall-clock, TTFT, tokens, cost, tool
+  calls, node count, success rate, determinism. Offline engine timing and
+  live end-to-end timing are separate labelled objects and are never one
+  number. `bench compare` checks a schema-validated baseline with a wall-clock
+  tolerance band; `--models` / `--workflows` compare like-for-like on
+  identical inputs. Every result carries a method statement and a
+  reproduction line. Live is opt-in, metered, and refused when `CI` is set
+  unless `--allow-ci-live`. The offline suite runs in GitHub Actions beside
+  `scripts/bench_batch.py`. No competitor rankings, no leaderboard, no
+  telemetry, no model-quality claim. Repos that never bench are unchanged.
+  See [docs/benchmarks.md](docs/benchmarks.md).
 - **Self-healing reliability.** `readyagents health` fingerprints failures
   (typed error, node, tool, provider, normalised message — rules are data)
   through the shipped redactor, clusters them over the existing run store,

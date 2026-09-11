@@ -1,0 +1,26 @@
+name: bench-team
+description: "Multi-agent team pipeline. Keyless transforms."
+nodes:
+  - id: crew
+    type: team
+    strategy: pipeline
+    supervisor:
+      prompt: Unused for pipeline; members run in declared order.
+    scratchpad:
+      keys: [findings, open_questions]
+    terminate:
+      max_rounds: 8
+    members:
+      - id: gather
+        role: research
+        type: transform
+        template: '{"scratchpad": {"findings": ["alpha"]}}'
+        parse_json: true
+        scratchpad: {read: [], write: [findings]}
+      - id: note
+        role: critique
+        type: transform
+        template: '{"scratchpad": {"open_questions": ["none"]}}'
+        parse_json: true
+        scratchpad: {read: [findings], write: [open_questions]}
+    output_key: out

@@ -1,0 +1,18 @@
+name: bench-document
+description: "Document pipeline over synthetic JSON pages. Keyless json_get."
+inputs:
+  document: '{"pages":["header","body"]}'
+start: pages
+nodes:
+  - id: pages
+    type: tool
+    tool: json_get
+    arguments:
+      data: "{{document}}"
+      path: pages
+    output_key: pages
+    next: done
+  - id: done
+    type: transform
+    template: "pages={{pages}}"
+    output_key: summary

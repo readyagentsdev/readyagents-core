@@ -145,6 +145,18 @@ readyagents simulate flow.yaml --seed 42 --json
 readyagents simulate flow.yaml --out sims/ --fail-on new-failure
 ```
 
+## `readyagents bench run|compare`
+
+Offline-by-default scenario suite. Engine timing vs live end-to-end are
+separate labels. See [benchmarks.md](benchmarks.md).
+
+```bash
+readyagents bench run --offline --json
+readyagents bench run --offline --out results.json
+readyagents bench compare results.json --baseline baselines/bench_offline.json
+readyagents bench compare --models mock:a,mock:b --scenario classify --json
+```
+
 ## `readyagents health`
 
 Cluster failures by fingerprint over the existing run store. Rank by impact

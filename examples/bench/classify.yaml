@@ -1,0 +1,11 @@
+name: bench-classify
+description: "Single-shot classification. Keyless transform; synthetic cassette."
+required_inputs: [text]
+inputs:
+  text: "production checkout is returning 500s"
+start: classify
+nodes:
+  - id: classify
+    type: transform
+    template: "urgent"
+    output_key: label

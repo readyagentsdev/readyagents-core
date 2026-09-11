@@ -1,0 +1,40 @@
+schema: readyagents.bench.suite.v1
+scenarios:
+  - name: classify
+    shape: classify
+    workflow: classify.yaml
+    cassette: cassette.json
+    inputs:
+      text: "production checkout is returning 500s"
+    expect_status: succeeded
+  - name: research
+    shape: research
+    workflow: research.yaml
+    cassette: cassette.json
+    expect_status: succeeded
+  - name: approval
+    shape: approval
+    workflow: approval.yaml
+    cassette: cassette.json
+    decisions:
+      gate: approve
+    expect_status: succeeded
+  - name: foreach
+    shape: foreach
+    workflow: foreach.yaml
+    cassette: cassette.json
+    inputs:
+      expressions: ["1+1", "2+2"]
+    expect_status: succeeded
+  - name: team
+    shape: team
+    workflow: team.yaml
+    cassette: cassette.json
+    expect_status: succeeded
+  - name: document
+    shape: document
+    workflow: document.yaml
+    cassette: cassette.json
+    inputs:
+      document: '{"pages":["header","body"]}'
+    expect_status: succeeded
