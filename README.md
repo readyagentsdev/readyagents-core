@@ -51,6 +51,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Optional [memory](docs/memory.md) (`type: memory`, local JSON/SQLite, BM25, TTL/forget) — **Unreleased** on this checkout; untrusted; delayed injection and scope escape first; not a quality claim
 - Optional [sandboxed code](docs/code-sandbox.md) (`type: code`, subprocess default) — **Unreleased**; accident-grade isolation, not hostile-code-proof; no bundled container runtime
 - Optional [output contracts](docs/guardrails.md) (`contract:` on a value-producing node) — **Unreleased**; declared schema and content rules, not a safety classifier
+- Optional [multi-agent teams](docs/teams.md) (`type: team`) — **Unreleased**; closed members, engine-enforced stop, no routing-quality claim
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -177,6 +178,7 @@ flowchart LR
 - [Scale and batch](docs/scale.md) (opt-in; Unreleased; not a distributed worker; benchmarks are not a marketing claim)
 - [Streaming](docs/streaming.md) (opt-in `--stream`; Unreleased; not audio)
 - [Guardrails / output contracts](docs/guardrails.md) (opt-in `contract:`; Unreleased; declared rules, not a safety claim)
+- [Multi-agent teams](docs/teams.md) (opt-in `type: team`; Unreleased; closed members; no quality claim)
 - [Packs](docs/packs.md)
 - [Supply-chain trust](docs/supply-chain.md) (signatures prove origin, not safety)
 - [Continuous pack](docs/continuous-pack.md) (optional, separate distribution)

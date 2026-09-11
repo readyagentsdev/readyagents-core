@@ -87,6 +87,10 @@ Optional agent fields:
 | `fallback_models` | Extra `provider:model` refs if this node’s primary fails |
 | `output_schema` | JSON Schema object; the LLM payload is parsed and validated with Pydantic (`StructuredOutputError` on mismatch) |
 | `contract` | Opt-in output contract (schema + named content rules + a declared action). Unreleased. See [guardrails](guardrails.md). Without `contract:`, `output_schema` is unchanged. |
+
+## Team
+
+Opt-in `type: team` — closed members, four strategies, engine-enforced terminate. See [teams](teams.md). Unreleased; no routing-quality claim.
 | `cache` | `true` / `false` to override workflow/settings LLM cache for this node |
 | `tools` | Allowlist of registry tool names the agent may call (`calc`, `read_file`, MCP `server.tool`, …). Omit or `[]` for a one-shot complete (0.4.0 behavior). The model cannot call anything else. |
 | `max_tool_rounds` | Cap on tool-call rounds (default 8, max 20). Exceeding raises `NodeError`. |
