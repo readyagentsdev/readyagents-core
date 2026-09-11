@@ -59,6 +59,7 @@ def test_readme_cli_table_lists_help_commands() -> None:
         "serve",
         "batch",
         "studio",
+        "models",
     ):
         assert token in help_text, token
         assert token in table, token

@@ -6,6 +6,18 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Opt-in model routing and native Gemini / Bedrock / Vertex extras.** Optional
+  `routing:` policy (`cheapest_capable`, `fastest`, `highest_quality`,
+  `local_only`, explicit pin). First matching rule wins. A shipped, versioned,
+  operator-overridable capability matrix fails unsupported requests before
+  spend; malformed or stale overrides are refused. `local_only` never sends
+  tainted or memory-derived content to a hosted provider (indeterminate taint
+  fails closed). Run record and cassette store the model, rule, and fallback;
+  offline replay reproduces the route. Route-level spend/token ceilings sit on
+  top of the run cap; an open circuit is skipped. `readyagents models
+  list|show|route --explain` is a dry catalog. Without `routing:`, model
+  selection is unchanged. No hosted router, no quality inference, no bundled
+  benchmarks. See [docs/model-routing.md](docs/model-routing.md).
 - **Opt-in `readyagents studio`.** Foreground loopback canvas and run
   inspector from bundled vanilla HTML/CSS/JS. Token-protected, `--read-only`
   disables writes server-side, schema-backed YAML edit preserves comments

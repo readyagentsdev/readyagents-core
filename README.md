@@ -53,6 +53,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Optional [output contracts](docs/guardrails.md) (`contract:` on a value-producing node) — **Unreleased**; declared schema and content rules, not a safety classifier
 - Optional [multi-agent teams](docs/teams.md) (`type: team`) — **Unreleased**; closed members, engine-enforced stop, no routing-quality claim
 - Optional [workflow studio](docs/studio.md) (`readyagents studio`) — **Unreleased**; loopback canvas and run inspector; YAML on disk stays the source of truth; not a hosted product
+- Optional [model routing](docs/model-routing.md) (`routing:`, Gemini/Bedrock/Vertex extras, `readyagents models`) — **Unreleased**; declared policy, not quality inference; no-policy selection unchanged
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -119,6 +120,7 @@ flowchart LR
 | `readyagents sign` / `verify` / `lock` / `sbom` / `trust` | Supply-chain: signatures prove origin, not safety |
 | `readyagents approvals serve` | Foreground localhost approval page (not a hosted dashboard) |
 | `readyagents studio [--port 8790] [--open] [--read-only]` | Foreground localhost canvas and run inspector (**Unreleased**; not a hosted product) |
+| `readyagents models list` / `show` / `route --explain` | Dry model catalog and routing explain (**Unreleased**; no provider call) |
 | `readyagents mcp serve` | Stdio MCP server (builtin tools); `--json` prints protocol versions |
 | `readyagents mcp probe URL` | Read-only `server/discover` diagnostic (never calls a tool) |
 | `readyagents a2a serve PATH` | Foreground A2A door for one workflow (loopback by default) |
@@ -181,6 +183,7 @@ flowchart LR
 - [Streaming](docs/streaming.md) (opt-in `--stream`; Unreleased; not audio)
 - [Guardrails / output contracts](docs/guardrails.md) (opt-in `contract:`; Unreleased; declared rules, not a safety claim)
 - [Multi-agent teams](docs/teams.md) (opt-in `type: team`; Unreleased; closed members; no quality claim)
+- [Model routing](docs/model-routing.md) (opt-in `routing:`; Unreleased; declared policy, not a quality claim)
 - [Packs](docs/packs.md)
 - [Supply-chain trust](docs/supply-chain.md) (signatures prove origin, not safety)
 - [Continuous pack](docs/continuous-pack.md) (optional, separate distribution)
@@ -198,14 +201,19 @@ LLM and MCP extras are optional.
 ```bash
 pip install "readyagentsdev[openai]"
 pip install "readyagentsdev[anthropic]"
+pip install "readyagentsdev[gemini]"
+pip install "readyagentsdev[bedrock]"
+pip install "readyagentsdev[vertex]"
 pip install "readyagentsdev[mcp]"
 pip install "readyagentsdev[all]"
 ```
 
-From a clone, the same extras are `pip install -e ".[openai]"` (and `anthropic` / `mcp` / `all`).
-The optional `[otel]` extra is **not** included in `[all]`; it starts no collector (see [observability.md](docs/observability.md)).
-The optional `[sign]` extra (Ed25519 artifact signatures) and `[jwt]` extra are
-also **not** in `[all]`. Unsigned default runs never import them.
+From a clone, the same extras are `pip install -e ".[openai]"` (and `anthropic` /
+`gemini` / `bedrock` / `vertex` / `mcp` / `all`). The optional `[otel]` extra is
+**not** included in `[all]`; it starts no collector (see
+[observability.md](docs/observability.md)). The optional `[sign]` extra (Ed25519
+artifact signatures), `[jwt]`, `[gemini]`, `[bedrock]`, and `[vertex]` extras
+are also **not** in `[all]`. Unsigned default runs never import them.
 
 Then `cp .env.example .env` and paste your own keys. Core workflows that only use builtin tools do **not** need extras, keys, or Node.js.
 

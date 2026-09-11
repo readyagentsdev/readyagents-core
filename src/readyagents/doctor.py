@@ -53,6 +53,9 @@ def run_doctor() -> dict[str, Any]:
     extras = {
         "openai": _can_import("openai"),
         "anthropic": _can_import("anthropic"),
+        "gemini": _can_import("google.genai"),
+        "bedrock": _can_import("boto3"),
+        "vertex": _can_import("vertexai"),
         "mcp": _can_import("mcp"),
         "tokenizer": _can_import("tiktoken"),
         "jwt": _can_import("jwt"),

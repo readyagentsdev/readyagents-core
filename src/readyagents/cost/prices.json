@@ -25,11 +25,26 @@
     "anthropic:claude-opus-4": {"input": 15.00, "output": 75.00},
     "claude-opus-4": {"input": 15.00, "output": 75.00},
     "groq:llama-3.1-8b-instant": {"input": 0.05, "output": 0.08},
-    "llama-3.1-8b-instant": {"input": 0.05, "output": 0.08}
+    "llama-3.1-8b-instant": {"input": 0.05, "output": 0.08},
+    "gemini:gemini-2.0-flash": {"input": 0.10, "output": 0.40},
+    "gemini-2.0-flash": {"input": 0.10, "output": 0.40},
+    "gemini:gemini-1.5-pro": {"input": 1.25, "output": 5.00},
+    "gemini-1.5-pro": {"input": 1.25, "output": 5.00},
+    "bedrock:amazon.nova-lite-v1:0": {"input": 0.06, "output": 0.24},
+    "amazon.nova-lite-v1:0": {"input": 0.06, "output": 0.24},
+    "bedrock:anthropic.claude-sonnet-4-5": {"input": 3.00, "output": 15.00},
+    "vertex:gemini-2.0-flash": {"input": 0.10, "output": 0.40},
+    "vertex:gemini-1.5-pro": {"input": 1.25, "output": 5.00},
+    "ollama:llama3": {"input": 0.00, "output": 0.00},
+    "ollama:llama3.2": {"input": 0.00, "output": 0.00}
   },
   "prefixes": {
     "openai:": {"input": 2.50, "output": 10.00},
     "anthropic:": {"input": 3.00, "output": 15.00},
-    "groq:": {"input": 0.05, "output": 0.08}
+    "groq:": {"input": 0.05, "output": 0.08},
+    "gemini:": {"input": 0.10, "output": 0.40},
+    "bedrock:": {"input": 3.00, "output": 15.00},
+    "vertex:": {"input": 0.10, "output": 0.40},
+    "ollama:": {"input": 0.00, "output": 0.00}
   }
 }

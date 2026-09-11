@@ -33,6 +33,7 @@ class NodeResult:
     ttft_ms: int | None = None
     total_ms: int | None = None
     inter_token_ms: float | None = None
+    route: dict[str, Any] | None = None
 
 
 @dataclass
@@ -100,6 +101,7 @@ class RunState:
         ttft_ms: int | None = None,
         total_ms: int | None = None,
         inter_token_ms: float | None = None,
+        route: Mapping[str, Any] | None = None,
     ) -> None:
         self.node_outputs[node_id] = output
         if output_key:
@@ -118,6 +120,7 @@ class RunState:
                 ttft_ms=ttft_ms,
                 total_ms=total_ms,
                 inter_token_ms=inter_token_ms,
+                route=dict(route) if route else None,
             )
         )
 
@@ -197,6 +200,7 @@ class RunState:
                     **(
                         {"inter_token_ms": r.inter_token_ms} if r.inter_token_ms is not None else {}
                     ),
+                    **({"route": dict(r.route)} if r.route else {}),
                 }
                 for r in self.results
             ],
@@ -231,6 +235,7 @@ class RunState:
                 ttft_ms=_opt_int(row.get("ttft_ms")),
                 total_ms=_opt_int(row.get("total_ms")),
                 inter_token_ms=_opt_float(row.get("inter_token_ms")),
+                route=dict(row["route"]) if isinstance(row.get("route"), Mapping) else None,
             )
             for row in data.get("node_results") or []
             if isinstance(row, Mapping)

@@ -280,6 +280,54 @@ class CircuitOpen(LLMError):
         super().__init__(f"Circuit breaker open for model '{model}'")
 
 
+class CapabilityError(LLMError):
+    """Request is not supported by the capability matrix. Raised before spend."""
+
+    def __init__(
+        self,
+        model: str,
+        message: str,
+        *,
+        require: dict[str, Any] | None = None,
+    ) -> None:
+        self.model = model
+        self.require = dict(require or {})
+        super().__init__(f"Capability check failed for '{model}': {message}")
+
+
+class RoutingError(LLMError):
+    """Routing policy cannot be satisfied. Raised before spend. Never a silent downgrade."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        rule_index: int | None = None,
+        strategy: str | None = None,
+        taint: str | None = None,
+    ) -> None:
+        self.rule_index = rule_index
+        self.strategy = strategy
+        self.taint = taint
+        super().__init__(message)
+
+
+class RouteBudgetExceeded(BudgetExceeded):
+    """A per-route spend or token ceiling was hit. Distinct from the run-level cap."""
+
+    def __init__(
+        self,
+        kind: str,
+        used: int,
+        limit: int,
+        *,
+        route: str | None = None,
+        reason: str | None = None,
+    ) -> None:
+        self.route = route
+        super().__init__(kind, used, limit, reason=reason)
+
+
 class CancellationRequested(ReadyAgentsError):
     """Cooperative cancellation reached an engine safe point."""
 

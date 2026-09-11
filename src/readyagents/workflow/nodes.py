@@ -16,6 +16,7 @@ from readyagents.errors import (
     AuthorizationError,
     BudgetExceeded,
     CancellationRequested,
+    CapabilityError,
     CassetteMiss,
     CircuitOpen,
     EgressDenied,
@@ -25,6 +26,8 @@ from readyagents.errors import (
     NodeError,
     PolicyDenied,
     ReadyAgentsError,
+    RouteBudgetExceeded,
+    RoutingError,
     RunawayGuard,
     TeamError,
     TemplateError,
@@ -166,6 +169,9 @@ class ExecutionContext:
             self.observers.append(stream)
         self.last_credential_kind: str | None = None
         self.last_tool_rounds: list[dict[str, Any]] = []
+        self.last_route: dict[str, Any] | None = None
+        self.route_budgets: Any = None
+        self.capability_matrix: Any = None
         self._persist_lock = threading.RLock()
         self._in_flight = 0
         self._in_flight_lock = threading.Lock()
@@ -591,9 +597,29 @@ def _complete_agent(
     scan_messages(messages, ctx.cassette_secrets, node_id=node.id)
     explicit = bool(node.model)
     primary = node.model or ctx.default_model
-    candidates = model_candidates(primary, node.fallback_models, ctx.fallback_models)
-    if not candidates:
-        candidates = [primary or "mock"]
+    legacy = model_candidates(primary, node.fallback_models, ctx.fallback_models)
+    if not legacy:
+        legacy = [primary or "mock"]
+    from readyagents.routing.select import select_route
+
+    decision = select_route(
+        ctx.workflow,
+        node,
+        state=state,
+        ctx=ctx,
+        primary=primary,
+        legacy_candidates=legacy,
+        tools=tools,
+        structured=bool(getattr(node, "output_schema", None)),
+        streaming=ctx.stream is not None,
+    )
+    ctx.last_route = decision.as_dict()
+    if decision.policy:
+        candidates = list(decision.candidates) or [decision.model]
+        if ctx.cassette is not None:
+            ctx.cassette.pending_route = decision.as_dict()
+    else:
+        candidates = legacy
     use_cache = bool(ctx.cache_llm if node.cache is None else node.cache)
     last_error: BaseException | None = None
     skipped: list[str] = []
@@ -645,6 +671,18 @@ def _complete_agent(
         )
         meter = getattr(ctx, "spend_meter", None)
         hint = _prompt_token_hint(messages)
+        if decision.policy:
+            from readyagents.llm.capabilities import assert_capable
+
+            assert_capable(ref, decision.require)
+            tracker = _route_tracker(ctx)
+            if tracker is not None:
+                tracker.consult(
+                    node,
+                    model=ref,
+                    prompt_tokens=hint,
+                    rule_id=decision.rule_id,
+                )
         if meter is not None:
             meter.consult_before_call(ref, prompt_tokens=hint)
         try:
@@ -695,7 +733,7 @@ def _complete_agent(
                 state=state,
                 ctx=ctx,
             )
-        except (BudgetExceeded, RunawayGuard):
+        except (BudgetExceeded, RunawayGuard, RoutingError, CapabilityError, RouteBudgetExceeded):
             raise
         except LLMError as exc:
             last_error = exc
@@ -737,11 +775,44 @@ def _complete_agent(
                 node_id=node.id,
                 model=ref,
             )
+        if decision.policy:
+            record = dict(ctx.last_route or decision.as_dict())
+            record["model"] = ref
+            record["fallback"] = bool(tried and tried[0] != ref)
+            record["node_id"] = node.id
+            state.metadata.setdefault("routes", []).append(record)
+            ctx.last_route = record
+            if ctx.auditor is not None:
+                ctx.auditor(
+                    "route",
+                    run_id=state.run_id,
+                    node_id=node.id,
+                    model=ref,
+                    rule=record.get("rule_id"),
+                    strategy=record.get("strategy"),
+                )
+            tracker = _route_tracker(ctx)
+            if tracker is not None:
+                tracker.record(node, usage, rule_id=decision.rule_id)
         return result
     if skipped and not tried:
         raise CircuitOpen(skipped[0])
     raise_exhausted(tried, skipped, last_error)
     raise LLMError("No LLM model was available")  # pragma: no cover
+
+
+def _route_tracker(ctx: ExecutionContext) -> Any:
+    tracker = getattr(ctx, "route_budgets", None)
+    if tracker is not None:
+        return tracker
+    routing = getattr(ctx.workflow, "routing", None)
+    if routing is None or not getattr(routing, "budgets", None):
+        return None
+    from readyagents.routing.budgets import RouteBudgetTracker
+
+    tracker = RouteBudgetTracker(routing.budgets)
+    ctx.route_budgets = tracker
+    return tracker
 
 
 def _run_tool(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
@@ -1270,6 +1341,8 @@ def execute_node_with_policy(
         except TeamError:
             raise
         except (BudgetExceeded, AuthorizationError, CircuitOpen, RunawayGuard):
+            raise
+        except (RoutingError, CapabilityError, RouteBudgetExceeded):
             raise
         except ReadyAgentsError as exc:
             last_error = exc

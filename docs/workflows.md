@@ -91,6 +91,14 @@ Optional agent fields:
 ## Team
 
 Opt-in `type: team` — closed members, four strategies, engine-enforced terminate. See [teams](teams.md). Unreleased; no routing-quality claim.
+
+## Model routing
+
+Optional top-level `routing:` policy. First matching rule wins. Strategies:
+`cheapest_capable`, `fastest`, `highest_quality`, `local_only`, explicit `pin`.
+Without `routing:`, `model` / `default_model` / `fallback_models` are unchanged.
+See [model routing](model-routing.md). Unreleased; declared attributes only, not
+a quality claim.
 | `cache` | `true` / `false` to override workflow/settings LLM cache for this node |
 | `tools` | Allowlist of registry tool names the agent may call (`calc`, `read_file`, MCP `server.tool`, …). Omit or `[]` for a one-shot complete (0.4.0 behavior). The model cannot call anything else. |
 | `max_tool_rounds` | Cap on tool-call rounds (default 8, max 20). Exceeding raises `NodeError`. |

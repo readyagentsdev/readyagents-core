@@ -146,6 +146,7 @@ class Cassette:
         self.blocked_nodes: set[str] = set()
         self.report = DeterminismReport()
         self.tool_seals: dict[str, str] = {}
+        self.pending_route: dict[str, Any] | None = None
 
     @classmethod
     def new(cls, *, run_id: str, workflow: str, **kwargs: Any) -> Cassette:
@@ -201,6 +202,9 @@ class Cassette:
                 "sealed": True,
             }
             self.report.note(node_id, "sealed")
+        if self.pending_route:
+            entry["route"] = dict(self.pending_route)
+            self.pending_route = None
         self._put(key, entry)
         return key
 

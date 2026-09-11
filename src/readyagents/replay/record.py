@@ -23,6 +23,11 @@ def known_secret_values(settings: Any, secrets: Any = None) -> list[str]:
         "openai_api_key",
         "anthropic_api_key",
         "openai_compat_api_key",
+        "gemini_api_key",
+        "aws_access_key_id",
+        "aws_secret_access_key",
+        "aws_session_token",
+        "vertex_project",
         "decision_secret",
     ):
         value = getattr(settings, attr, None) if settings is not None else None
