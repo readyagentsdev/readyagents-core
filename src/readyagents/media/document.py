@@ -10,8 +10,7 @@ from readyagents.media.caps import caps_from
 from readyagents.media.cost import note_media_spend
 from readyagents.media.ingest import ingest_bytes, ingest_path, store_from
 from readyagents.media.part import is_media_ref, part_from_mapping
-from readyagents.media.pdf import extract_with_pypdf, is_pdf, split_simple_pdf
-from readyagents.media.png import write_rgb_png
+from readyagents.media.pdf import extract_with_pypdf, is_pdf, rasterize_page, split_simple_pdf
 from readyagents.media.redact import maybe_redact
 from readyagents.workflow.templates import interpolate, lookup
 
@@ -25,7 +24,13 @@ def run_document_node(node: Any, state: Any, ctx: Any) -> Any:
     out: list[dict[str, Any]] = []
     parts = []
     for row in pages:
-        image = _page_image(row["page"], row.get("text") or "", caps=caps)
+        image = rasterize_page(
+            source,
+            index=row["index"],
+            text=row.get("text") or "",
+            dpi=caps.dpi,
+            max_bytes=caps.max_bytes_per_page,
+        )
         ingested = ingest_bytes(
             image,
             ctx=ctx,
@@ -34,6 +39,7 @@ def run_document_node(node: Any, state: Any, ctx: Any) -> Any:
             kind="page",
             mime="image/png",
             page_index=row["index"],
+            node=node,
         )
         ingested = maybe_redact(ingested, ctx=ctx, node=node)
         parts.append(ingested)
@@ -100,26 +106,6 @@ def _split(data: bytes, *, caps: Any) -> list[dict[str, Any]]:
     if extra is not None:
         return extra
     return split_simple_pdf(data, max_pages=caps.max_pages)
-
-
-def _page_image(page: int, text: str, *, caps: Any) -> bytes:
-    """Deterministic page PNG. Plumbing, not a renderer accuracy claim."""
-    width = 64
-    height = 64
-    pixels = bytearray(width * height * 3)
-    # white background
-    for i in range(0, len(pixels), 3):
-        pixels[i : i + 3] = b"\xff\xff\xff"
-    # unique bar from page index (citable, content-addressed)
-    tone = 32 + (int(page) * 17) % 200
-    for x in range(width):
-        for y in range(8):
-            off = (y * width + x) * 3
-            pixels[off] = tone
-            pixels[off + 1] = (tone * 3) % 256
-            pixels[off + 2] = 80
-    _ = (text, caps)
-    return write_rgb_png(width, height, bytes(pixels))
 
 
 def _record(node: Any, ctx: Any, output: Any) -> None:

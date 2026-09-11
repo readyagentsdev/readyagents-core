@@ -183,7 +183,7 @@ def tool_calls_from_anthropic_content(blocks: Any) -> list[ToolCall]:
     return out
 
 
-def messages_to_openai(messages: Sequence[Message]) -> list[dict[str, Any]]:
+def messages_to_openai(messages: Sequence[Message], *, store: Any = None) -> list[dict[str, Any]]:
     payload: list[dict[str, Any]] = []
     for message in messages:
         if message.role == "tool":
@@ -196,7 +196,9 @@ def messages_to_openai(messages: Sequence[Message]) -> list[dict[str, Any]]:
                 row["name"] = message.name
             payload.append(row)
             continue
-        row = {"role": message.role, "content": message.content}
+        from readyagents.media.payload import openai_content
+
+        row = {"role": message.role, "content": openai_content(message, store=store)}
         if message.tool_calls:
             row["tool_calls"] = [
                 {
@@ -254,7 +256,9 @@ def messages_to_anthropic(messages: Sequence[Message]) -> tuple[str, list[dict[s
             chat.append({"role": "assistant", "content": blocks})
         else:
             role = "assistant" if message.role == "assistant" else "user"
-            chat.append({"role": role, "content": message.content})
+            from readyagents.media.payload import anthropic_content
+
+            chat.append({"role": role, "content": anthropic_content(message)})
     flush_tool_results()
     return "\n".join(system_parts).strip(), chat
 

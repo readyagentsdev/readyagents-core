@@ -8,10 +8,10 @@ from typing import Any
 from readyagents.errors import MediaError, MediaMalformed, ToolError, missing_extra_message
 from readyagents.media.attach import downscale_part
 from readyagents.media.caps import DEFAULT_DOWNSCALE_MAX_EDGE
-from readyagents.media.ingest import ingest_path, store_from
+from readyagents.media.ingest import ingest_bytes, ingest_path, store_from
 from readyagents.media.part import part_from_mapping
 from readyagents.media.png import is_png
-from readyagents.media.wav import is_wav, require_audio_extra
+from readyagents.media.wav import is_wav
 from readyagents.tools import FunctionTool, Tool
 
 
@@ -108,7 +108,9 @@ def _media_resize(*, part: Any, max_edge: int | None = None, **_kwargs: Any) -> 
     if data is None:
         raise MediaError("media blob not found for resize")
     if not is_png(data):
-        raise MediaError(missing_extra_message("image", "image"))
+        parsed = part_from_mapping(_convert_image(data, "image/png", ctx))
+        if parsed is None:
+            raise MediaError(missing_extra_message("image", "image"))
     scaled = downscale_part(parsed, ctx=ctx, max_edge=edge)
     return scaled.as_ref()
 
@@ -121,8 +123,18 @@ def _media_extract_audio(*, part: Any, **_kwargs: Any) -> dict[str, Any]:
     data = store_from(ctx).get(parsed.sha256)
     if is_wav(data):
         return parsed.as_ref()
-    require_audio_extra()
-    raise MediaError(missing_extra_message("audio", "audio"))
+    try:
+        from pydub import AudioSegment  # type: ignore[import-untyped]
+    except ImportError as exc:
+        raise MediaError(missing_extra_message("audio", "audio")) from exc
+    import io
+
+    segment = AudioSegment.from_file(io.BytesIO(data))
+    buf = io.BytesIO()
+    segment.export(buf, format="wav")
+    wav = buf.getvalue()
+    extracted = ingest_bytes(wav, ctx=ctx, source="tool:media_extract_audio", kind="audio")
+    return extracted.as_ref()
 
 
 def _media_convert(*, part: Any, mime: str, **_kwargs: Any) -> dict[str, Any]:
@@ -132,8 +144,56 @@ def _media_convert(*, part: Any, mime: str, **_kwargs: Any) -> dict[str, Any]:
     target = str(mime or "").strip().lower()
     if parsed.mime == target:
         return parsed.as_ref()
+    ctx = _ctx()
+    data = store_from(ctx).get(parsed.sha256)
     if target.startswith("image/"):
-        raise MediaError(missing_extra_message("image", "image"))
+        return _convert_image(data, target, ctx)
     if target.startswith("audio/"):
-        raise MediaError(missing_extra_message("audio", "audio"))
+        return _convert_audio(data, target, ctx)
     raise MediaMalformed(f"unsupported convert target {mime!r}")
+
+
+def _convert_image(data: bytes, target: str, ctx: Any) -> dict[str, Any]:
+    try:
+        from PIL import Image  # type: ignore[import-untyped]
+    except ImportError as exc:
+        raise MediaError(missing_extra_message("image", "image")) from exc
+    import io
+
+    image = Image.open(io.BytesIO(data))
+    fmt = "JPEG" if target in {"image/jpeg", "image/jpg"} else "PNG"
+    if fmt == "JPEG" and str(getattr(image, "mode", "")) in {"RGBA", "P", "LA"}:
+        image = image.convert("RGB")
+    buf = io.BytesIO()
+    image.save(buf, format=fmt)
+    converted = ingest_bytes(
+        buf.getvalue(),
+        ctx=ctx,
+        source="tool:media_convert",
+        kind="image",
+        mime=target,
+    )
+    return converted.as_ref()
+
+
+def _convert_audio(data: bytes, target: str, ctx: Any) -> dict[str, Any]:
+    try:
+        from pydub import AudioSegment  # type: ignore[import-untyped]
+    except ImportError as exc:
+        raise MediaError(missing_extra_message("audio", "audio")) from exc
+    import io
+
+    fmt = target.split("/", 1)[-1]
+    if fmt == "mpeg":
+        fmt = "mp3"
+    segment = AudioSegment.from_file(io.BytesIO(data))
+    buf = io.BytesIO()
+    segment.export(buf, format=fmt)
+    converted = ingest_bytes(
+        buf.getvalue(),
+        ctx=ctx,
+        source="tool:media_convert",
+        kind="audio",
+        mime=target,
+    )
+    return converted.as_ref()

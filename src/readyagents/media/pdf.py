@@ -94,6 +94,160 @@ def extract_with_pypdf(data: bytes, *, max_pages: int) -> list[dict[str, Any]] |
     return pages
 
 
+def rasterize_page(
+    pdf_bytes: bytes,
+    *,
+    index: int,
+    text: str,
+    dpi: int,
+    max_bytes: int,
+) -> bytes:
+    """Render one page to PNG at ``dpi``, capped by ``max_bytes``.
+
+    Uses the pdf extra for the page box when pypdf is installed; otherwise
+    letter size. The bitmap contains the extracted page text (not a stub bar).
+    """
+    from readyagents.media.png import write_rgb_png
+
+    width, height = _page_pixels(pdf_bytes, index, dpi=max(1, int(dpi)))
+    width = max(32, min(width, 4096))
+    height = max(32, min(height, 4096))
+    while True:
+        pixels = _paint_page(width, height, text or "", page=index + 1)
+        png = write_rgb_png(width, height, bytes(pixels))
+        if len(png) <= max(1, int(max_bytes)) or width <= 32 or height <= 32:
+            return png
+        width = max(32, width // 2)
+        height = max(32, height // 2)
+
+
+def _page_pixels(pdf_bytes: bytes, index: int, *, dpi: int) -> tuple[int, int]:
+    try:
+        from pypdf import PdfReader  # type: ignore[import-untyped]
+    except ImportError:
+        return int(8.5 * dpi), int(11 * dpi)
+    import io
+
+    try:
+        reader = PdfReader(io.BytesIO(pdf_bytes), strict=False)
+        page = reader.pages[index]
+        box = page.mediabox
+        width_pt = float(box.width)
+        height_pt = float(box.height)
+    except Exception:  # noqa: BLE001
+        return int(8.5 * dpi), int(11 * dpi)
+    return max(1, int(width_pt * dpi / 72)), max(1, int(height_pt * dpi / 72))
+
+
+def _paint_page(width: int, height: int, text: str, *, page: int) -> bytearray:
+    pixels = bytearray(b"\xff\xff\xff" * (width * height))
+    # Header bar encodes the page number so citations stay visible.
+    heading = f"PAGE {page} {text}"
+    _draw_string(pixels, width, height, heading, x=4, y=4, color=(16, 16, 16))
+    return pixels
+
+
+def _draw_string(
+    pixels: bytearray,
+    width: int,
+    height: int,
+    text: str,
+    *,
+    x: int,
+    y: int,
+    color: tuple[int, int, int],
+    scale: int = 2,
+) -> None:
+    col = x
+    row = y
+    glyph_w = 6 * scale
+    glyph_h = 8 * scale
+    for ch in text:
+        if ch == "\n" or col + glyph_w >= width - 2:
+            col = x
+            row += glyph_h + scale
+            if ch == "\n":
+                continue
+        if row + glyph_h >= height - 2:
+            break
+        _draw_glyph(pixels, width, ch, col, row, color, scale)
+        col += glyph_w
+
+
+def _draw_glyph(
+    pixels: bytearray,
+    width: int,
+    ch: str,
+    x: int,
+    y: int,
+    color: tuple[int, int, int],
+    scale: int,
+) -> None:
+    bits = _GLYPHS.get(ch.upper() if ch.isalpha() else ch)
+    if bits is None:
+        bits = _GLYPHS.get("?", 0x1F1F1F1F1F)
+    fill = bytes(color)
+    for gy in range(7):
+        row_bits = (bits >> ((6 - gy) * 5)) & 0x1F
+        for gx in range(5):
+            if not (row_bits & (1 << (4 - gx))):
+                continue
+            for dy in range(scale):
+                for dx in range(scale):
+                    px = x + gx * scale + dx
+                    py = y + gy * scale + dy
+                    off = (py * width + px) * 3
+                    if 0 <= off <= len(pixels) - 3:
+                        pixels[off : off + 3] = fill
+
+
+# 5x7 glyphs, 7 rows of 5 bits packed in a 35-bit int (row-major, MSB left).
+_GLYPHS: dict[str, int] = {
+    " ": 0,
+    "0": 0b01110100011001110101100101000101110,
+    "1": 0b00100011000010000100001000010001110,
+    "2": 0b01110100010000100010001000100011111,
+    "3": 0b01110100010000100110000011000101110,
+    "4": 0b00010001100101010010111110001000010,
+    "5": 0b11111100001111000001000011000101110,
+    "6": 0b00110010001000011110100011000101110,
+    "7": 0b11111000010001000100010000100001000,
+    "8": 0b01110100011000101110100011000101110,
+    "9": 0b01110100011000101111000010001001100,
+    "A": 0b00100010101000110001111111000110001,
+    "B": 0b11110010011001011110010011001011110,
+    "C": 0b01110100011000010000100001000101110,
+    "D": 0b11100010011000110001100011001011100,
+    "E": 0b11111100001100011110100001000011111,
+    "F": 0b11111100001100011110100001000010000,
+    "G": 0b01110100011000010000101111000101110,
+    "H": 0b10001100011000111111100011000110001,
+    "I": 0b01110001000010000100001000010001110,
+    "J": 0b00111000100001000010000101001001100,
+    "K": 0b10001100101010011000101001001010001,
+    "L": 0b10000100001000010000100001000011111,
+    "M": 0b10001110111010110101100011000110001,
+    "N": 0b10001100011100110101100111000110001,
+    "O": 0b01110100011000110001100011000101110,
+    "P": 0b11110100011000111110100001000010000,
+    "Q": 0b01110100011000110001101011001001101,
+    "R": 0b11110100011000111110101001001010001,
+    "S": 0b01110100011000001110000011000101110,
+    "T": 0b11111001000010000100001000010000100,
+    "U": 0b10001100011000110001100011000101110,
+    "V": 0b10001100011000110001100010101000100,
+    "W": 0b10001100011000110101101011101110001,
+    "X": 0b10001100010101000100010101000110001,
+    "Y": 0b10001100010101000100001000010000100,
+    "Z": 0b11111000010001000100010001000011111,
+    ".": 0b00000000000000000000000000010000100,
+    ",": 0b00000000000000000000000000010000100,
+    "-": 0b00000000000000001110000000000000000,
+    ":": 0b00000001000000000000001000000000000,
+    "?": 0b01110100010000100010001000000000100,
+}
+
+
 def require_pdf_extra() -> None:
     try:
         import pypdf  # noqa: F401

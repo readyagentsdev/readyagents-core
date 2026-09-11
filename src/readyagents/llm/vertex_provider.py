@@ -133,12 +133,21 @@ def _load_vertex_credentials(path: str) -> Any:
     return service_account.Credentials.from_service_account_file(path)
 
 
-def _vertex_contents(messages: list[Message]) -> list[str]:
-    parts: list[str] = []
+def _vertex_contents(messages: list[Message]) -> list[Any]:
+    has_media = any(getattr(message, "media", None) for message in messages)
+    if not has_media:
+        return [f"{message.role or 'user'}: {message.content or ''}" for message in messages]
+    from readyagents.media.payload import vertex_inline_parts
+
+    out: list[Any] = []
     for message in messages:
-        role = message.role or "user"
-        parts.append(f"{role}: {message.content or ''}")
-    return parts
+        out.append(
+            {
+                "role": message.role or "user",
+                "parts": vertex_inline_parts(message),
+            }
+        )
+    return out
 
 
 def _vertex_tools(tools: list[dict[str, Any]] | None) -> list[Any]:

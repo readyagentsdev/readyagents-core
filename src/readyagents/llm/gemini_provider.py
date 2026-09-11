@@ -137,7 +137,9 @@ def _gemini_contents(messages: list[Message]) -> tuple[str, list[Any]]:
             system_parts.append(message.content or "")
             continue
         role = "user" if message.role in {"user", "tool"} else "model"
-        contents.append({"role": role, "parts": [{"text": message.content or ""}]})
+        from readyagents.media.payload import gemini_parts
+
+        contents.append({"role": role, "parts": gemini_parts(message)})
     return "\n".join(part for part in system_parts if part), contents
 
 

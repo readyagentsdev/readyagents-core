@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -133,6 +134,15 @@ def test_document_pages_ordered_and_citable(tmp_settings, tmp_path: Path) -> Non
     assert payload[0]["image"]["_media"] is True
     assert payload[0]["image"]["kind"] == "page"
     assert payload[0]["image"]["sha256"]
+    assert payload[0]["image"]["width"] == 612
+    assert payload[0]["image"]["height"] == 792
+    assert payload[0]["image"]["sha256"] != payload[1]["image"]["sha256"]
+    store = MediaStore(tmp_settings.home_path() / "media")
+    w, h, pix = read_rgb_png(store.get(payload[0]["image"]["sha256"]))
+    assert (w, h) == (612, 792)
+    assert pix[0:3] == b"\xff\xff\xff"
+    assert b"\x10\x10\x10" in bytes(pix)
+    assert payload[0]["image"]["bytes_len"] <= 2_000_000
     assert "base64" not in json.dumps(state.to_record())
     prov = state.provenance["pages"]
     assert prov["trust"] == "untrusted"
@@ -543,3 +553,238 @@ nodes:
     state = run_workflow_file(path, settings=tmp_settings, persist=False)
     assert state.status == "succeeded"
     assert len(state.output_keys["pages"]) == 1
+
+
+def test_messages_to_openai_payload_includes_image_part(tmp_settings, tmp_path: Path) -> None:
+    from readyagents.llm.base import Message
+    from readyagents.llm.openai_provider import OpenAIProvider
+    from readyagents.llm.tool_calls import messages_to_openai
+    from readyagents.media.ingest import bind_run_ctx, ingest_bytes, reset_run_ctx
+    from readyagents.tools import ToolRegistry
+    from readyagents.workflow.nodes import ExecutionContext
+    from readyagents.workflow.schema import WorkflowSpec
+
+    spec = WorkflowSpec.model_validate(
+        {"name": "pay", "nodes": [{"id": "t", "type": "transform", "template": "x"}]}
+    )
+    ctx = ExecutionContext(
+        spec, ToolRegistry(), pin_home=tmp_settings.home_path(), workflow_dir=tmp_path
+    )
+    token = bind_run_ctx(ctx)
+    try:
+        part = ingest_bytes(_png(8, 8), ctx=ctx, source="test")
+        media_msg = Message(role="user", content="describe", media=[part.as_ref()])
+        rows = messages_to_openai([media_msg], store=ctx.media_store)
+        content = rows[0]["content"]
+        assert isinstance(content, list)
+        kinds = [block.get("type") for block in content]
+        assert "text" in kinds
+        assert "image_url" in kinds
+        url = next(
+            block["image_url"]["url"] for block in content if block.get("type") == "image_url"
+        )
+        assert url.startswith("data:image/png;base64,")
+        raw = ctx.media_store.get(part.sha256)
+        import base64
+
+        embedded = base64.b64decode(url.split(",", 1)[1])
+        assert embedded == raw
+        payload = OpenAIProvider(api_key="sk-test")._payload(
+            [media_msg], model="gpt-4o", tools=None, kwargs={}
+        )
+        assert payload["messages"][0]["content"] == content
+        plain = Message(role="user", content="hi")
+        assert messages_to_openai([plain]) == [{"role": "user", "content": "hi"}]
+    finally:
+        reset_run_ctx(token)
+
+
+def test_page_image_respects_dpi_and_byte_cap(tmp_settings, tmp_path: Path) -> None:
+    pdf = tmp_path / "invoice.pdf"
+    pdf.write_bytes(build_simple_pdf(["Totals table"]))
+    spec = {
+        "name": "dpi",
+        "nodes": [
+            {
+                "id": "pages",
+                "type": "document",
+                "source": "invoice.pdf",
+                "render": {"dpi": 36, "max_pages": 2, "max_bytes_per_page": 80_000},
+                "output_key": "pages",
+            }
+        ],
+    }
+    state = _run(spec, tmp_settings, tmp_path)
+    image = state.output_keys["pages"][0]["image"]
+    assert image["width"] == 306
+    assert image["height"] == 396
+    assert image["bytes_len"] <= 80_000
+
+
+def test_redacted_original_absent_from_store_cassette_evidence(
+    tmp_settings, tmp_path: Path
+) -> None:
+    marker = bytes([0xC0, 0xFF, 0xEE])
+    pixels = bytearray(marker * (16 * 16))
+    png = write_rgb_png(16, 16, bytes(pixels))
+    (tmp_path / "face.png").write_bytes(png)
+    from readyagents.media.png import strip_png_metadata
+
+    original_sha = hashlib.sha256(strip_png_metadata(png)).hexdigest()
+    llm = ScriptedLLM().enqueue(text="ok")
+    tape = Cassette.new(run_id="r", workflow="redact")
+    spec = {
+        "name": "redact",
+        "nodes": [
+            {
+                "id": "read",
+                "type": "tool",
+                "tool": "media_read",
+                "arguments": {"path": "face.png"},
+                "output_key": "shot",
+                "next": "see",
+            },
+            {
+                "id": "see",
+                "type": "agent",
+                "model": "openai:gpt-4o",
+                "prompt": "look",
+                "media": ["{{ shot }}"],
+                "media_redact": {"regions": [{"x": 0, "y": 0, "width": 16, "height": 16}]},
+            },
+        ],
+    }
+    state = _run(spec, tmp_settings, tmp_path, llm=llm, cassette=tape, recording=True)
+    store = MediaStore(tmp_settings.home_path() / "media")
+    assert not store.has(original_sha)
+    stored = list(store.root.rglob("*"))
+    for blob in stored:
+        if blob.is_file() and len(blob.name) == 64:
+            assert blob.name != original_sha
+            data = blob.read_bytes()
+            if data.startswith(b"\x89PNG"):
+                _, _, pix = read_rgb_png(data)
+                assert pix[0:3] == b"\x00\x00\x00"
+    assert original_sha not in (tape.media_blobs or {})
+    for data in (tape.media_blobs or {}).values():
+        if data.startswith(b"\x89PNG"):
+            _, _, pix = read_rgb_png(data)
+            assert pix[0:3] == b"\x00\x00\x00"
+    dest = tmp_path / "tape.json"
+    tape.save(dest)
+    sidecar = dest.parent / f"{dest.stem}.media"
+    if sidecar.is_dir():
+        for blob in sidecar.rglob("*"):
+            if blob.is_file() and len(blob.name) == 64:
+                assert blob.name != original_sha
+    packed = write_evidence_pack(
+        tmp_path / "pack",
+        state=state,
+        workflow=None,
+        workflow_text="name: redact\nnodes: []\n",
+        audit_dir=tmp_settings.home_path() / "audit",
+    )
+    pack_blob = (packed / "run.json").read_bytes()
+    assert original_sha.encode() not in pack_blob
+    media_dir = packed / "media"
+    if media_dir.is_dir():
+        for blob in media_dir.rglob("*"):
+            if blob.is_file() and len(blob.name) == 64:
+                assert blob.name != original_sha
+
+
+def test_convert_uses_image_extra_when_installed(
+    tmp_settings, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sys
+    import types
+
+    jpeg = _jpeg()
+
+    class FakeImage:
+        mode = "RGB"
+
+        @classmethod
+        def open(cls, _buf: Any) -> FakeImage:
+            return cls()
+
+        def convert(self, _mode: str) -> FakeImage:
+            return self
+
+        def save(self, buf: Any, format: str | None = None) -> None:
+            buf.write(jpeg)
+
+    pil = types.ModuleType("PIL")
+    pil_image = types.ModuleType("PIL.Image")
+    pil_image.Image = FakeImage
+    pil_image.open = FakeImage.open
+    monkeypatch.setitem(sys.modules, "PIL", pil)
+    monkeypatch.setitem(sys.modules, "PIL.Image", pil_image)
+    (tmp_path / "shot.png").write_bytes(_png())
+    spec = {
+        "name": "conv",
+        "nodes": [
+            {
+                "id": "read",
+                "type": "tool",
+                "tool": "media_read",
+                "arguments": {"path": "shot.png"},
+                "output_key": "shot",
+                "next": "conv",
+            },
+            {
+                "id": "conv",
+                "type": "tool",
+                "tool": "media_convert",
+                "arguments": {"part": "{{ shot }}", "mime": "image/jpeg"},
+                "output_key": "out",
+            },
+        ],
+    }
+    state = _run(spec, tmp_settings, tmp_path)
+    assert state.status == "succeeded"
+    assert state.output_keys["out"]["mime"] == "image/jpeg"
+
+
+def test_extract_audio_uses_audio_extra_when_installed(
+    tmp_settings, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sys
+    import types
+
+    wav = build_wav(duration_ms=20)
+
+    class FakeSeg:
+        @classmethod
+        def from_file(cls, _buf: Any, **_kwargs: Any) -> FakeSeg:
+            return cls()
+
+        def export(self, buf: Any, format: str = "wav") -> None:
+            buf.write(wav)
+
+    pydub = types.ModuleType("pydub")
+    pydub.AudioSegment = FakeSeg
+    monkeypatch.setitem(sys.modules, "pydub", pydub)
+    (tmp_path / "clip.bin").write_bytes(b"ftypmp42" + b"\x00" * 32)
+    # not wav; extract should call pydub
+    from readyagents.media.ingest import bind_run_ctx, ingest_bytes, reset_run_ctx
+    from readyagents.tools import ToolRegistry
+    from readyagents.workflow.nodes import ExecutionContext
+    from readyagents.workflow.schema import WorkflowSpec
+
+    spec = WorkflowSpec.model_validate(
+        {"name": "x", "nodes": [{"id": "t", "type": "transform", "template": "x"}]}
+    )
+    ctx = ExecutionContext(
+        spec, ToolRegistry(), pin_home=tmp_settings.home_path(), workflow_dir=tmp_path
+    )
+    token = bind_run_ctx(ctx)
+    try:
+        part = ingest_bytes(b"ID3" + b"\x00" * 64, ctx=ctx, source="mp3", kind="audio")
+        from readyagents.media.builtins import _media_extract_audio
+
+        out = _media_extract_audio(part=part.as_ref())
+        assert out["kind"] == "audio"
+        assert out["mime"] == "audio/wav"
+    finally:
+        reset_run_ctx(token)
