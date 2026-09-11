@@ -127,7 +127,14 @@ def test_secret_shaped_generated_content_does_not_survive_freeze(tmp_settings) -
     for case in case_files:
         suite = load_eval_suite(case)
         scored = run_eval(suite, settings=tmp_settings, dry_run=True)
-        assert scored.passed + scored.failed == len(suite)
+        assert scored.ok
+        assert scored.passed == len(suite)
+        copied = [
+            p
+            for p in case.parent.iterdir()
+            if p.is_file() and p.suffix in {".yaml", ".yml"} and p.name != "case.yaml"
+        ]
+        assert copied, f"frozen workflow missing beside {case}"
         assert _SECRET_SHAPED not in json.dumps([row.inputs for row in suite], default=str)
 
 

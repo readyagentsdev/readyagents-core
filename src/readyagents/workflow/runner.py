@@ -726,6 +726,8 @@ def run_workflow_file(
         return state
     except Exception as exc:
         run_state = getattr(exc, "state", None)
+        if cassette is not None and isinstance(run_state, RunState):
+            run_state.metadata["determinism"] = cassette.report.as_dict()
         _write_cassette(
             cassette,
             want_record,

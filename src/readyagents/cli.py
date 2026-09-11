@@ -550,6 +550,12 @@ def simulate_cmd(
     )
     persona_list = [p.strip() for p in (personas or "").split(",") if p.strip()]
     use_model = None if deterministic_only else model
+    sov = sovereign or bool(settings.sovereign)
+    llm = None
+    if use_model and not sov:
+        from readyagents.llm.registry import get_provider
+
+        llm, _ = get_provider(use_model, settings=settings)
     try:
         report = simulate_workflow(
             path,
@@ -560,10 +566,11 @@ def simulate_cmd(
             live_side_effects=live,
             policy=loaded,
             settings=settings,
+            llm=llm,
             model=use_model,
             personas=persona_list or None,
             max_spend=max_spend,
-            sovereign=sovereign or bool(settings.sovereign),
+            sovereign=sov,
         )
     except SimulateRefused as extra:
         payload = extra.report.as_dict() if getattr(extra, "report", None) is not None else {}

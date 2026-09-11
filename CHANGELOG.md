@@ -15,8 +15,13 @@ All notable changes to ReadyAgents Core.
   `--live-side-effects` and a permitting policy. Failures cluster by shape;
   `--out` freezes one fixture per cluster (secret-shaped text redacted).
   `--fail-on new-failure` blocks a new class in CI. Opt-in `--model`
-  personas are metered, capped, and refused in sovereign mode. Repos that
-  never simulate are unchanged. See [docs/simulation.md](docs/simulation.md).
+  personas are metered, capped, and refused in sovereign mode. `--model`
+  constructs a provider; persona cases reserve slots in `--cases`.
+  `run_eval` scores pause/wait `RunState` attached to the exception.
+  Frozen fixtures copy the workflow YAML beside `case.yaml` so
+  `readyagents eval` is re-runnable offline. Error coverage marks only
+  the node that failed. Repos that never simulate are unchanged. See
+  [docs/simulation.md](docs/simulation.md).
 - **Workflow packaging.** `readyagents.pkg.yaml` plus
   `readyagents package build|install|list|show|remove|upgrade`. Build emits a
   deterministic `.rapkg` archive (manifest, workflows, policy, fixtures,

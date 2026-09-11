@@ -36,6 +36,7 @@ class SimulateReport:
     spend_usd: float = 0.0
     dry_run: bool = True
     seed: int = 42
+    case_names: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -49,6 +50,7 @@ class SimulateReport:
             "spend_usd": self.spend_usd,
             "dry_run": self.dry_run,
             "seed": self.seed,
+            "case_names": list(self.case_names),
         }
 
 
@@ -75,11 +77,15 @@ def simulate_workflow(
     if live_side_effects:
         _require_live_policy(policy)
         dry_run = False
-    cases = generate_cases(workflow, seed=seed, cap=cap)
+    extra: list[SimCase] = []
     spend = 0.0
     if model:
         from readyagents.simulate.personas import generate_personas
 
+        if llm is None and not sovereign:
+            from readyagents.llm.registry import get_provider
+
+            llm, _ = get_provider(model, settings=settings)
         extra, spend = generate_personas(
             workflow,
             model=model,
@@ -88,9 +94,15 @@ def simulate_workflow(
             max_spend=max_spend,
             sovereign=sovereign,
         )
+    if extra and cap > 0:
+        det_cap = max(0, cap - len(extra))
+        cases = generate_cases(workflow, seed=seed, cap=det_cap) if det_cap > 0 else []
         cases.extend(extra)
-        if cap > 0:
-            cases = cases[:cap]
+        cases = cases[:cap]
+    else:
+        cases = generate_cases(workflow, seed=seed, cap=cap)
+        if extra:
+            cases.extend(extra)
     eval_cases = [
         EvalCase(
             name=item.name,
@@ -126,10 +138,16 @@ def simulate_workflow(
             sim = by_name.get(row.name)
             state = row.state
             if state is None:
-                state = RunState.start(workflow.name, dict(sim.inputs if sim else {}))
+                state = RunState.start(
+                    workflow.name,
+                    dict(sim.inputs if sim else {}),
+                    metadata={"source": str(source.resolve())},
+                )
                 state.status = "failed"
                 state.errors = [row.reason]
                 row.state = state
+            elif not state.metadata.get("source"):
+                state.metadata["source"] = str(source.resolve())
             frozen.append(
                 _freeze_one(row, dest, settings=settings, workspace=_workspace(settings, source))
             )
@@ -145,6 +163,7 @@ def simulate_workflow(
         spend_usd=spend,
         dry_run=dry_run,
         seed=seed,
+        case_names=[item.name for item in cases],
     )
     if fail_on_new and new_keys:
         raise SimulateRefused(

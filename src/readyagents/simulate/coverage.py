@@ -91,9 +91,7 @@ def apply_run(
             if suffix == "items" and node_id in ran and not _foreach_empty(state, node_id):
                 point.reached = True
         elif point.kind == KIND_ERROR:
-            if state.status in {"failed", "error"} and (
-                node_id in ran or _error_mentions(state, node_id)
-            ):
+            if state.status in {"failed", "error"} and _is_failed_node(state, node_id):
                 point.reached = True
 
 
@@ -136,3 +134,19 @@ def _foreach_empty(state: RunState, node_id: str) -> bool:
 def _error_mentions(state: RunState, node_id: str) -> bool:
     blob = " ".join(str(item) for item in (state.errors or []))
     return node_id in blob
+
+
+def _failed_node_id(state: RunState) -> str | None:
+    if state.pending_node:
+        return state.pending_node
+    for row in reversed(state.results):
+        if row.status in {"failed", "error"} or row.error:
+            return row.node_id
+    return None
+
+
+def _is_failed_node(state: RunState, node_id: str) -> bool:
+    failed = _failed_node_id(state)
+    if failed:
+        return failed == node_id
+    return _error_mentions(state, node_id)
