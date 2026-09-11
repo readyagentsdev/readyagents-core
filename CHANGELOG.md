@@ -17,7 +17,9 @@ All notable changes to ReadyAgents Core.
   refused and audited; dead letters are inspectable and replayable. Pack
   sources (webhook, file, queue, schedule) share that seam.
   `readyagents triggers list|show|test|events`. Default webhook posture is
-  loopback. Workflows without `triggers:` are unchanged. See
+  loopback. Workflows without `triggers:` are unchanged. Per-trigger spend
+  accrues from the started run's real `cost_micros` / tokens and remaining
+  cap is passed into the engine. See
   [docs/event-triggers.md](docs/event-triggers.md).
 - **Long-horizon waits (`type: wait`).** Pause on `until`, `for_event`,
   `for_file`, and/or `for_run` with `whichever: first|all`. A wait without a

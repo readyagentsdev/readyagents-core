@@ -87,6 +87,8 @@ def decide_trigger(
     dry_run: bool = False,
     persist: bool = True,
     settings: Any = None,
+    path: Path | str | None = None,
+    llm: Any = None,
 ) -> TriggerDecision:
     """Start a run, return the original, or refuse with a typed reason."""
     home_path = Path(home) if home is not None else Path(".")
@@ -289,6 +291,7 @@ def decide_trigger(
                 dead_letter_id=letter_id,
             )
         provenance = _provenance(trigger, eid, digest, kind)
+        remaining_usd, remaining_tokens = _remaining(trigger, spend)
         try:
             state = _start(
                 workflow,
@@ -299,6 +302,10 @@ def decide_trigger(
                 persist=persist,
                 settings=settings,
                 home=home_path,
+                path=path,
+                llm=llm,
+                remaining_usd=remaining_usd,
+                remaining_tokens=remaining_tokens,
             )
         except Exception as extra:
             gate.leave(trigger.name)
@@ -306,8 +313,9 @@ def decide_trigger(
         gate.leave(trigger.name)
         run_id = getattr(state, "run_id", None)
         store.put(composite, str(run_id or ""), trigger=trigger.name)
-        if trigger.budget and trigger.budget.max_cost_usd:
-            spend.add(trigger.name, usd=0.0)
+        usd, tokens = _usage_from_state(state)
+        if usd or tokens:
+            spend.add(trigger.name, usd=usd, tokens=tokens)
         _audit(auditor, "trigger_started", trigger=trigger.name, run_id=run_id)
         events.record(
             {"action": "start", "trigger": trigger.name, "run_id": run_id, "event_id": eid}
@@ -431,6 +439,30 @@ def _check_budget(trigger: TriggerSpec, spend: TriggerSpend) -> None:
         raise TriggerRefused("per-trigger token budget exceeded", reason="budget")
 
 
+def _remaining(trigger: TriggerSpec, spend: TriggerSpend) -> tuple[float | None, int | None]:
+    budget = trigger.budget
+    if budget is None:
+        return None, None
+    usd = None
+    tokens = None
+    if budget.max_cost_usd is not None:
+        usd = max(0.0, float(budget.max_cost_usd) - spend.used_usd(trigger.name))
+    if budget.max_tokens is not None:
+        tokens = max(0, int(budget.max_tokens) - spend.used_tokens(trigger.name))
+    return usd, tokens
+
+
+def _usage_from_state(state: Any) -> tuple[float, int]:
+    usage = getattr(state, "usage", None) or {}
+    if not isinstance(usage, dict):
+        usage = {}
+    micros = int(usage.get("cost_micros") or 0)
+    tokens = int(usage.get("total_tokens") or 0)
+    if not tokens:
+        tokens = int(usage.get("prompt_tokens") or 0) + int(usage.get("completion_tokens") or 0)
+    return micros / 1_000_000.0, tokens
+
+
 def _provenance(trigger: TriggerSpec, eid: str, digest: str, kind: str) -> dict[str, Any]:
     return {
         "kind": "trigger",
@@ -451,26 +483,30 @@ def _start(
     persist: bool,
     settings: Any,
     home: Path,
+    path: Path | str | None = None,
+    llm: Any = None,
+    remaining_usd: float | None = None,
+    remaining_tokens: int | None = None,
 ) -> Any:
+    kwargs = {
+        "provenance": provenance,
+        "trigger": trigger,
+        "persist": persist,
+        "settings": settings,
+        "remaining_usd": remaining_usd,
+        "remaining_tokens": remaining_tokens,
+    }
     if starter is not None:
-        return starter(
-            workflow,
-            inputs,
-            provenance=provenance,
-            trigger=trigger,
-            persist=persist,
-            settings=settings,
-        )
+        return starter(workflow, inputs, **kwargs)
     from readyagents.triggers.start import start_triggered_run
 
     return start_triggered_run(
         workflow,
         inputs,
-        provenance=provenance,
-        trigger=trigger,
-        persist=persist,
-        settings=settings,
         home=home,
+        path=path,
+        llm=llm,
+        **kwargs,
     )
 
 
