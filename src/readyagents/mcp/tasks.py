@@ -460,6 +460,13 @@ class TaskService:
                 {"node_id": node_id, "decision": decision, "actor": actor},
                 input_request_key=key,
             )
+        except RunConflict:
+            # Resume can finish between the input_required check and decide.
+            state = self._load(ident)
+            applied = _applied_decision(state, key)
+            if applied == decision and map_run_status(state.status) != "input_required":
+                return {"resultType": RESULT_TYPE_COMPLETE}
+            raise
         except AuthorizationError as exc:
             self._audit(
                 "decision_refused",
