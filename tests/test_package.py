@@ -116,6 +116,7 @@ def test_build_is_byte_identical_and_contains_lock(tmp_path: Path) -> None:
     assert digest_archive(a).startswith("sha256:")
     with zipfile.ZipFile(a) as zf:
         names = set(zf.namelist())
+        assert not any(info.is_dir() or info.filename.endswith("/") for info in zf.infolist())
     assert "readyagents.pkg.yaml" in names
     assert "workflow.yaml" in names
     assert "policy.yaml" in names

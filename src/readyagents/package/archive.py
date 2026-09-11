@@ -13,7 +13,6 @@ from readyagents.atomic import atomic_write_bytes
 from readyagents.errors import PackageRefused
 from readyagents.package.layout import (
     ARCHIVE_SUFFIX,
-    DIR_ATTR,
     FILE_ATTR,
     KIND_MEMBER,
     LOCK_NAME,
@@ -102,34 +101,15 @@ def _lock_yaml(members: dict[str, bytes]) -> str:
 
 
 def _pack_zip(members: dict[str, bytes]) -> bytes:
+    """Stored zip of files only. Directory entries are omitted (Windows zipfile)."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_STORED, allowZip64=False) as zf:
         for name, data in sorted(members.items()):
-            info = zipfile.ZipInfo(filename=name, date_time=ZIP_EPOCH)
+            info = zipfile.ZipInfo(filename=name.replace("\\", "/"), date_time=ZIP_EPOCH)
             info.compress_type = zipfile.ZIP_STORED
             info.create_system = 3
             info.external_attr = FILE_ATTR
             info.comment = b""
-            extra = Path(name).parent.as_posix()
-            if extra not in {".", ""}:
-                _ensure_dir(zf, extra)
+            info.extra = b""
             zf.writestr(info, data)
     return buf.getvalue()
-
-
-def _ensure_dir(zf: zipfile.ZipFile, rel: str) -> None:
-    parts = Path(rel).parts
-    acc = []
-    names = {i.filename.rstrip("/") for i in zf.infolist()}
-    for part in parts:
-        acc.append(part)
-        dirname = "/".join(acc) + "/"
-        if dirname.rstrip("/") in names or dirname in names:
-            continue
-        info = zipfile.ZipInfo(filename=dirname, date_time=ZIP_EPOCH)
-        info.compress_type = zipfile.ZIP_STORED
-        info.create_system = 3
-        info.external_attr = DIR_ATTR
-        info.comment = b""
-        zf.writestr(info, b"")
-        names.add(dirname.rstrip("/"))
