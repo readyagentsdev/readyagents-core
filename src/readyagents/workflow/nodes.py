@@ -1558,29 +1558,33 @@ def _run_foreach(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> list
                 if first_error is None:
                     first_error = exc
                 continue
-            ordered = outputs + [collected[i] for i in range(start, index + 1) if i in collected]
-            if len(ordered) == index + 1:
-                bucket[node.id] = [
-                    {"index": i, "status": "ok", "output": ordered[i]} for i in range(len(ordered))
-                ]
-                if ctx.on_persist is not None:
-                    ctx.on_persist(state)
-    if first_error is not None:
-        done = outputs + [collected[i] for i in sorted(collected)]
-        bucket[node.id] = [
-            {"index": i, "status": "ok", "output": done[i]} for i in range(len(outputs))
-        ]
-        if ctx.on_persist is not None:
-            ctx.on_persist(state)
-        raise first_error
-    for index, _item in remaining:
-        outputs.append(collected[index])
+            prefix = _foreach_contiguous_prefix(outputs, collected, start)
+            bucket[node.id] = [
+                {"index": i, "status": "ok", "output": prefix[i]} for i in range(len(prefix))
+            ]
+            if ctx.on_persist is not None:
+                ctx.on_persist(state)
+    prefix = _foreach_contiguous_prefix(outputs, collected, start)
     bucket[node.id] = [
-        {"index": i, "status": "ok", "output": outputs[i]} for i in range(len(outputs))
+        {"index": i, "status": "ok", "output": prefix[i]} for i in range(len(prefix))
     ]
     if ctx.on_persist is not None:
         ctx.on_persist(state)
-    return outputs
+    if first_error is not None:
+        raise first_error
+    return prefix
+
+
+def _foreach_contiguous_prefix(
+    outputs: list[Any], collected: dict[int, Any], start: int
+) -> list[Any]:
+    """Completed items from 0 without holes. Later successes after a gap are dropped."""
+    prefix = list(outputs)
+    index = start
+    while index in collected:
+        prefix.append(collected[index])
+        index += 1
+    return prefix
 
 
 def _foreach_one(
