@@ -114,6 +114,41 @@ def test_unlock_post_does_not_put_token_in_url(tmp_settings) -> None:
     assert replay.status == 401
 
 
+def test_unlock_js_does_not_intercept_native_post(tmp_settings) -> None:
+    store = JsonRunStore(tmp_settings.runs_dir())
+    application, _c = _make_studio(tmp_settings, store)
+    session = _session(application)
+    js = application.handle(
+        "GET",
+        "/studio/assets/app.js",
+        headers=_cookie_headers(application, session),
+        body=b"",
+    )
+    assert js.status == 200, js.body
+    text = js.body.decode("utf-8")
+    compact = text.replace(" ", "").replace("'", '"')
+    assert "redirect:\"manual\"" not in compact
+    assert "unlock-form" not in text
+    html = application.handle(
+        "GET", "/studio", headers=_host_headers(application), body=b""
+    ).body.decode("utf-8")
+    assert 'id="unlock-form"' in html
+    assert 'method="post"' in html
+    assert 'action="/studio/session"' in html
+    token = application.tokens.issue_bootstrap()
+    headers = _host_headers(application, origin=True)
+    headers["Content-Type"] = "application/x-www-form-urlencoded"
+    native = application.handle(
+        "POST",
+        "/studio/session",
+        headers=headers,
+        body=f"token={token}".encode(),
+    )
+    assert native.status == 303, native.body
+    assert dict(native.headers).get("Location") == "/studio"
+    assert token not in dict(native.headers).get("Location", "")
+
+
 def test_studio_help_lists_flags() -> None:
     result = runner.invoke(app, ["studio", "--help"])
     assert result.exit_code == 0, result.stdout + result.stderr
