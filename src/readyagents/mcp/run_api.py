@@ -975,14 +975,10 @@ class RunCoordinator:
                 _OneShotDecisions(raw_decisions) if input_request_key else raw_decisions
             )
             try:
-                # Dedicated thread: do not queue behind a start worker still
-                # occupying the shared run executor after a just-persisted pause.
-                threading.Thread(
-                    target=self._resume_job,
-                    args=(run_id, decisions, actor, token),
-                    name=f"readyagents-resume-{run_id[:8]}",
-                    daemon=True,
-                ).start()
+                # Inline: a queued/daemon worker can leave the gate paused on
+                # Windows/macOS CI (lastUpdatedAt never moves). The start
+                # worker has already left `_active`.
+                self._resume_job(run_id, decisions, actor, token)
             except Exception:
                 with self._lock:
                     self._in_flight_resume.pop(run_id, None)
