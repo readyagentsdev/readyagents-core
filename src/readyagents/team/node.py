@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import time
+from collections.abc import Mapping
 from typing import Any
 
 from readyagents.errors import (
@@ -41,32 +43,32 @@ def run_team_node(node: NodeSpec, state: Any, ctx: Any) -> Any:
         _after_member(node, spec, member, output, state, ctx, bucket)
         bucket["pending_member"] = None
         bucket["round"] = int(bucket.get("round") or 0) + 1
-        _checkpoint(state, node.id, bucket)
+        _checkpoint(state, node.id, bucket, ctx)
 
     while True:
         _check_terminate(node.id, spec, bucket, ctx)
         if _goal_met(spec, bucket, state):
             bucket["stop"] = "goal"
-            _checkpoint(state, node.id, bucket)
+            _checkpoint(state, node.id, bucket, ctx)
             return _team_output(bucket)
         member_id = _next_member(node, spec, state, ctx, bucket)
         if member_id is None:
             bucket["stop"] = "done"
-            _checkpoint(state, node.id, bucket)
+            _checkpoint(state, node.id, bucket, ctx)
             return _team_output(bucket)
         member = spec.member_map()[member_id]
         try:
             output = _run_member(node, member, spec, state, ctx, bucket)
         except ApprovalRequired:
             bucket["pending_member"] = member.id
-            _checkpoint(state, node.id, bucket)
+            _checkpoint(state, node.id, bucket, ctx)
             raise
         _after_member(node, spec, member, output, state, ctx, bucket)
         bucket["round"] = int(bucket.get("round") or 0) + 1
-        _checkpoint(state, node.id, bucket)
+        _checkpoint(state, node.id, bucket, ctx)
         if spec.strategy == "pipeline" and bucket.get("pipeline_index", 0) >= len(spec.members):
             bucket["stop"] = "done"
-            _checkpoint(state, node.id, bucket)
+            _checkpoint(state, node.id, bucket, ctx)
             return _team_output(bucket)
 
 
@@ -99,8 +101,11 @@ def _bucket(state: Any, team_id: str, spec: TeamSpec) -> dict[str, Any]:
     return bucket
 
 
-def _checkpoint(state: Any, team_id: str, bucket: dict[str, Any]) -> None:
+def _checkpoint(state: Any, team_id: str, bucket: dict[str, Any], ctx: Any | None = None) -> None:
     state.metadata.setdefault("teams", {})[team_id] = bucket
+    persist = getattr(ctx, "on_persist", None) if ctx is not None else None
+    if persist is not None:
+        persist(state)
 
 
 def _push_scratchpad(state: Any, view: dict[str, Any]) -> Any:
@@ -119,6 +124,113 @@ def _pop_scratchpad(state: Any, previous: Any) -> None:
 def _granted_view(member: TeamMemberSpec, spec: TeamSpec, pad: dict[str, Any]) -> dict[str, Any]:
     readable = _readable(member, spec)
     return {key: pad[key] for key in readable if key in pad}
+
+
+def _member_visible_metadata(
+    team_id: str,
+    member: TeamMemberSpec,
+    spec: TeamSpec,
+    bucket: dict[str, Any],
+) -> dict[str, Any]:
+    pad = dict(bucket.get("scratchpad") or {})
+    granted = set(_readable(member, spec))
+    view = {key: pad[key] for key in granted if key in pad}
+    return {"scratchpad": view, "teams": {team_id: _redact_team_bucket(bucket, granted, pad)}}
+
+
+def _redact_team_bucket(
+    bucket: dict[str, Any], granted: set[str], pad: Mapping[str, Any]
+) -> dict[str, Any]:
+    pad_keys = set(pad)
+    tokens = _secret_tokens(pad, granted)
+    clone = copy.deepcopy(bucket)
+    clone["scratchpad"] = {key: pad[key] for key in granted if key in pad}
+    clone["last_output"] = _redact_value(clone.get("last_output"), granted, pad_keys, tokens)
+    handoffs = []
+    for row in clone.get("handoffs") or []:
+        if not isinstance(row, dict):
+            handoffs.append(row)
+            continue
+        item = dict(row)
+        item["payload"] = _redact_value(item.get("payload"), granted, pad_keys, tokens)
+        handoffs.append(item)
+    clone["handoffs"] = handoffs
+    return clone
+
+
+def _secret_tokens(pad: Mapping[str, Any], granted: set[str]) -> list[str]:
+    tokens: list[str] = []
+    for key, value in pad.items():
+        if key in granted:
+            continue
+        tokens.extend(_tokens_from(value))
+    tokens = [item for item in tokens if item]
+    tokens.sort(key=len, reverse=True)
+    return tokens
+
+
+def _tokens_from(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value] if value else []
+    if isinstance(value, Mapping):
+        nested: list[str] = []
+        for item in value.values():
+            nested.extend(_tokens_from(item))
+        return nested
+    if isinstance(value, (list, tuple)):
+        nested = []
+        for item in value:
+            nested.extend(_tokens_from(item))
+        return nested
+    if isinstance(value, bool) or value is None:
+        return []
+    text = str(value)
+    return [text] if text else []
+
+
+def _redact_value(value: Any, granted: set[str], pad_keys: set[str], tokens: list[str]) -> Any:
+    if isinstance(value, Mapping):
+        keys = set(value)
+        if keys and keys <= pad_keys:
+            return {
+                key: _redact_value(item, granted, pad_keys, tokens)
+                for key, item in value.items()
+                if key in granted
+            }
+        return {key: _redact_value(item, granted, pad_keys, tokens) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_redact_value(item, granted, pad_keys, tokens) for item in value]
+    if isinstance(value, str):
+        text = value
+        for token in tokens:
+            text = text.replace(token, "")
+        return text
+    return value
+
+
+def _push_member_view(state: Any, team_id: str, overlay: dict[str, Any]) -> dict[str, Any]:
+    previous = {
+        "scratchpad": state.metadata["scratchpad"] if "scratchpad" in state.metadata else _UNSET,
+        "teams": state.metadata.get("teams"),
+    }
+    teams = dict(previous["teams"] or {})
+    overlay_teams = overlay.get("teams") or {}
+    if team_id in overlay_teams:
+        teams[team_id] = overlay_teams[team_id]
+    state.metadata["scratchpad"] = overlay.get("scratchpad") or {}
+    state.metadata["teams"] = teams
+    return previous
+
+
+def _pop_member_view(state: Any, previous: dict[str, Any]) -> None:
+    if previous["scratchpad"] is _UNSET:
+        state.metadata.pop("scratchpad", None)
+    else:
+        state.metadata["scratchpad"] = previous["scratchpad"]
+    if previous["teams"] is None:
+        state.metadata.pop("teams", None)
+    else:
+        state.metadata["teams"] = previous["teams"]
 
 
 def _check_terminate(node_id: str, spec: TeamSpec, bucket: dict[str, Any], ctx: Any) -> None:
@@ -284,11 +396,12 @@ def _run_member(
         if used >= limit:
             raise TeamSpendExceeded(team.id, used, limit)
     before = dict(state.usage)
-    previous = _push_scratchpad(state, view)
+    overlay = _member_visible_metadata(team.id, member, spec, bucket)
+    previous = _push_member_view(state, team.id, overlay)
     try:
         output = execute_node(spec_node, state, ctx)
     finally:
-        _pop_scratchpad(state, previous)
+        _pop_member_view(state, previous)
     _note_usage(bucket, member.id, state, ctx, before=before)
     return output
 
