@@ -135,6 +135,15 @@ def spend_entry_from_state(
     if by_member:
         payload["by_member"] = by_member
         payload["by_role"] = by_role
+    media_parts = []
+    if isinstance(getattr(state, "metadata", None), dict):
+        raw_parts = state.metadata.get("media_parts")
+        if isinstance(raw_parts, list):
+            media_parts = [dict(row) for row in raw_parts if isinstance(row, dict)]
+    if media_parts:
+        payload["media_parts"] = media_parts
+        payload["media_tokens"] = sum(int(row.get("tokens") or 0) for row in media_parts)
+        payload["media_cost_micros"] = sum(int(row.get("cost_micros") or 0) for row in media_parts)
     return payload
 
 

@@ -70,4 +70,9 @@ def default_registry(*, allow_http: bool, workspace: Any) -> ToolRegistry:
     for tool in connector_tools(workspace=workspace):
         if tool.name not in registry.as_dict():
             registry.register(tool)
+    from readyagents.media.builtins import media_tools
+
+    for tool in media_tools(workspace=workspace):
+        if tool.name not in registry.as_dict():
+            registry.register(tool)
     return registry

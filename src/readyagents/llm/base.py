@@ -22,6 +22,7 @@ class Message:
     tool_calls: list[ToolCall] = field(default_factory=list)
     tool_call_id: str | None = None
     name: str | None = None
+    media: list[dict[str, Any]] | None = None
 
 
 @dataclass

@@ -46,7 +46,8 @@ and counsel decision.
 - Legal compliance or certification of any kind.
 
 Redaction ran at pack time. Treat this directory as sensitive: it may still
-contain model prompts and outputs.
+contain model prompts and outputs. Media parts (``media/``) are the most
+sensitive artifacts in this pack — redact, confine, and do not republish.
 """
 
 
@@ -99,6 +100,12 @@ def write_evidence_pack(
     for path in audit_paths:
         files[_pack_audit_name(path, state.run_id)] = path.read_bytes()
     hashes: dict[str, str] = {}
+    for digest, blob_path in _media_files(record).items():
+        rel = f"media/{digest[:2]}/{digest}"
+        dest_blob = dest / rel
+        dest_blob.parent.mkdir(parents=True, exist_ok=True)
+        dest_blob.write_bytes(Path(blob_path).read_bytes())
+        hashes[rel] = hashlib.sha256(dest_blob.read_bytes()).hexdigest()
     for name, payload in files.items():
         dest_path = dest / name
         dest_path.write_bytes(payload)
@@ -122,7 +129,10 @@ def write_evidence_pack(
             "claim": "evidence",
             "not": ["compliance", "certification"],
         },
-        "warning": "This pack may contain recorded model prompts and outputs.",
+        "warning": (
+            "This pack may contain recorded model prompts, outputs, and media parts. "
+            "Media is untrusted input; confine the output path."
+        ),
     }
     manifest_text = json.dumps(manifest, indent=2, ensure_ascii=False, sort_keys=True) + "\n"
     manifest_path = dest / "manifest.json"
@@ -206,3 +216,22 @@ def _preview(value: Any, limit: int = 400) -> str:
     if len(text) > limit:
         return text[: limit - 1] + "…"
     return text
+
+
+def _media_files(record: Any) -> dict[str, str]:
+    found: dict[str, str] = {}
+
+    def walk(value: Any) -> None:
+        if isinstance(value, dict):
+            if value.get("_media") is True and value.get("sha256") and value.get("path"):
+                path = Path(str(value["path"]))
+                if path.is_file():
+                    found[str(value["sha256"])] = str(path)
+            for item in value.values():
+                walk(item)
+        elif isinstance(value, list):
+            for item in value:
+                walk(item)
+
+    walk(record)
+    return found

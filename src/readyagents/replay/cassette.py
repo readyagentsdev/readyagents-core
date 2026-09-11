@@ -23,6 +23,9 @@ _LLM = "llm"
 _TOOL = "tool"
 _CODE = "code"
 _CONTRACT = "contract"
+_DOCUMENT = "document"
+_TRANSCRIBE = "transcribe"
+_MEDIA = "media"
 
 DETERMINISTIC_TOOLS = frozenset({"calc", "json_get", "json_set", "json_merge"})
 SEALABLE_TOOLS = frozenset({"now", "http_get", "read_file", "list_dir"})
@@ -67,6 +70,8 @@ def classify_node_type(node_type: str) -> str:
     if kind == "agent":
         return "unsealable"
     if kind == "code":
+        return "sealed"
+    if kind in {"document", "transcribe"}:
         return "sealed"
     return "unsealable"
 
@@ -147,6 +152,7 @@ class Cassette:
         self.report = DeterminismReport()
         self.tool_seals: dict[str, str] = {}
         self.pending_route: dict[str, Any] | None = None
+        self.media_blobs: dict[str, bytes] = {}
 
     @classmethod
     def new(cls, *, run_id: str, workflow: str, **kwargs: Any) -> Cassette:
@@ -189,6 +195,7 @@ class Cassette:
             self.blocked_nodes.add(node_id)
             self.report.note(node_id, "unsealable")
         else:
+            media_hashes = _media_hashes(messages)
             entry = {
                 "kind": _LLM,
                 "node_id": node_id,
@@ -201,6 +208,8 @@ class Cassette:
                 "tool_calls": tool_calls_to_json(result.tool_calls),
                 "sealed": True,
             }
+            if media_hashes:
+                entry["media"] = media_hashes
             self.report.note(node_id, "sealed")
         if self.pending_route:
             entry["route"] = dict(self.pending_route)
@@ -305,6 +314,75 @@ class Cassette:
         self.report.note(node_id, "sealed")
         self._put(key, entry)
         return key
+
+    def record_document(self, *, node_id: str, output: Any) -> str:
+        digest = self.tool_digest("document", {"node": node_id})
+        occ = self._record.get(f"{_DOCUMENT}:{digest}", 0)
+        self._record[f"{_DOCUMENT}:{digest}"] = occ + 1
+        key = entry_storage_key(_DOCUMENT, digest, occ)
+        entry = {
+            "kind": _DOCUMENT,
+            "node_id": node_id,
+            "occurrence": occ,
+            "digest": digest,
+            "output": output,
+            "sealed": True,
+            "media": _collect_hashes(output),
+        }
+        self.report.note(node_id, "sealed")
+        self._put(key, entry)
+        return key
+
+    def replay_document(self, *, node_id: str) -> Any:
+        digest = self.tool_digest("document", {"node": node_id})
+        occ = self._consume.get(f"{_DOCUMENT}:{digest}", 0)
+        key = entry_storage_key(_DOCUMENT, digest, occ)
+        entry = self.entries.get(key)
+        if entry is None and occ == 0:
+            entry = self.entries.get(f"{_DOCUMENT}:{digest}")
+        if entry is None:
+            raise CassetteMiss(
+                f"Cassette miss at node '{node_id}': document entry missing",
+                node_id=node_id,
+                reason="missing",
+            )
+        self._consume[f"{_DOCUMENT}:{digest}"] = occ + 1
+        self.report.note(node_id, "sealed")
+        return entry.get("output")
+
+    def record_transcribe(self, *, node_id: str, output: Any) -> str:
+        digest = self.tool_digest("transcribe", {"node": node_id})
+        occ = self._record.get(f"{_TRANSCRIBE}:{digest}", 0)
+        self._record[f"{_TRANSCRIBE}:{digest}"] = occ + 1
+        key = entry_storage_key(_TRANSCRIBE, digest, occ)
+        entry = {
+            "kind": _TRANSCRIBE,
+            "node_id": node_id,
+            "occurrence": occ,
+            "digest": digest,
+            "output": output,
+            "sealed": True,
+        }
+        self.report.note(node_id, "sealed")
+        self._put(key, entry)
+        return key
+
+    def replay_transcribe(self, *, node_id: str) -> Any:
+        digest = self.tool_digest("transcribe", {"node": node_id})
+        occ = self._consume.get(f"{_TRANSCRIBE}:{digest}", 0)
+        key = entry_storage_key(_TRANSCRIBE, digest, occ)
+        entry = self.entries.get(key)
+        if entry is None and occ == 0:
+            entry = self.entries.get(f"{_TRANSCRIBE}:{digest}")
+        if entry is None:
+            raise CassetteMiss(
+                f"Cassette miss at node '{node_id}': transcribe entry missing",
+                node_id=node_id,
+                reason="missing",
+            )
+        self._consume[f"{_TRANSCRIBE}:{digest}"] = occ + 1
+        self.report.note(node_id, "sealed")
+        return entry.get("output")
 
     def replay_code(
         self,
@@ -527,6 +605,13 @@ class Cassette:
             )
         dest.parent.mkdir(parents=True, exist_ok=True)
         atomic_write_text(dest, blob, encoding="utf-8", newline="\n", restrict=True)
+        if self.media_blobs:
+            from readyagents.media.store import MediaStore
+
+            sidecar = dest.parent / f"{dest.stem}.media"
+            store = MediaStore(sidecar)
+            for digest, data in self.media_blobs.items():
+                store.put(data, sha256=digest)
         return dest
 
     @classmethod
@@ -585,7 +670,7 @@ class Cassette:
             if not isinstance(key, str) or not isinstance(row, dict):
                 raise CassetteError(f"Cassette {file} has an invalid entry")
             kind = row.get("kind")
-            if kind not in {_LLM, _TOOL, _CODE, _CONTRACT}:
+            if kind not in {_LLM, _TOOL, _CODE, _CONTRACT, _DOCUMENT, _TRANSCRIBE, _MEDIA}:
                 raise CassetteError(f"Cassette {file} entry {key!r} has invalid kind")
             tape.entries[key] = dict(row)
         det = loaded.get("determinism")
@@ -598,6 +683,11 @@ class Cassette:
         blocked = loaded.get("blocked_nodes")
         if isinstance(blocked, list):
             tape.blocked_nodes = {str(x) for x in blocked}
+        sidecar = file.parent / f"{file.stem}.media"
+        if sidecar.is_dir():
+            for blob in sidecar.rglob("*"):
+                if blob.is_file() and len(blob.name) == 64:
+                    tape.media_blobs[blob.name] = blob.read_bytes()
         return tape
 
     def _put(self, key: str, entry: dict[str, Any]) -> None:
@@ -624,3 +714,25 @@ def _parse(text: str) -> Any:
     import json
 
     return json.loads(text)
+
+
+def _media_hashes(messages: list[Message]) -> list[str]:
+    hashes: list[str] = []
+    for message in messages:
+        for item in getattr(message, "media", None) or []:
+            if isinstance(item, dict) and item.get("sha256"):
+                hashes.append(str(item["sha256"]))
+    return hashes
+
+
+def _collect_hashes(value: Any) -> list[str]:
+    found: list[str] = []
+    if isinstance(value, dict):
+        if value.get("sha256") and value.get("_media") is True:
+            found.append(str(value["sha256"]))
+        for item in value.values():
+            found.extend(_collect_hashes(item))
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            found.extend(_collect_hashes(item))
+    return found
