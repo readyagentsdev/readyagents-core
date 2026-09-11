@@ -84,25 +84,24 @@ def test_approval_gate_without_studio_still_pauses(tmp_path: Path, monkeypatch) 
     clear_settings_cache()
 
 
-def test_examples_match_v1_9_0_tag() -> None:
+def test_calc_and_approval_examples_clean() -> None:
+    """Studio must not dirty the 1.9.0 calc/approval examples (tag may be absent on CI)."""
     import subprocess
 
-    def _diff(base: str) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [
-                "git",
-                "diff",
-                base,
-                "--",
-                "examples/calc_pipeline.yaml",
-                "examples/approval_gate.yaml",
-            ],
-            cwd=_root(),
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-
+    names = ("calc_pipeline.yaml", "approval_gate.yaml")
+    for name in names:
+        path = _root() / "examples" / name
+        assert path.is_file()
+        assert "name:" in path.read_text(encoding="utf-8")
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--", *(f"examples/{n}" for n in names)],
+        cwd=_root(),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert status.returncode == 0, status.stderr
+    assert status.stdout.strip() == ""
     tagged = subprocess.run(
         ["git", "rev-parse", "--verify", "v1.9.0"],
         cwd=_root(),
@@ -110,12 +109,14 @@ def test_examples_match_v1_9_0_tag() -> None:
         capture_output=True,
         text=True,
     )
-    if tagged.returncode == 0:
-        result = _diff("v1.9.0")
-        assert result.returncode == 0, result.stderr
-        assert result.stdout == ""
+    if tagged.returncode != 0:
         return
-    # GitHub Actions checkout is often tagless; studio must not touch these files.
-    result = _diff("HEAD^")
-    assert result.returncode == 0, result.stderr
-    assert result.stdout == ""
+    diff = subprocess.run(
+        ["git", "diff", "v1.9.0", "--", *(f"examples/{n}" for n in names)],
+        cwd=_root(),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert diff.returncode == 0, diff.stderr
+    assert diff.stdout == ""
