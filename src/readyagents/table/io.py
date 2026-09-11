@@ -8,7 +8,13 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from readyagents.errors import PathError, TableCapExceeded, TableExtraMissing, TablePathDenied
+from readyagents.errors import (
+    PathError,
+    TableCapExceeded,
+    TableExtraMissing,
+    TablePathDenied,
+    TableSchemaError,
+)
 from readyagents.paths import resolve_within
 from readyagents.table.part import Column, TablePart
 from readyagents.table.schema import coerce_row, infer_columns, parse_declared
@@ -38,24 +44,45 @@ def read_table(
     declared: dict[str, Any] | None = None,
     max_rows: int = DEFAULT_MAX_ROWS,
     max_bytes: int = DEFAULT_MAX_BYTES,
+    on_row_error: str = "fail",
 ) -> TablePart:
     parsed = _parse_source(source)
     kind = parsed["kind"]
     path = confine(parsed["path"], workspace)
     columns_decl = parse_declared(declared)
+    policy = str(on_row_error or "fail").strip().lower()
     if kind == "csv":
         rows, names = _iter_csv(path, max_bytes=max_bytes)
         return _ingest(
-            store, rows, names, columns_decl, max_rows=max_rows, max_bytes=max_bytes, op="read"
+            store,
+            rows,
+            names,
+            columns_decl,
+            max_rows=max_rows,
+            max_bytes=max_bytes,
+            op="read",
+            on_row_error=policy,
         )
     if kind in {"jsonl", "json"}:
         rows, names = _iter_jsonl(path, max_bytes=max_bytes)
         return _ingest(
-            store, rows, names, columns_decl, max_rows=max_rows, max_bytes=max_bytes, op="read"
+            store,
+            rows,
+            names,
+            columns_decl,
+            max_rows=max_rows,
+            max_bytes=max_bytes,
+            op="read",
+            on_row_error=policy,
         )
     if kind == "parquet":
         return _read_parquet(
-            path, store, declared=columns_decl, max_rows=max_rows, max_bytes=max_bytes
+            path,
+            store,
+            declared=columns_decl,
+            max_rows=max_rows,
+            max_bytes=max_bytes,
+            on_row_error=policy,
         )
     raise TablePathDenied(f"unsupported table kind {kind!r}")
 
@@ -163,26 +190,49 @@ def _ingest(
     max_rows: int,
     max_bytes: int,
     op: str,
+    on_row_error: str = "fail",
 ) -> TablePart:
+    policy = str(on_row_error or "fail").strip().lower()
+    quarantined: list[dict[str, Any]] = []
     if declared is not None:
+        columns = declared
+    else:
+        buffered = list(rows)
+        if len(buffered) > max_rows:
+            raise TableCapExceeded("rows", len(buffered), max_rows)
+        columns = infer_columns(buffered, names=names or None)
+        if names:
+            order = [c for n in names for c in columns if c.name == n]
+            extra = [c for c in columns if c.name not in names]
+            columns = order + extra
+        rows = iter(buffered)
 
-        def coerced() -> Iterator[dict[str, Any]]:
-            for index, row in enumerate(rows):
-                if index + 1 > max_rows:
-                    raise TableCapExceeded("rows", index + 1, max_rows)
-                yield coerce_row(row, declared, index=index)
+    def coerced() -> Iterator[dict[str, Any]]:
+        for index, row in enumerate(rows):
+            if index + 1 > max_rows:
+                raise TableCapExceeded("rows", index + 1, max_rows)
+            try:
+                yield coerce_row(row, columns, index=index)
+            except TableSchemaError as exc:
+                if policy == "fail":
+                    raise
+                if policy == "quarantine":
+                    quarantined.append({"row": index, "column": exc.column, "reason": "schema"})
+                # skip: drop the row
 
-        return store.put_rows(declared, coerced(), max_rows=max_rows, max_bytes=max_bytes, op=op)
-    buffered = list(rows)
-    if len(buffered) > max_rows:
-        raise TableCapExceeded("rows", len(buffered), max_rows)
-    columns = infer_columns(buffered, names=names or None)
-    if names:
-        order = [c for n in names for c in columns if c.name == n]
-        extra = [c for c in columns if c.name not in names]
-        columns = order + extra
-    coerced_rows = [coerce_row(row, columns, index=i) for i, row in enumerate(buffered)]
-    return store.put_rows(columns, coerced_rows, max_rows=max_rows, max_bytes=max_bytes, op=op)
+    part = store.put_rows(columns, coerced(), max_rows=max_rows, max_bytes=max_bytes, op=op)
+    if quarantined:
+        err_cols = [
+            Column(name="row", type="int"),
+            Column(name="column", type="str"),
+            Column(name="reason", type="str"),
+        ]
+        errors = store.put_rows(
+            err_cols, quarantined, max_rows=max_rows, max_bytes=max_bytes, op="errors"
+        )
+        part.errors_sha256 = errors.sha256
+        part.errors_row_count = errors.row_count
+    return part
 
 
 def _read_parquet(
@@ -192,6 +242,7 @@ def _read_parquet(
     declared: list[Column] | None,
     max_rows: int,
     max_bytes: int,
+    on_row_error: str = "fail",
 ) -> TablePart:
     try:
         import pyarrow.parquet as pq
@@ -200,11 +251,16 @@ def _read_parquet(
     table = pq.read_table(path)
     names = list(table.column_names)
     rows = table.to_pylist()
-    if len(rows) > max_rows:
-        raise TableCapExceeded("rows", len(rows), max_rows)
-    columns = declared or infer_columns(rows, names=names)
-    coerced = [coerce_row(row, columns, index=i) for i, row in enumerate(rows)]
-    return store.put_rows(columns, coerced, max_rows=max_rows, max_bytes=max_bytes, op="read")
+    return _ingest(
+        store,
+        iter(rows),
+        names,
+        declared,
+        max_rows=max_rows,
+        max_bytes=max_bytes,
+        op="read",
+        on_row_error=on_row_error,
+    )
 
 
 def _write_parquet(part: TablePart, path: Path, store: TableStore) -> None:
