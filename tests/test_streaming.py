@@ -25,6 +25,7 @@ from readyagents.workflow.stream import (
     VoiceReadySession,
     format_sse,
     snapshot_events,
+    sse_snapshot_bytes,
     wants_event_stream,
 )
 
@@ -284,11 +285,16 @@ def test_mcp_sse_http_emits_durable_events(tmp_settings, examples_dir: Path) -> 
     assert not wants_event_stream("*/*")
     assert not wants_event_stream("application/json")
     assert wants_event_stream("text/event-stream")
-    assert wants_event_stream("application/json, text/event-stream")
+    assert wants_event_stream("text/event-stream, application/json")
+    assert not wants_event_stream("application/json, text/event-stream")
     frame = format_sse({"event": "run.finished", "run_id": state.run_id})
     assert frame.startswith(b"data: ")
     assert b"run.finished" in frame
     assert state.run_id.encode() in frame
+    body = sse_snapshot_bytes(state)
+    assert body.count(b"data: ") >= 2
+    assert b"run.finished" in body
+    assert other.run_id.encode() not in body
 
 
 def test_scripted_stream_matches_complete() -> None:

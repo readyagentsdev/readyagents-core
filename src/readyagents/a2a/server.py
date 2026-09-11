@@ -162,12 +162,12 @@ def compose_a2a_app(
         return JSONResponse({"jsonrpc": "2.0", "id": rpc_id, "result": result})
 
     async def task_stream(request: Any) -> Any:
-        from starlette.responses import StreamingResponse
+        from starlette.responses import Response
 
         from readyagents.workflow.stream import (
-            format_sse,
             get_stream_hub,
             snapshot_events,
+            sse_snapshot_bytes,
             wants_event_stream,
         )
 
@@ -185,35 +185,12 @@ def compose_a2a_app(
         queue = hub.try_subscribe(state.run_id)
         if queue is None:
             return JSONResponse({"error": "stream cap exceeded"}, status_code=429)
-
-        terminal = frozenset({"succeeded", "failed", "cancelled", "paused"})
-
-        async def _gen():
-            try:
-                for item in snapshot_events(state):
-                    yield format_sse(item)
-                if getattr(state, "status", "") in terminal:
-                    return
-                import asyncio
-
-                for _ in range(40):
-                    while queue:
-                        yield format_sse(queue.popleft())
-                    try:
-                        latest = surface._load(task_id)
-                    except ReadyAgentsError:
-                        return
-                    if getattr(latest, "status", "") in terminal:
-                        for item in snapshot_events(latest):
-                            if item.get("event") in {"run.finished", "run.cancelled"}:
-                                yield format_sse(item)
-                        return
-                    await asyncio.sleep(0.05)
-            finally:
-                hub.unsubscribe(state.run_id, queue)
-
-        return StreamingResponse(
-            _gen(),
+        try:
+            extra = list(queue)
+        finally:
+            hub.unsubscribe(state.run_id, queue)
+        return Response(
+            sse_snapshot_bytes(state, extra),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-store"},
         )
