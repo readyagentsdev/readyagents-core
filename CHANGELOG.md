@@ -17,8 +17,9 @@ All notable changes to ReadyAgents Core.
   `overlay.yaml` and still requires confirm when permissions widen. Installed
   fixtures run under `readyagents eval`. A signed static JSON index
   (`kind: package_index`) is verified; unsigned indexes are refused. Not a
-  hosted marketplace. Repos that never package are unchanged. See
-  [docs/packaging.md](docs/packaging.md).
+  hosted marketplace. Repos that never package are unchanged. Secret
+  scans cover `.pem` / `.key` and suffixless key files; `fixtures: evals/`
+  is a directory. See [docs/packaging.md](docs/packaging.md).
 - **Agent Skills interop.** Install open-format `SKILL.md` folders
   (`readyagents skills add|list|show|remove`). `type: skill` injects
   instructions as untrusted attributed text, runs bundled scripts only in

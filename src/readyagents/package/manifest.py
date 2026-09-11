@@ -197,6 +197,9 @@ def _relative(value: str) -> str:
         raise ValueError("path must be non-empty")
     if text.startswith("/") or text.startswith("~") or re.match(r"^[A-Za-z]:/", text):
         raise ValueError(f"absolute path refused: {value}")
+    text = text.rstrip("/")
+    if not text:
+        raise ValueError(f"path refused: {value}")
     parts = Path(text).parts
     if ".." in parts or parts[:1] == (".",) and len(parts) == 1:
         raise ValueError(f"path refused: {value}")
