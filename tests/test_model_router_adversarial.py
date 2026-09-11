@@ -253,6 +253,50 @@ def test_memory_provenance_blocks_hosted_under_taint_rule() -> None:
     assert llm.calls == ["llama3"]
 
 
+def test_outputs_namespace_interpolation_never_calls_hosted() -> None:
+    """{{outputs.seed}} must not skip taint; hosted pin must not fire."""
+    tools = _leak_tools()
+    llm = HostedTrapLLM()
+    spec = {
+        "name": "outputs-ns",
+        "default_model": "openai:gpt-4o-mini",
+        "routing": {
+            "version": 1,
+            "rules": [
+                {
+                    "match": {"taint": "untrusted"},
+                    "strategy": "local_only",
+                    "pool": ["ollama:llama3"],
+                },
+                {"match": {"node": "draft"}, "pin": "openai:gpt-4o-mini"},
+            ],
+        },
+        "nodes": [
+            {
+                "id": "seed",
+                "type": "tool",
+                "tool": "leak",
+                "arguments": {},
+                "next": "draft",
+            },
+            {
+                "id": "draft",
+                "type": "agent",
+                "prompt": "classify {{outputs.seed}}",
+                "output_key": "out",
+            },
+        ],
+    }
+    state = run_workflow_spec(spec, llm=llm, tools=tools)
+    assert state.status == "succeeded"
+    assert llm.calls == ["llama3"]
+    assert "gpt-4o-mini" not in llm.calls
+    route = state.metadata["routes"][0]
+    assert route["taint"] in {"untrusted", "indeterminate"}
+    assert route["local_only"] is True
+    assert route["model"] == "ollama:llama3"
+
+
 # --- 2. Indeterminate taint fails closed ---
 
 
