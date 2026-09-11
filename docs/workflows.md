@@ -279,6 +279,21 @@ scopes cannot expand into another subject. See [memory.md](memory.md).
   output_key: stored
 ```
 
+## Tables (`type: table`, `type: classify`)
+
+Opt-in tabular values with eight deterministic ops and remainder-only
+`classify`. See [data pipelines](data-pipelines.md). Unreleased. Not a
+warehouse. `json_get` / `foreach` defaults are unchanged.
+
+```yaml
+- id: load
+  type: table
+  op: read
+  source: {kind: csv, path: exports.csv}
+  schema: {id: int, email: str, amount: float}
+  output_key: rows
+```
+
 ## Knowledge (`type: ingest`)
 
 Opt-in ingest into the shipped memory store with declared chunking, document

@@ -6,6 +6,21 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Data pipeline nodes (`type: table`, `type: classify`).** A typed table
+  part (columns, row count, content hash) stores rows on disk, never in the
+  run record or cassette. Eight deterministic ops (`select`, `filter`, `join`,
+  `aggregate`, `sort`, `dedupe`, `union`, `derive`) are pure and recorded by
+  hash. Stdlib is sufficient; an optional `table` extra (pandas/pyarrow) must
+  match. Schema validation names the row and column and never prints the cell
+  value. `classify` applies rules first and sends only remainder rows to a
+  model in declared batches, with per-row provenance and remainder-only spend.
+  `on_row_error` is fail, skip, or quarantine. CSV/JSONL/Parquet I/O uses the
+  containment helper; CSV injection (`=`/`+`) is prefixed on export. Row and
+  byte caps raise a typed error. `readyagents table head|schema|stats`
+  inspects an intermediate table. Foreach default cap 32/100 is unchanged;
+  `scale_items` / `concurrency` are opt-in. `json_get` / `json_set` / existing
+  node types stay byte-identical. Not a warehouse or Spark. See
+  [docs/data-pipelines.md](docs/data-pipelines.md).
 - **Knowledge pipelines (`type: ingest`).** Ingest a file, directory, or
   connector into the shipped memory store with declared chunk strategies
   (`fixed` with overlap, `paragraph`, heading-aware Markdown, row-group

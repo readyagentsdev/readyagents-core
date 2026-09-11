@@ -1,0 +1,37 @@
+name: table_pipeline
+version: "1"
+description: >
+  Opt-in type: table and type: classify. Validate without keys.
+  Deterministic ops stay deterministic; the model only sees remainder rows.
+  Plumbing and governance, not a warehouse or retrieval-quality claim.
+  Run: readyagents validate examples/table_pipeline.yaml
+
+nodes:
+  - id: load
+    type: table
+    op: read
+    source: {kind: csv, path: exports.csv}
+    schema: {id: int, email: str, amount: float}
+    output_key: rows
+    next: dupes
+
+  - id: dupes
+    type: table
+    op: dedupe
+    source: "{{ rows }}"
+    keys: [email]
+    keep: first
+    output_key: unique
+    next: triage
+
+  - id: triage
+    type: classify
+    source: "{{ unique }}"
+    rules:
+      - {when: "amount < 10", label: auto_approve}
+    model_for_remainder:
+      model: mock:test
+      batch: 25
+      labels: [approve, review, reject]
+    on_row_error: quarantine
+    output_key: labelled

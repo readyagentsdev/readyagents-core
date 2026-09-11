@@ -69,7 +69,7 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
     ),
     NodeType.parallel: ("branches",),
     NodeType.include: ("path", "inputs"),
-    NodeType.foreach: ("items", "max_items", "body"),
+    NodeType.foreach: ("items", "max_items", "body", "scale_items", "concurrency"),
     NodeType.a2a: ("agent_url", "message", "on_input_required", "token", "contract"),
     NodeType.memory: (
         "op",
@@ -118,6 +118,35 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
         "embed",
         "contract",
     ),
+    NodeType.table: (
+        "op",
+        "source",
+        "schema",
+        "columns",
+        "keys",
+        "keep",
+        "how",
+        "on",
+        "right",
+        "metrics",
+        "by",
+        "descending",
+        "derive",
+        "when",
+        "path",
+        "limits",
+        "on_row_error",
+        "contract",
+    ),
+    NodeType.classify: (
+        "source",
+        "rules",
+        "model_for_remainder",
+        "on_row_error",
+        "model",
+        "limits",
+        "contract",
+    ),
 }
 
 NODE_TYPE_REQUIRED: dict[NodeType, tuple[str, ...]] = {
@@ -134,6 +163,8 @@ NODE_TYPE_REQUIRED: dict[NodeType, tuple[str, ...]] = {
     NodeType.document: ("source",),
     NodeType.transcribe: ("source",),
     NodeType.ingest: ("source", "scope"),
+    NodeType.table: ("op",),
+    NodeType.classify: ("source",),
 }
 
 _PYTHON_ONLY_ALIASES: Final[tuple[str, ...]] = ("else_", "from_", "call_inputs")

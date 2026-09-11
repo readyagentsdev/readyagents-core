@@ -613,8 +613,10 @@ def run_workflow_file(
         stream=stream,
     )
     from readyagents.media.store import MediaStore
+    from readyagents.table.store import TableStore
 
     ctx.media_store = MediaStore(settings.home_path() / "media")
+    ctx.table_store = TableStore(settings.home_path() / "tables")
     if stream is not None:
         stream._on_persist = _save if persist else None
         if getattr(stream, "_redactor", None) is None:

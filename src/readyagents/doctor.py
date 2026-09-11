@@ -63,6 +63,7 @@ def run_doctor() -> dict[str, Any]:
         "image": _can_import("PIL"),
         "pdf": _can_import("pypdf"),
         "audio": _can_import("pydub"),
+        "table": _can_import("pandas"),
     }
     sqlite_wal = _sqlite_wal()
     if not sqlite_wal:

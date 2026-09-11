@@ -1237,6 +1237,21 @@
                 "default": null,
                 "description": "Node executed once per item."
               },
+              "concurrency": {
+                "anyOf": [
+                  {
+                    "maximum": 8,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Opt-in foreach workers (1–8). Omitted means sequential.",
+                "title": "Concurrency"
+              },
               "items": {
                 "anyOf": [
                   {
@@ -1264,6 +1279,21 @@
                 "default": null,
                 "description": "Maximum items this foreach will process (1–100).",
                 "title": "Max Items"
+              },
+              "scale_items": {
+                "anyOf": [
+                  {
+                    "maximum": 100000,
+                    "minimum": 101,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Opt-in foreach cap above 100. Default 32/100 is unchanged when omitted.",
+                "title": "Scale Items"
               }
             },
             "required": [
@@ -2062,6 +2092,359 @@
             ],
             "type": "object"
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "table"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "by": {
+                "description": "sort column names.",
+                "items": {
+                  "type": "string"
+                },
+                "title": "By",
+                "type": "array"
+              },
+              "columns": {
+                "description": "table select column names.",
+                "items": {
+                  "type": "string"
+                },
+                "title": "Columns",
+                "type": "array"
+              },
+              "contract": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContractSpec"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Opt-in output contract: structural schema, named content rules, and a declared action (fail, repair, fallback, gate, redact_and_continue)."
+              },
+              "derive": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "derive: {name, expr}.",
+                "title": "Derive"
+              },
+              "descending": {
+                "default": false,
+                "description": "sort descending when true.",
+                "title": "Descending",
+                "type": "boolean"
+              },
+              "how": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "join how: inner or left.",
+                "title": "How"
+              },
+              "keep": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "dedupe keep: first or last.",
+                "title": "Keep"
+              },
+              "keys": {
+                "description": "table dedupe/join/aggregate key columns.",
+                "items": {
+                  "type": "string"
+                },
+                "title": "Keys",
+                "type": "array"
+              },
+              "limits": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "code limits: cpu_seconds, memory_mb, wall_seconds, output_bytes, nproc.",
+                "title": "Limits"
+              },
+              "metrics": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "aggregate metrics: {column: sum|count|avg|min|max}.",
+                "title": "Metrics"
+              },
+              "on": {
+                "description": "join key column names shared by both tables.",
+                "items": {
+                  "type": "string"
+                },
+                "title": "On",
+                "type": "array"
+              },
+              "on_row_error": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Row error policy: fail, skip, or quarantine.",
+                "title": "On Row Error"
+              },
+              "op": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "memory op: write, read, search, or forget.",
+                "title": "Op"
+              },
+              "path": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Workspace-relative path of the included workflow file.",
+                "title": "Path"
+              },
+              "right": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Right table template for join/union.",
+                "title": "Right"
+              },
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Declared table column types: {name: int|str|float|bool}.",
+                "title": "Schema"
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Transform/document path, or ingest {kind, path, glob}.",
+                "title": "Source"
+              },
+              "when": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Condition expression (not Python eval).",
+                "title": "When"
+              }
+            },
+            "required": [
+              "op"
+            ],
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "classify"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "contract": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContractSpec"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Opt-in output contract: structural schema, named content rules, and a declared action (fail, repair, fallback, gate, redact_and_continue)."
+              },
+              "limits": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "code limits: cpu_seconds, memory_mb, wall_seconds, output_bytes, nproc.",
+                "title": "Limits"
+              },
+              "model": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "LLM ref for this agent (provider:model). Overrides default_model.",
+                "title": "Model"
+              },
+              "model_for_remainder": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "classify remainder: {model, batch, labels}.",
+                "title": "Model For Remainder"
+              },
+              "on_row_error": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Row error policy: fail, skip, or quarantine.",
+                "title": "On Row Error"
+              },
+              "rules": {
+                "anyOf": [
+                  {
+                    "items": {},
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "classify deterministic rules: [{when, label}].",
+                "title": "Rules"
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Transform/document path, or ingest {kind, path, glob}.",
+                "title": "Source"
+              }
+            },
+            "required": [
+              "source"
+            ],
+            "type": "object"
+          }
         }
       ],
       "description": "One node in the workflow graph.",
@@ -2176,14 +2559,16 @@
                 "team",
                 "document",
                 "transcribe",
-                "ingest"
+                "ingest",
+                "table",
+                "classify"
               ]
             },
             {
               "type": "string"
             }
           ],
-          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory, code, team, document, transcribe, ingest. Packs may add additional types.",
+          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory, code, team, document, transcribe, ingest, table, classify. Packs may add additional types.",
           "title": "Type"
         }
       },
