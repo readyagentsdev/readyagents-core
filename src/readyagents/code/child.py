@@ -5,7 +5,6 @@ from __future__ import annotations
 import builtins
 import json
 import os
-import signal
 import sys
 import threading
 import time
@@ -208,8 +207,10 @@ def _rss_bytes() -> int:
     if os.name == "nt":
         return _rss_windows()
     try:
-        statm = Path("/proc/self/statm").read_text(encoding="ascii")
-        parts = statm.split()
+        # Binary + real open: Path.read_text(encoding=) imports encodings.*
+        # through the sandbox hook and kills the child with EXIT_IMPORT.
+        with _REAL_OPEN("/proc/self/statm", "rb") as fh:
+            parts = fh.read().split()
         if len(parts) >= 2:
             return int(parts[1]) * int(os.sysconf("SC_PAGE_SIZE"))
     except (OSError, ValueError):
@@ -293,20 +294,6 @@ def _arm_mem_watch(memory_mb: float) -> None:
                 _trip()
 
     threading.Thread(target=_watch, daemon=True).start()
-    # Virtual-time alarm runs on the main thread between bytecodes so a
-    # GIL-holding memset cannot starve the RSS check. Sleep is not CPU, so
-    # ITIMER_VIRTUAL does not interrupt wall-clock sleep.
-    if hasattr(signal, "setitimer") and hasattr(signal, "SIGVTALRM"):
-
-        def _on_vtalrm(_signum, _frame) -> None:
-            if _rss_bytes() >= limit:
-                _trip()
-
-        try:
-            signal.signal(signal.SIGVTALRM, _on_vtalrm)
-            signal.setitimer(signal.ITIMER_VIRTUAL, 0.05, 0.05)
-        except (ValueError, OSError, AttributeError):
-            pass
 
 
 def main() -> int:
