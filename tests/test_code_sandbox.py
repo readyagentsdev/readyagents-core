@@ -216,7 +216,7 @@ nodes:
 
 
 def test_memory_limit(tmp_settings, tmp_path: Path) -> None:
-    """Chunked alloc over memory_mb; a terabyte memset is CPU, not MemoryError."""
+    """Non-zero pages over memory_mb. Zero-fill can stay compressed on Darwin."""
     path = _wf(
         tmp_path,
         """
@@ -226,8 +226,11 @@ nodes:
     type: code
     source: |
       blocks = []
+      unit = bytes(range(256))
       while True:
-          blocks.append(bytearray(8 * 1024 * 1024))
+          block = bytearray(unit * 8192)
+          block[0] = len(blocks) & 255
+          blocks.append(block)
       result = {"n": len(blocks)}
     limits:
       cpu_seconds: 30

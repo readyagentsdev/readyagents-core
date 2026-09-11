@@ -5,10 +5,16 @@ from __future__ import annotations
 import builtins
 import json
 import os
+import signal
 import sys
 import threading
 import time
 from pathlib import Path
+
+try:
+    import resource as _RESOURCE
+except ImportError:
+    _RESOURCE = None
 
 EXIT_OK = 0
 EXIT_NO_RESULT = 10
@@ -208,12 +214,15 @@ def _rss_bytes() -> int:
             return int(parts[1]) * int(os.sysconf("SC_PAGE_SIZE"))
     except (OSError, ValueError):
         pass
+    if _RESOURCE is None:
+        return 0
     try:
-        import resource
-
-        rss = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
-        # Linux is KB; macOS/BSD is bytes.
+        rss = int(_RESOURCE.getrusage(_RESOURCE.RUSAGE_SELF).ru_maxrss)
+        # Linux is KB. Darwin is bytes; some CI Pythons report KB (values < 1MiB
+        # cannot be a live CPython RSS measured in bytes).
         if sys.platform.startswith("linux"):
+            return rss * 1024
+        if sys.platform == "darwin" and 0 < rss < 1_000_000:
             return rss * 1024
         return rss
     except Exception:
@@ -222,8 +231,8 @@ def _rss_bytes() -> int:
 
 def _rss_windows() -> int:
     try:
-        import ctypes
-        from ctypes import wintypes
+        ctypes = _REAL_IMPORT("ctypes")
+        wintypes = _REAL_IMPORT("ctypes.wintypes")
     except ImportError:
         return 0
 
@@ -247,6 +256,13 @@ def _rss_windows() -> int:
     try:
         psapi = ctypes.WinDLL("psapi", use_last_error=True)
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        psapi.GetProcessMemoryInfo.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(PROCESS_MEMORY_COUNTERS_EX),
+            wintypes.DWORD,
+        ]
+        psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
         handle = kernel32.GetCurrentProcess()
         ok = psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb)
         if ok:
@@ -266,15 +282,31 @@ def _arm_mem_watch(memory_mb: float) -> None:
     if limit <= 0:
         return
 
+    def _trip() -> None:
+        sys.stderr.write("memory / address-space limit exceeded\n")
+        os._exit(EXIT_MEM)
+
     def _watch() -> None:
         while True:
             time.sleep(0.02)
-            rss = _rss_bytes()
-            if rss >= limit:
-                sys.stderr.write("memory / address-space limit exceeded\n")
-                os._exit(EXIT_MEM)
+            if _rss_bytes() >= limit:
+                _trip()
 
     threading.Thread(target=_watch, daemon=True).start()
+    # Virtual-time alarm runs on the main thread between bytecodes so a
+    # GIL-holding memset cannot starve the RSS check. Sleep is not CPU, so
+    # ITIMER_VIRTUAL does not interrupt wall-clock sleep.
+    if hasattr(signal, "setitimer") and hasattr(signal, "SIGVTALRM"):
+
+        def _on_vtalrm(_signum, _frame) -> None:
+            if _rss_bytes() >= limit:
+                _trip()
+
+        try:
+            signal.signal(signal.SIGVTALRM, _on_vtalrm)
+            signal.setitimer(signal.ITIMER_VIRTUAL, 0.05, 0.05)
+        except (ValueError, OSError, AttributeError):
+            pass
 
 
 def main() -> int:
