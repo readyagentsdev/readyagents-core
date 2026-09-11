@@ -85,11 +85,11 @@ def test_boundary_split_secret_not_in_joined_token_text(tmp_settings) -> None:
 
 
 def test_unauthorised_sse_does_not_stream_run_events(tmp_settings) -> None:
+    from starlette.applications import Starlette
     from starlette.testclient import TestClient
 
-    from readyagents.mcp.http import compose_http_app
-    from readyagents.mcp.run_api import RunCoordinator
-    from readyagents.mcp.server import construct_server
+    from readyagents.mcp.http import AuthMiddleware
+    from readyagents.mcp.run_api import RunCoordinator, build_run_routes
 
     workspace = tmp_settings.workspace_path()
     path = workspace / "sse_adv.yaml"
@@ -105,12 +105,9 @@ def test_unauthorised_sse_does_not_stream_run_events(tmp_settings) -> None:
     state = run_workflow_file(path, settings=tmp_settings, persist=True)
     other = run_workflow_file(path, settings=tmp_settings, persist=True)
     coord = RunCoordinator(settings=tmp_settings, workspace=workspace)
-    asgi = compose_http_app(
-        server=construct_server(allow_http=False, workspace=workspace),
-        coordinator=coord,
+    asgi = AuthMiddleware(
+        Starlette(routes=build_run_routes(coord)),
         token=_SSE_TOKEN,
-        bind_host="127.0.0.1",
-        bind_port=8765,
     )
     try:
         with TestClient(asgi, base_url="http://127.0.0.1:8765") as client:

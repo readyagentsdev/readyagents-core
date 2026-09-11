@@ -176,36 +176,29 @@ def compose_a2a_app(
         if queue is None:
             return JSONResponse({"error": "stream cap exceeded"}, status_code=429)
 
+        terminal = frozenset({"succeeded", "failed", "cancelled", "paused"})
+
         async def _gen():
             try:
                 for item in snapshot_events(state):
                     yield format_sse(item)
-                if getattr(state, "status", "") in {"succeeded", "failed", "cancelled", "paused"}:
+                if getattr(state, "status", "") in terminal:
                     return
                 import asyncio
 
-                idle = 0
-                while idle < 200:
-                    if queue:
+                for _ in range(40):
+                    while queue:
                         yield format_sse(queue.popleft())
-                        idle = 0
-                        continue
-                    await asyncio.sleep(0.05)
-                    idle += 1
                     try:
                         latest = surface._load(task_id)
                     except ReadyAgentsError:
-                        break
-                    if getattr(latest, "status", "") in {
-                        "succeeded",
-                        "failed",
-                        "cancelled",
-                        "paused",
-                    }:
+                        return
+                    if getattr(latest, "status", "") in terminal:
                         for item in snapshot_events(latest):
                             if item.get("event") in {"run.finished", "run.cancelled"}:
                                 yield format_sse(item)
-                        break
+                        return
+                    await asyncio.sleep(0.05)
             finally:
                 hub.unsubscribe(state.run_id, queue)
 
