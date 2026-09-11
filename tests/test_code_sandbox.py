@@ -197,10 +197,11 @@ nodes:
     allow_imports: [json, os]
     source: |
       import os
-      os.fork()
-      os.fork()
-      os.fork()
-      result = {"ok": true}
+      if hasattr(os, "fork"):
+          os.fork()
+      else:
+          os.system("echo")
+      result = {"ok": True}
     limits:
       nproc: 1
       wall_seconds: 5
