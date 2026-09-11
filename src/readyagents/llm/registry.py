@@ -6,8 +6,11 @@ from readyagents.config import Settings, get_settings, require_api_key
 from readyagents.errors import LLMError
 from readyagents.llm.anthropic_provider import AnthropicProvider
 from readyagents.llm.base import LLMProvider, parse_model_ref
+from readyagents.llm.bedrock_provider import BedrockProvider
+from readyagents.llm.gemini_provider import GeminiProvider
 from readyagents.llm.openai_compat import OpenAICompatProvider
 from readyagents.llm.openai_provider import OpenAIProvider
+from readyagents.llm.vertex_provider import VertexProvider
 from readyagents.logging import get_logger
 
 log = get_logger("llm")
@@ -31,6 +34,12 @@ def _has_key(settings: Settings, provider_name: str, secrets: object = None) -> 
         name = "openai"
     elif provider_name == "anthropic":
         name = "anthropic"
+    elif provider_name == "gemini":
+        name = "gemini"
+    elif provider_name == "bedrock":
+        name = "bedrock"
+    elif provider_name == "vertex":
+        name = "vertex"
     elif provider_name in _COMPAT_NAMES:
         name = "openai-compat"
     else:
@@ -97,6 +106,27 @@ def get_provider(
         key = require_api_key("anthropic", settings, secrets=secrets)
         return AnthropicProvider(key), model_id
 
+    if provider_name == "gemini":
+        key = require_api_key("gemini", settings, secrets=secrets)
+        return GeminiProvider(key), model_id
+
+    if provider_name == "bedrock":
+        access, secret, region, token = _bedrock_creds(settings, secrets)
+        return BedrockProvider(
+            access_key=access,
+            secret_key=secret,
+            region=region,
+            session_token=token,
+        ), model_id
+
+    if provider_name == "vertex":
+        project, location, cred_path = _vertex_creds(settings, secrets)
+        return VertexProvider(
+            project=project,
+            location=location,
+            credentials_path=cred_path,
+        ), model_id
+
     if provider_name in _COMPAT_NAMES:
         base = settings.openai_compat_base_url
         if not base:
@@ -124,5 +154,46 @@ def get_provider(
 
     raise LLMError(
         f"Unknown LLM provider '{provider_name}'. "
-        "Use openai, anthropic, or openai-compat (Groq/Ollama)."
+        "Use openai, anthropic, openai-compat (Groq/Ollama), gemini, bedrock, or vertex."
     )
+
+
+def _bedrock_creds(settings: Settings, secrets: object) -> tuple[str, str, str, str | None]:
+    from readyagents.secrets import secret_for_provider
+
+    access = settings.api_key_for("bedrock") or secret_for_provider(
+        "bedrock", settings=None, secrets=secrets
+    )
+    secret = getattr(settings, "aws_secret_access_key", None) or secret_for_provider(
+        "bedrock_secret", settings=None, secrets=secrets
+    )
+    region = (
+        getattr(settings, "aws_region", None)
+        or secret_for_provider("bedrock_region", settings=None, secrets=secrets)
+        or "us-east-1"
+    )
+    token = getattr(settings, "aws_session_token", None) or secret_for_provider(
+        "bedrock_session", settings=None, secrets=secrets
+    )
+    if not access or not secret:
+        raise LLMError(
+            "No API key configured for provider 'bedrock'. ReadyAgents is BYOK — "
+            "Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (and optionally AWS_REGION)."
+        )
+    return str(access), str(secret), str(region), str(token) if token else None
+
+
+def _vertex_creds(settings: Settings, secrets: object) -> tuple[str, str, str | None]:
+    from readyagents.secrets import secret_for_provider
+
+    project = getattr(settings, "vertex_project", None) or secret_for_provider(
+        "vertex", settings=None, secrets=secrets
+    )
+    location = getattr(settings, "vertex_location", None) or "us-central1"
+    cred_path = getattr(settings, "google_application_credentials", None)
+    if not project:
+        raise LLMError(
+            "No API key configured for provider 'vertex'. ReadyAgents is BYOK — "
+            "Set VERTEX_PROJECT or GOOGLE_CLOUD_PROJECT."
+        )
+    return str(project), str(location), str(cred_path) if cred_path else None

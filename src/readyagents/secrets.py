@@ -43,6 +43,16 @@ _PROVIDER_KEYS = {
         "GROQ_API_KEY",
         "OPENAI_API_KEY",
     ),
+    "gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY", "READYAGENTS_GEMINI_API_KEY"),
+    "bedrock": ("AWS_ACCESS_KEY_ID", "READYAGENTS_AWS_ACCESS_KEY_ID"),
+    "bedrock_secret": ("AWS_SECRET_ACCESS_KEY", "READYAGENTS_AWS_SECRET_ACCESS_KEY"),
+    "bedrock_region": ("AWS_REGION", "AWS_DEFAULT_REGION", "BEDROCK_REGION"),
+    "bedrock_session": ("AWS_SESSION_TOKEN",),
+    "vertex": (
+        "VERTEX_PROJECT",
+        "GOOGLE_CLOUD_PROJECT",
+        "READYAGENTS_VERTEX_PROJECT",
+    ),
 }
 
 

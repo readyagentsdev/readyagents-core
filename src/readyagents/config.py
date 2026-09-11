@@ -62,6 +62,53 @@ class Settings(BaseSettings):
             "READYAGENTS_OPENAI_COMPAT_BASE_URL",
         ),
     )
+    gemini_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "GEMINI_API_KEY",
+            "GOOGLE_API_KEY",
+            "READYAGENTS_GEMINI_API_KEY",
+        ),
+    )
+    aws_access_key_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AWS_ACCESS_KEY_ID", "READYAGENTS_AWS_ACCESS_KEY_ID"),
+    )
+    aws_secret_access_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "AWS_SECRET_ACCESS_KEY",
+            "READYAGENTS_AWS_SECRET_ACCESS_KEY",
+        ),
+    )
+    aws_session_token: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AWS_SESSION_TOKEN"),
+    )
+    aws_region: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AWS_REGION", "AWS_DEFAULT_REGION", "BEDROCK_REGION"),
+    )
+    vertex_project: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "VERTEX_PROJECT",
+            "GOOGLE_CLOUD_PROJECT",
+            "READYAGENTS_VERTEX_PROJECT",
+        ),
+    )
+    vertex_location: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("VERTEX_LOCATION", "GOOGLE_CLOUD_LOCATION"),
+    )
+    google_application_credentials: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GOOGLE_APPLICATION_CREDENTIALS"),
+    )
+    capability_matrix: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices("READYAGENTS_CAPABILITY_MATRIX"),
+    )
     default_model: str = Field(
         default="openai:gpt-4o-mini",
         validation_alias=AliasChoices("READYAGENTS_DEFAULT_MODEL", "DEFAULT_MODEL"),
@@ -280,6 +327,12 @@ class Settings(BaseSettings):
         "openai_api_key",
         "anthropic_api_key",
         "openai_compat_api_key",
+        "gemini_api_key",
+        "aws_access_key_id",
+        "aws_secret_access_key",
+        "aws_session_token",
+        "vertex_project",
+        "google_application_credentials",
         "decision_secret",
         "mcp_protocol_max",
         mode="before",
@@ -345,6 +398,12 @@ class Settings(BaseSettings):
             return self.anthropic_api_key
         if provider in {"openai-compat", "openai_compat", "compat", "groq", "ollama"}:
             return self.openai_compat_api_key or self.openai_api_key
+        if provider == "gemini":
+            return self.gemini_api_key
+        if provider == "bedrock":
+            return self.aws_access_key_id
+        if provider == "vertex":
+            return self.vertex_project
         return None
 
 
@@ -389,6 +448,9 @@ def require_api_key(
             "Set OPENAI_COMPAT_API_KEY (and OPENAI_COMPAT_BASE_URL) "
             "or OPENAI_API_KEY for a compatible endpoint."
         ),
+        "gemini": "Set GEMINI_API_KEY or GOOGLE_API_KEY (copy .env.example to .env).",
+        "bedrock": "Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (and AWS_REGION).",
+        "vertex": "Set VERTEX_PROJECT or GOOGLE_CLOUD_PROJECT.",
     }
     hint = hints.get(provider.lower(), f"Set an API key for provider '{provider}'.")
     raise LLMError(f"No API key configured for provider '{provider}'. ReadyAgents is BYOK — {hint}")

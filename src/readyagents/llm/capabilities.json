@@ -1,0 +1,259 @@
+{
+  "version": 1,
+  "updated_at": "2026-09-11T00:00:00Z",
+  "warn_after_days": 90,
+  "models": {
+    "openai:gpt-4o-mini": {
+      "context_window": 128000,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": true,
+      "streaming": true,
+      "local": false,
+      "latency_class": "fast",
+      "quality_class": "standard"
+    },
+    "openai:gpt-4o": {
+      "context_window": 128000,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": true,
+      "streaming": true,
+      "local": false,
+      "latency_class": "standard",
+      "quality_class": "frontier"
+    },
+    "openai:gpt-4.1": {
+      "context_window": 1047576,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": true,
+      "streaming": true,
+      "local": false,
+      "latency_class": "standard",
+      "quality_class": "frontier"
+    },
+    "openai:gpt-4.1-mini": {
+      "context_window": 1047576,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": true,
+      "streaming": true,
+      "local": false,
+      "latency_class": "fast",
+      "quality_class": "standard"
+    },
+    "openai:o3-mini": {
+      "context_window": 200000,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": false,
+      "streaming": true,
+      "local": false,
+      "latency_class": "slow",
+      "quality_class": "frontier"
+    },
+    "anthropic:claude-sonnet-4-5": {
+      "context_window": 200000,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": true,
+      "streaming": true,
+      "local": false,
+      "latency_class": "standard",
+      "quality_class": "frontier"
+    },
+    "anthropic:claude-3-5-sonnet": {
+      "context_window": 200000,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": true,
+      "streaming": true,
+      "local": false,
+      "latency_class": "standard",
+      "quality_class": "frontier"
+    },
+    "anthropic:claude-3-5-haiku": {
+      "context_window": 200000,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": false,
+      "streaming": true,
+      "local": false,
+      "latency_class": "fast",
+      "quality_class": "compact"
+    },
+    "anthropic:claude-opus-4": {
+      "context_window": 200000,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": true,
+      "streaming": true,
+      "local": false,
+      "latency_class": "slow",
+      "quality_class": "frontier"
+    },
+    "groq:llama-3.1-8b-instant": {
+      "context_window": 131072,
+      "tool_calling": true,
+      "structured_output": false,
+      "media": false,
+      "streaming": true,
+      "local": false,
+      "latency_class": "fast",
+      "quality_class": "compact"
+    },
+    "ollama:llama3": {
+      "context_window": 8192,
+      "tool_calling": false,
+      "structured_output": false,
+      "media": false,
+      "streaming": true,
+      "local": true,
+      "latency_class": "standard",
+      "quality_class": "compact"
+    },
+    "ollama:llama3.2": {
+      "context_window": 128000,
+      "tool_calling": true,
+      "structured_output": false,
+      "media": false,
+      "streaming": true,
+      "local": true,
+      "latency_class": "fast",
+      "quality_class": "compact"
+    },
+    "gemini:gemini-2.0-flash": {
+      "context_window": 1048576,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": true,
+      "streaming": true,
+      "local": false,
+      "latency_class": "fast",
+      "quality_class": "standard"
+    },
+    "gemini:gemini-1.5-pro": {
+      "context_window": 2097152,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": true,
+      "streaming": true,
+      "local": false,
+      "latency_class": "standard",
+      "quality_class": "frontier"
+    },
+    "bedrock:anthropic.claude-sonnet-4-5": {
+      "context_window": 200000,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": true,
+      "streaming": true,
+      "local": false,
+      "latency_class": "standard",
+      "quality_class": "frontier"
+    },
+    "bedrock:amazon.nova-lite-v1:0": {
+      "context_window": 300000,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": true,
+      "streaming": true,
+      "local": false,
+      "latency_class": "fast",
+      "quality_class": "compact"
+    },
+    "vertex:gemini-2.0-flash": {
+      "context_window": 1048576,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": true,
+      "streaming": true,
+      "local": false,
+      "latency_class": "fast",
+      "quality_class": "standard"
+    },
+    "vertex:gemini-1.5-pro": {
+      "context_window": 2097152,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": true,
+      "streaming": true,
+      "local": false,
+      "latency_class": "standard",
+      "quality_class": "frontier"
+    }
+  },
+  "prefixes": {
+    "openai:": {
+      "context_window": 128000,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": false,
+      "streaming": true,
+      "local": false,
+      "latency_class": "standard",
+      "quality_class": "standard"
+    },
+    "anthropic:": {
+      "context_window": 200000,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": false,
+      "streaming": true,
+      "local": false,
+      "latency_class": "standard",
+      "quality_class": "frontier"
+    },
+    "groq:": {
+      "context_window": 131072,
+      "tool_calling": true,
+      "structured_output": false,
+      "media": false,
+      "streaming": true,
+      "local": false,
+      "latency_class": "fast",
+      "quality_class": "compact"
+    },
+    "ollama:": {
+      "context_window": 8192,
+      "tool_calling": false,
+      "structured_output": false,
+      "media": false,
+      "streaming": true,
+      "local": true,
+      "latency_class": "standard",
+      "quality_class": "compact"
+    },
+    "gemini:": {
+      "context_window": 1048576,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": true,
+      "streaming": true,
+      "local": false,
+      "latency_class": "fast",
+      "quality_class": "standard"
+    },
+    "bedrock:": {
+      "context_window": 200000,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": false,
+      "streaming": true,
+      "local": false,
+      "latency_class": "standard",
+      "quality_class": "standard"
+    },
+    "vertex:": {
+      "context_window": 1048576,
+      "tool_calling": true,
+      "structured_output": true,
+      "media": true,
+      "streaming": true,
+      "local": false,
+      "latency_class": "standard",
+      "quality_class": "standard"
+    }
+  }
+}
