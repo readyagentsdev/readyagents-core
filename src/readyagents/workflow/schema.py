@@ -40,6 +40,7 @@ class NodeType(StrEnum):
     foreach = "foreach"
     a2a = "a2a"
     memory = "memory"
+    code = "code"
 
 
 class RetrySpec(BaseModel):
@@ -175,7 +176,7 @@ class NodeSpec(BaseModel):
     type: str = Field(
         description=(
             "Node kind. Built-ins: agent, tool, condition, transform, approval, "
-            "parallel, include, foreach, a2a, memory. Packs may add types."
+            "parallel, include, foreach, a2a, memory, code. Packs may add types."
         )
     )
     timeout_seconds: float | None = Field(
@@ -402,6 +403,36 @@ class NodeSpec(BaseModel):
     context: ContextSpec | None = Field(
         default=None,
         description="Declared compaction budget for this memory node.",
+    )
+
+    # code (sandboxed Python)
+    isolation: str | None = Field(
+        default=None,
+        description="code isolation: subprocess (default) or container (optional pack).",
+    )
+    source_from: str | None = Field(
+        default=None,
+        description="Output key whose text is the Python source for a code node.",
+    )
+    allow_imports: list[str] = Field(
+        default_factory=list,
+        description="Import allowlist for a code node. Empty means the default stdlib subset.",
+    )
+    network: bool = Field(
+        default=False,
+        description="If true, the code child may import network modules. Default denied.",
+    )
+    filesystem: dict[str, Any] | None = Field(
+        default=None,
+        description="code filesystem grants: {read: [...], write: [...]} under the workspace.",
+    )
+    limits: dict[str, Any] | None = Field(
+        default=None,
+        description="code limits: cpu_seconds, memory_mb, wall_seconds, output_bytes, nproc.",
+    )
+    require_isolation: str | None = Field(
+        default=None,
+        description="Minimum isolation tier. container fails closed without a runtime pack.",
     )
 
     @field_validator("id")

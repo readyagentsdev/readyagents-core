@@ -255,6 +255,9 @@ def _maybe_node_gate(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> 
     policy = getattr(ctx, "policy", None)
     if policy is None:
         return
+    kind = node.type if isinstance(node.type, str) else str(node.type)
+    if kind == NodeType.code.value:
+        return
     rule = (policy.nodes or {}).get(node.id)
     if rule is None or not rule.require_approval:
         return
@@ -320,6 +323,10 @@ def _execute_node_body(node: NodeSpec, state: RunState, ctx: ExecutionContext) -
         from readyagents.memory.node import run_memory_node
 
         return run_memory_node(node, state, ctx)
+    if kind == NodeType.code.value:
+        from readyagents.code.node import run_code_node
+
+        return run_code_node(node, state, ctx)
     known = ", ".join(t.value for t in NodeType)
     raise WorkflowError(
         f"Unsupported node type '{node.type}' on node '{node.id}'. "

@@ -316,3 +316,68 @@ class RunStoreConflict(RunStoreError):
 
 class SourceMapBoundError(WorkflowError):
     """YAML compose/index exceeded node-count or nesting-depth bounds."""
+
+
+class CodeError(NodeError):
+    """Sandboxed ``type: code`` node failed."""
+
+
+class CodeCpuLimitExceeded(CodeError):
+    def __init__(self, node_id: str, message: str = "CPU time limit exceeded") -> None:
+        super().__init__(node_id, message)
+
+
+class CodeMemoryLimitExceeded(CodeError):
+    def __init__(
+        self, node_id: str, message: str = "memory / address-space limit exceeded"
+    ) -> None:
+        super().__init__(node_id, message)
+
+
+class CodeFileSizeLimitExceeded(CodeError):
+    def __init__(self, node_id: str, message: str = "file size limit exceeded") -> None:
+        super().__init__(node_id, message)
+
+
+class CodeProcessLimitExceeded(CodeError):
+    def __init__(self, node_id: str, message: str = "process count limit exceeded") -> None:
+        super().__init__(node_id, message)
+
+
+class CodeWallLimitExceeded(CodeError):
+    def __init__(self, node_id: str, message: str = "wall-clock limit exceeded") -> None:
+        super().__init__(node_id, message)
+
+
+class CodeOutputLimitExceeded(CodeError):
+    def __init__(self, node_id: str, message: str = "output size limit exceeded") -> None:
+        super().__init__(node_id, message)
+
+
+class CodeImportDenied(CodeError):
+    def __init__(self, node_id: str, message: str = "import is not on the allowlist") -> None:
+        super().__init__(node_id, message)
+
+
+class CodeNetworkDenied(CodeError):
+    def __init__(self, node_id: str, message: str = "sandbox network is denied") -> None:
+        super().__init__(node_id, message)
+
+
+class CodeFilesystemDenied(CodeError):
+    def __init__(self, node_id: str, message: str = "path is outside sandbox grants") -> None:
+        super().__init__(node_id, message)
+
+
+class CodeSchemaError(CodeError):
+    def __init__(self, node_id: str, message: str = "code output failed schema validation") -> None:
+        super().__init__(node_id, message)
+
+
+class CodeContainerUnavailable(CodeError):
+    def __init__(
+        self,
+        node_id: str,
+        message: str = "container isolation is required but no runtime pack is available",
+    ) -> None:
+        super().__init__(node_id, message)

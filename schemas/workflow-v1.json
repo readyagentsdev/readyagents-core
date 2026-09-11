@@ -1059,6 +1059,138 @@
             ],
             "type": "object"
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "code"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "allow_imports": {
+                "description": "Import allowlist for a code node. Empty means the default stdlib subset.",
+                "items": {
+                  "type": "string"
+                },
+                "title": "Allow Imports",
+                "type": "array"
+              },
+              "filesystem": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "code filesystem grants: {read: [...], write: [...]} under the workspace.",
+                "title": "Filesystem"
+              },
+              "inputs": {
+                "additionalProperties": true,
+                "description": "Inputs passed to the included workflow.",
+                "title": "Inputs",
+                "type": "object"
+              },
+              "isolation": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "code isolation: subprocess (default) or container (optional pack).",
+                "title": "Isolation"
+              },
+              "limits": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "code limits: cpu_seconds, memory_mb, wall_seconds, output_bytes, nproc.",
+                "title": "Limits"
+              },
+              "network": {
+                "default": false,
+                "description": "If true, the code child may import network modules. Default denied.",
+                "title": "Network",
+                "type": "boolean"
+              },
+              "output_schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "JSON Schema object; agent output is parsed and validated.",
+                "title": "Output Schema"
+              },
+              "require_isolation": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Minimum isolation tier. container fails closed without a runtime pack.",
+                "title": "Require Isolation"
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional input value or template for a transform.",
+                "title": "Source"
+              },
+              "source_from": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Output key whose text is the Python source for a code node.",
+                "title": "Source From"
+              }
+            },
+            "type": "object"
+          }
         }
       ],
       "description": "One node in the workflow graph.",
@@ -1147,14 +1279,15 @@
                 "include",
                 "foreach",
                 "a2a",
-                "memory"
+                "memory",
+                "code"
               ]
             },
             {
               "type": "string"
             }
           ],
-          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory. Packs may add additional types.",
+          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory, code. Packs may add additional types.",
           "title": "Type"
         }
       },

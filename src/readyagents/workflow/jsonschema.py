@@ -72,6 +72,18 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
         "embed",
         "context",
     ),
+    NodeType.code: (
+        "source",
+        "source_from",
+        "inputs",
+        "isolation",
+        "allow_imports",
+        "network",
+        "filesystem",
+        "limits",
+        "require_isolation",
+        "output_schema",
+    ),
 }
 
 NODE_TYPE_REQUIRED: dict[NodeType, tuple[str, ...]] = {

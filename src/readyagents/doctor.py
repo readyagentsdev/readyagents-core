@@ -110,6 +110,7 @@ def run_doctor() -> dict[str, Any]:
                 "endpoint": "loopback:11434",
             }
         },
+        "code_sandbox": _code_sandbox_report(),
     }
     if not loopback:
         findings.append(
@@ -154,6 +155,7 @@ def format_doctor(report: dict[str, Any]) -> str:
             "Local models ollama_present="
             f"{report.get('local_models', {}).get('ollama', {}).get('present')}"
         ),
+        _format_code_sandbox(report.get("code_sandbox") or {}),
     ]
     if report["findings"]:
         lines.append("Findings:")
@@ -163,6 +165,42 @@ def format_doctor(report: dict[str, Any]) -> str:
     else:
         lines.append("No problems found.")
     return "\n".join(lines)
+
+
+def _code_sandbox_report() -> dict[str, Any]:
+    unix = sys.platform != "win32"
+    resource_ok = False
+    if unix:
+        try:
+            import resource  # noqa: F401
+
+            resource_ok = True
+        except ImportError:
+            resource_ok = False
+    return {
+        "subprocess": True,
+        "container_pack": False,
+        "resource_module": resource_ok,
+        "os_rlimits": ["cpu_seconds", "memory_mb", "file_size_bytes"] if resource_ok else [],
+        "always": ["wall_seconds", "output_bytes", "import_allowlist", "filesystem_grants"],
+        "windows_note": None
+        if resource_ok
+        else (
+            "Windows has no resource module; CPU/address-space/nproc are not OS rlimits. "
+            "wall_seconds, output_bytes, child file-size caps, and the import allowlist "
+            "still apply. subprocess isolation is accident-grade, not hostile-code-proof."
+        ),
+        "honesty": "subprocess defends against accident and careless code, not hostile code.",
+    }
+
+
+def _format_code_sandbox(block: dict[str, Any]) -> str:
+    rlimits = ",".join(block.get("os_rlimits") or []) or "none"
+    note = block.get("windows_note") or block.get("honesty") or ""
+    return (
+        f"Code sandbox subprocess=yes resource_module={block.get('resource_module')} "
+        f"os_rlimits={rlimits}. {note}"
+    ).strip()
 
 
 def _can_import(name: str) -> bool:
