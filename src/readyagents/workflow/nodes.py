@@ -30,6 +30,7 @@ from readyagents.errors import (
     RouteBudgetExceeded,
     RoutingError,
     RunawayGuard,
+    SkillError,
     TableError,
     TeamError,
     TemplateError,
@@ -398,6 +399,10 @@ def _execute_node_body(node: NodeSpec, state: RunState, ctx: ExecutionContext) -
         from readyagents.wait.node import run_wait_node
 
         output = run_wait_node(node, state, ctx)
+    elif kind == NodeType.skill.value:
+        from readyagents.skills.node import run_skill_node
+
+        output = run_skill_node(node, state, ctx)
     else:
         known = ", ".join(t.value for t in NodeType)
         raise WorkflowError(
@@ -1452,6 +1457,8 @@ def execute_node_with_policy(
         except TableError:
             raise
         except WaitError:
+            raise
+        except SkillError:
             raise
         except ReadyAgentsError as exc:
             last_error = exc
