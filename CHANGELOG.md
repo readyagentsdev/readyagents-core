@@ -6,6 +6,22 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Knowledge pipelines (`type: ingest`).** Ingest a file, directory, or
+  connector into the shipped memory store with declared chunk strategies
+  (`fixed` with overlap, `paragraph`, heading-aware Markdown, row-group
+  tabular). Each chunk carries document id, version, byte/page range, and
+  heading path. Unchanged re-ingest is a no-op; changes version under
+  `supersede` or `keep_versions`. Retrieval returns structured citations;
+  `readyagents knowledge cite` resolves the exact span under the same scope
+  gate. `require_citation: {from: retrieved}` fails an uncited answer.
+  A declared staleness threshold can refuse a run. Hybrid BM25/embedding
+  blend weights are recorded. `knowledge list|show|sync|forget|cite` is
+  foreground; `sync` reports added/updated/unchanged/removed. Ingested
+  chunks are taint-untrusted; forgetting a document removes every chunk,
+  vector, and cite target. No vector database, crawler, or always-on
+  watcher. Plain `type: memory` writes are unchanged. Plumbing and
+  governance, never a retrieval-quality claim. See
+  [docs/knowledge.md](docs/knowledge.md).
 - **Typed multimodal I/O.** A run-state value may be text or a `MediaPart`
   (kind, mime, confined path, content hash, dimensions/duration, provenance).
   Agent nodes attach declared media where the capability matrix `media` flag

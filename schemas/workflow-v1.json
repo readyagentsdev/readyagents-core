@@ -930,11 +930,15 @@
                     "type": "string"
                   },
                   {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
                     "type": "null"
                   }
                 ],
                 "default": null,
-                "description": "Optional input value or template for a transform.",
+                "description": "Transform/document path, or ingest {kind, path, glob}.",
                 "title": "Source"
               },
               "template": {
@@ -1368,6 +1372,20 @@
           },
           "then": {
             "properties": {
+              "blend": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional hybrid retrieval weights: {bm25, embedding}.",
+                "title": "Blend"
+              },
               "context": {
                 "anyOf": [
                   {
@@ -1397,6 +1415,20 @@
                 "description": "Request BYOK embedding search/write. Degrades to keyword if unavailable.",
                 "title": "Embed",
                 "type": "boolean"
+              },
+              "freshness": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional staleness gate: {max_age: 30d}.",
+                "title": "Freshness"
               },
               "limit": {
                 "anyOf": [
@@ -1619,11 +1651,15 @@
                     "type": "string"
                   },
                   {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
                     "type": "null"
                   }
                 ],
                 "default": null,
-                "description": "Optional input value or template for a transform.",
+                "description": "Transform/document path, or ingest {kind, path, glob}.",
                 "title": "Source"
               },
               "source_from": {
@@ -1808,11 +1844,15 @@
                     "type": "string"
                   },
                   {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
                     "type": "null"
                   }
                 ],
                 "default": null,
-                "description": "Optional input value or template for a transform.",
+                "description": "Transform/document path, or ingest {kind, path, glob}.",
                 "title": "Source"
               }
             },
@@ -1881,16 +1921,144 @@
                     "type": "string"
                   },
                   {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
                     "type": "null"
                   }
                 ],
                 "default": null,
-                "description": "Optional input value or template for a transform.",
+                "description": "Transform/document path, or ingest {kind, path, glob}.",
                 "title": "Source"
               }
             },
             "required": [
               "source"
+            ],
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "ingest"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "chunk": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "ingest chunk: {strategy, max_chars, overlap}.",
+                "title": "Chunk"
+              },
+              "contract": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContractSpec"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Opt-in output contract: structural schema, named content rules, and a declared action (fail, repair, fallback, gate, redact_and_continue)."
+              },
+              "embed": {
+                "default": false,
+                "description": "Request BYOK embedding search/write. Degrades to keyword if unavailable.",
+                "title": "Embed",
+                "type": "boolean"
+              },
+              "freshness": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional staleness gate: {max_age: 30d}.",
+                "title": "Freshness"
+              },
+              "on_change": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "ingest versioning: supersede or keep_versions.",
+                "title": "On Change"
+              },
+              "scope": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Explicit memory scope (workflow:, ns:, or subject:). Templates allowed.",
+                "title": "Scope"
+              },
+              "scope_pattern": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Declared scope pattern the interpolated scope must match.",
+                "title": "Scope Pattern"
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Transform/document path, or ingest {kind, path, glob}.",
+                "title": "Source"
+              }
+            },
+            "required": [
+              "source",
+              "scope"
             ],
             "type": "object"
           }
@@ -2007,14 +2175,15 @@
                 "code",
                 "team",
                 "document",
-                "transcribe"
+                "transcribe",
+                "ingest"
               ]
             },
             {
               "type": "string"
             }
           ],
-          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory, code, team, document, transcribe. Packs may add additional types.",
+          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory, code, team, document, transcribe, ingest. Packs may add additional types.",
           "title": "Type"
         }
       },

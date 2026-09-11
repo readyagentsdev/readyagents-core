@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from readyagents.errors import MemoryError, PolicyDenied
 from readyagents.firewall.enforce import ToolRequest, apply_decision, evaluate, quarantine_text
+from readyagents.knowledge.cite import citation_from_record
 from readyagents.memory.compaction import apply_compacted_items, compact_text
 from readyagents.memory.protocol import (
     MAX_QUERY_CHARS,
@@ -15,7 +16,7 @@ from readyagents.memory.protocol import (
     bound_limit,
     open_memory_store,
 )
-from readyagents.memory.retrieve import embed_texts, embedding_search
+from readyagents.memory.retrieve import embed_texts, embedding_search, hybrid_search
 from readyagents.memory.scope import validate_scope
 from readyagents.replay.record import contains_secret
 from readyagents.workflow.schema import NodeSpec
@@ -139,20 +140,37 @@ def _search(node: NodeSpec, state: RunState, ctx: Any, store: Any, scope: str, n
     retrieval = "keyword"
     note = None
     hits = store.search(scope, query, limit=limit)
-    if bool(getattr(node, "embed", False)):
+    blend_spec = getattr(node, "blend", None) or {}
+    blend_weights: dict[str, float] | None = None
+    want_embed = bool(getattr(node, "embed", False)) or bool(blend_spec)
+    if want_embed:
         embedded = embed_texts([query], settings=_settings())
-        if embedded:
-            records = store.read(scope)
-            vectors = {rec.id: store.vector(rec.id) for rec in records}
-            vectors = {key: val for key, val in vectors.items() if val}
-            if vectors:
-                _account_embed(ctx, query)
+        records = store.read(scope)
+        vectors = {rec.id: store.vector(rec.id) for rec in records}
+        vectors = {key: val for key, val in vectors.items() if val}
+        if embedded and vectors:
+            _account_embed(ctx, query)
+            if blend_spec:
+                hits, blend_weights = hybrid_search(
+                    records,
+                    query,
+                    vectors=vectors,
+                    query_vector=embedded[0],
+                    bm25_weight=float(blend_spec.get("bm25") or 0.5),
+                    embedding_weight=float(blend_spec.get("embedding") or 0.5),
+                    limit=limit,
+                )
+                retrieval = "hybrid"
+            else:
                 hits = embedding_search(records, vectors, embedded[0], limit=limit)
                 retrieval = "embedding"
-            else:
-                note = "embeddings unavailable; keyword search"
         else:
             note = "embeddings unavailable; keyword search"
+    freshness = getattr(node, "freshness", None)
+    if freshness:
+        from readyagents.knowledge.freshness import assert_fresh
+
+        assert_fresh(store, scope, freshness)
     payload = []
     for hit in hits:
         row = _public(hit.record, ctx)
@@ -174,6 +192,11 @@ def _search(node: NodeSpec, state: RunState, ctx: Any, store: Any, scope: str, n
         retrieval=retrieval,
     )
     body: dict[str, Any] = {"hits": payload, "scope": scope, "retrieval": retrieval}
+    if blend_weights:
+        body["blend"] = blend_weights
+        meta = getattr(state, "metadata", None)
+        if isinstance(meta, dict):
+            meta["knowledge_blend"] = dict(blend_weights)
     if note:
         body["note"] = note
     if compaction:
@@ -202,13 +225,18 @@ def _public(record: MemoryRecord, ctx: Any) -> dict[str, Any]:
         _rule_id, rule = policy.tool_rule("memory.read")
         if rule is not None and rule.quarantine:
             text = quarantine_text(text)
-    return {
+    row = {
         "id": record.id,
         "scope": record.scope,
         "text": text,
         "created_at": record.created_at,
         "expires_at": record.expires_at,
     }
+    cite = citation_from_record(record)
+    if cite:
+        row["citation"] = cite
+        row["document_id"] = cite["document_id"]
+    return row
 
 
 def _policy(

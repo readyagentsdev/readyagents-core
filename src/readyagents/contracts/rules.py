@@ -48,6 +48,15 @@ def eval_rule(
     if kind == "require_citation":
         spec = _normalize_citation(rule.require_citation)
         source = str(spec["from"])
+        if source == "retrieved":
+            from readyagents.knowledge.cite import collect_retrieved_citations
+
+            docs = collect_retrieved_citations(mapping)
+            if not docs:
+                return True, f"{rule.recorded_name()} missing citation source retrieved"
+            if not any(doc in text for doc in docs):
+                return True, f"{rule.recorded_name()} uncited answer; expected a retrieved document"
+            return False, ""
         if source not in mapping or mapping.get(source) is None:
             return True, f"{rule.recorded_name()} missing citation source {source}"
         expected = mapping.get(source)

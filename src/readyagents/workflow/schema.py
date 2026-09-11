@@ -45,6 +45,7 @@ class NodeType(StrEnum):
     team = "team"
     document = "document"
     transcribe = "transcribe"
+    ingest = "ingest"
 
 
 class RetrySpec(BaseModel):
@@ -371,7 +372,7 @@ class NodeSpec(BaseModel):
         description=(
             "Node kind. Built-ins: agent, tool, condition, transform, approval, "
             "parallel, include, foreach, a2a, memory, code, team, document, "
-            "transcribe. Packs may add types."
+            "transcribe, ingest. Packs may add types."
         )
     )
     timeout_seconds: float | None = Field(
@@ -433,9 +434,9 @@ class NodeSpec(BaseModel):
 
     # transform
     template: str | None = Field(default=None, description="Transform output template.")
-    source: str | None = Field(
+    source: str | dict[str, Any] | None = Field(
         default=None,
-        description="Optional input value or template for a transform.",
+        description="Transform/document path, or ingest {kind, path, glob}.",
     )
     json_path: str | None = Field(default=None, description="JSON path applied during a transform.")
     parse_json: bool = Field(default=False, description="Parse the transform result as JSON.")
@@ -676,6 +677,22 @@ class NodeSpec(BaseModel):
         default=None,
         description="Declared regions/classes redacted before persist, record, or send.",
     )
+    chunk: dict[str, Any] | None = Field(
+        default=None,
+        description="ingest chunk: {strategy, max_chars, overlap}.",
+    )
+    on_change: str | None = Field(
+        default=None,
+        description="ingest versioning: supersede or keep_versions.",
+    )
+    freshness: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional staleness gate: {max_age: 30d}.",
+    )
+    blend: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional hybrid retrieval weights: {bm25, embedding}.",
+    )
 
     @field_validator("id")
     @classmethod
@@ -787,11 +804,27 @@ class NodeSpec(BaseModel):
                 f"Node '{self.id}': strategy/members/supervisor are only valid on team nodes"
             )
         if t == NodeType.document.value:
-            if not (self.source or "").strip():
+            if not isinstance(self.source, str) or not self.source.strip():
                 raise ValueError(f"Node '{self.id}': document nodes require 'source'")
         if t == NodeType.transcribe.value:
-            if not (self.source or "").strip():
+            if not isinstance(self.source, str) or not self.source.strip():
                 raise ValueError(f"Node '{self.id}': transcribe nodes require 'source'")
+        if t == NodeType.ingest.value:
+            if not self.source:
+                raise ValueError(f"Node '{self.id}': ingest nodes require 'source'")
+            if not (self.scope or "").strip():
+                raise ValueError(f"Node '{self.id}': ingest nodes require 'scope'")
+            if self.chunk:
+                strategy = str(self.chunk.get("strategy") or "").strip().lower().replace("-", "_")
+                if strategy and strategy not in {"fixed", "paragraph", "heading", "row_group"}:
+                    raise ValueError(
+                        f"Node '{self.id}': chunk.strategy must be "
+                        "fixed, paragraph, heading, or row_group"
+                    )
+            change = str(self.on_change or "supersede").strip().lower()
+            if change not in {"supersede", "keep_versions"}:
+                raise ValueError(f"Node '{self.id}': on_change must be supersede or keep_versions")
+            self.on_change = change
         if self.media and t != NodeType.agent.value:
             raise ValueError(f"Node '{self.id}': 'media' is only valid on agent nodes")
         if self.render is not None and t != NodeType.document.value:
