@@ -6,6 +6,17 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Simulation.** `readyagents simulate` generates declaration-driven cases
+  (seed-stable, no model required): boundaries, types, Unicode, control
+  characters, firewall injection strings, and declared branches. Scoring
+  reuses `readyagents eval` trajectories. Coverage lists reached and
+  unreached condition/approval/foreach/error paths — not a completeness
+  claim. Side-effecting tools default to dry-run; live calls need
+  `--live-side-effects` and a permitting policy. Failures cluster by shape;
+  `--out` freezes one fixture per cluster (secret-shaped text redacted).
+  `--fail-on new-failure` blocks a new class in CI. Opt-in `--model`
+  personas are metered, capped, and refused in sovereign mode. Repos that
+  never simulate are unchanged. See [docs/simulation.md](docs/simulation.md).
 - **Workflow packaging.** `readyagents.pkg.yaml` plus
   `readyagents package build|install|list|show|remove|upgrade`. Build emits a
   deterministic `.rapkg` archive (manifest, workflows, policy, fixtures,

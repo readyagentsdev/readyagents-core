@@ -134,6 +134,17 @@ readyagents connectors test ingest
 
 See [connectors.md](connectors.md).
 
+## `readyagents simulate PATH`
+
+Generate declaration-driven cases, score with eval, freeze distinct failures.
+Dry-run side effects by default. Not exhaustive coverage. See
+[simulation.md](simulation.md).
+
+```bash
+readyagents simulate flow.yaml --seed 42 --json
+readyagents simulate flow.yaml --out sims/ --fail-on new-failure
+```
+
 ## `readyagents eval PATH`
 
 Score fixture workflows from a suite file using the same local harness as `readyagents.testing.run_eval`. **No network and no API keys** — cases must be keyless fixtures (builtin tools, transforms, recorded/scripted LLM), not live vendors.
