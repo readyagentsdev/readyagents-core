@@ -39,6 +39,9 @@ SSE (opt-in, capped, same auth as the surface, clean unsubscribe):
 - MCP HTTP: `GET /runs/{run_id}/events`
 - A2A: `GET /tasks/{task_id}/stream`
 
+Default GET is a JSON `{ "events": [...] }` snapshot of the durable record.
+SSE requires `Accept: text/event-stream`.
+
 An optional pack can use `VoiceReadySession` (incremental input, barge-in
 cancel, partial output). ReadyAgents Core does not own audio.
 

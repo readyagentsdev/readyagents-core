@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+from typing import Any
 
 import pytest
 
@@ -17,7 +19,12 @@ from readyagents.workflow.nodes import ExecutionContext
 from readyagents.workflow.runner import run_workflow_file
 from readyagents.workflow.schema import WorkflowSpec
 from readyagents.workflow.state import RunState, load_run, persist_run, utc_now
-from readyagents.workflow.stream import StreamHub, StreamSession, snapshot_events
+from readyagents.workflow.stream import (
+    StreamHub,
+    StreamSession,
+    snapshot_events,
+    wants_event_stream,
+)
 
 _SECRET = "LEAKMESECRET"
 _FULL_COMPLETION = "FULL-ASSEMBLED-COMPLETION-TEXT"
@@ -53,15 +60,50 @@ def _node_finished(node_id: str, run_id: str = "r") -> RunEvent:
     )
 
 
-def _sse_body_of_run(response, run_id: str) -> bool:
-    ctype = (response.headers.get("content-type") or "").lower()
-    body = response.content or b""
-    if response.status_code != 200:
-        return False
-    if "event-stream" not in ctype:
-        return False
-    text = body.decode("utf-8", "replace")
-    return run_id in text or "run.started" in text or "run.finished" in text
+def _asgi_http(app: Any, path: str, *, headers: dict[str, str] | None = None) -> dict[str, Any]:
+    sent: list[dict[str, Any]] = []
+    hdrs = [
+        (key.lower().encode("latin-1"), value.encode("latin-1"))
+        for key, value in (headers or {}).items()
+    ]
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode("ascii"),
+        "query_string": b"",
+        "headers": hdrs,
+        "client": ("127.0.0.1", 1234),
+        "server": ("127.0.0.1", 8765),
+    }
+
+    async def receive() -> dict[str, Any]:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: dict[str, Any]) -> None:
+        sent.append(message)
+
+    asyncio.run(app(scope, receive, send))
+    status = None
+    response_headers: dict[str, str] = {}
+    body = b""
+    for message in sent:
+        kind = message.get("type")
+        if kind == "http.response.start":
+            status = message.get("status")
+            for key, value in message.get("headers") or ():
+                response_headers[key.decode("latin-1").lower()] = value.decode("latin-1")
+        elif kind == "http.response.body":
+            body += message.get("body") or b""
+    return {
+        "status": status,
+        "headers": response_headers,
+        "body": body,
+        "text": body.decode("utf-8", "replace"),
+    }
 
 
 def test_boundary_split_secret_not_in_joined_token_text(tmp_settings) -> None:
@@ -87,11 +129,7 @@ def test_boundary_split_secret_not_in_joined_token_text(tmp_settings) -> None:
 
 
 def test_unauthorised_sse_does_not_stream_run_events(tmp_settings) -> None:
-    from starlette.applications import Starlette
-    from starlette.testclient import TestClient
-
     from readyagents.mcp.http import AuthMiddleware
-    from readyagents.mcp.run_api import RunCoordinator, build_run_routes
 
     workspace = tmp_settings.workspace_path()
     path = workspace / "sse_adv.yaml"
@@ -106,40 +144,59 @@ def test_unauthorised_sse_does_not_stream_run_events(tmp_settings) -> None:
     )
     state = run_workflow_file(path, settings=tmp_settings, persist=True)
     other = run_workflow_file(path, settings=tmp_settings, persist=True)
-    coord = RunCoordinator(settings=tmp_settings, workspace=workspace)
-    asgi = AuthMiddleware(
-        Starlette(routes=build_run_routes(coord)),
-        token=_SSE_TOKEN,
+    own = json.dumps(snapshot_events(state))
+    assert state.run_id in own
+    assert other.run_id not in own
+    assert not wants_event_stream(None)
+    assert wants_event_stream("text/event-stream")
+
+    inner_called = {"n": 0}
+
+    async def leak_app(scope, receive, send):
+        inner_called["n"] += 1
+        body = (
+            f"data: {json.dumps({'event': 'run.started', 'run_id': state.run_id})}\n\n"
+        ).encode()
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [(b"content-type", b"text/event-stream")],
+            }
+        )
+        await send({"type": "http.response.body", "body": body})
+
+    app = AuthMiddleware(leak_app, token=_SSE_TOKEN)
+    url = f"/runs/{state.run_id}/events"
+
+    missing = _asgi_http(app, url)
+    assert missing["status"] == 401
+    assert inner_called["n"] == 0
+    assert "bearer" in (missing["headers"].get("www-authenticate") or "").lower()
+    assert _SSE_TOKEN not in missing["text"]
+    assert state.run_id not in missing["text"]
+    assert other.run_id not in missing["text"]
+    assert "event-stream" not in (missing["headers"].get("content-type") or "").lower()
+
+    forged = _asgi_http(
+        app,
+        url,
+        headers={"authorization": "Bearer definitely-not-the-token"},
     )
-    try:
-        with TestClient(asgi, base_url="http://127.0.0.1:8765") as client:
-            missing = client.get(f"/runs/{state.run_id}/events")
-            assert (
-                missing.status_code != 200
-                or "event-stream" not in (missing.headers.get("content-type") or "").lower()
-            )
-            assert not _sse_body_of_run(missing, state.run_id)
-            assert not _sse_body_of_run(missing, other.run_id)
-            assert missing.status_code == 401
-            assert "bearer" in (missing.headers.get("www-authenticate") or "").lower()
-            assert _SSE_TOKEN not in (missing.text or "")
-            forged = client.get(
-                f"/runs/{state.run_id}/events",
-                headers={"Authorization": "Bearer definitely-not-the-token"},
-            )
-            assert not _sse_body_of_run(forged, state.run_id)
-            assert forged.status_code == 401
-            allowed = client.get(
-                f"/runs/{state.run_id}/events",
-                headers={"Authorization": f"Bearer {_SSE_TOKEN}"},
-            )
-            assert allowed.status_code == 200
-            payload = allowed.json()
-            blob = json.dumps(payload)
-            assert state.run_id in blob
-            assert other.run_id not in blob
-    finally:
-        coord.shutdown(timeout=2.0)
+    assert forged["status"] == 401
+    assert inner_called["n"] == 0
+    assert state.run_id not in forged["text"]
+    assert "event-stream" not in (forged["headers"].get("content-type") or "").lower()
+
+    allowed = _asgi_http(
+        app,
+        url,
+        headers={"authorization": f"Bearer {_SSE_TOKEN}"},
+    )
+    assert allowed["status"] == 200
+    assert inner_called["n"] == 1
+    assert state.run_id in allowed["text"]
+    assert other.run_id not in allowed["text"]
 
 
 def test_mid_stream_cancel_no_phantom_ok_completion(tmp_settings) -> None:
