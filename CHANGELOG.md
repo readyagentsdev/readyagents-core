@@ -6,6 +6,20 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Typed multimodal I/O.** A run-state value may be text or a `MediaPart`
+  (kind, mime, confined path, content hash, dimensions/duration, provenance).
+  Agent nodes attach declared media where the capability matrix `media` flag
+  allows and fail typed before spend otherwise. `type: document` turns a PDF
+  into ordered page parts (page image, extracted text, citable page index)
+  under declared page/byte/dpi caps. `type: transcribe` uses a declared
+  provider; a local model never sends audio off-machine. Codecs and detectors
+  are optional extras (`image`, `pdf`, `audio`); core installs are unchanged.
+  Size/dimension/page/time caps, metadata strip on ingest, untrusted taint,
+  declared and opt-in detected-class redaction before persist/record/send,
+  per-part tokens/cost on the record and ledger, and hash-addressed cassette
+  replay with no re-upload. Text-only workflows are unchanged. Plumbing and
+  governance, never an extraction-accuracy or OCR claim. See
+  [docs/multimodal.md](docs/multimodal.md).
 - **Opt-in model routing and native Gemini / Bedrock / Vertex extras.** Optional
   `routing:` policy (`cheapest_capable`, `fastest`, `highest_quality`,
   `local_only`, explicit pin). First matching rule wins. A shipped, versioned,

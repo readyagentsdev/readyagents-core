@@ -58,7 +58,7 @@ Many rows of one workflow: [scale.md](scale.md) (`readyagents batch`, opt-in, fo
 | Field | Meaning |
 | --- | --- |
 | `id` | Unique id |
-| `type` | `agent` \| `tool` \| `condition` \| `transform` \| `approval` \| `parallel` \| `include` \| `foreach` \| `a2a` \| `memory` |
+| `type` | `agent` \| `tool` \| `condition` \| `transform` \| `approval` \| `parallel` \| `include` \| `foreach` \| `a2a` \| `memory` \| `code` \| `team` \| `document` \| `transcribe` |
 | `next` | Default successor if no edges |
 | `output_key` | Alias for templates (`{{brief}}` instead of `{{write}}`) |
 | `timeout_seconds` | Soft timeout |
@@ -91,6 +91,12 @@ Optional agent fields:
 ## Team
 
 Opt-in `type: team` — closed members, four strategies, engine-enforced terminate. See [teams](teams.md). Unreleased; no routing-quality claim.
+
+## Document and transcribe
+
+Opt-in `type: document` (PDF → ordered page parts) and `type: transcribe`.
+Agent nodes may declare `media:`. Codecs are extras. See [multimodal](multimodal.md).
+Unreleased. Plumbing and governance, not extraction accuracy.
 
 ## Model routing
 
