@@ -41,24 +41,6 @@
     el.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
   }
 
-  document.getElementById("unlock-form").addEventListener("submit", function (ev) {
-    ev.preventDefault();
-    var token = document.getElementById("token").value;
-    fetch("/studio/session", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: token }),
-      redirect: "manual"
-    }).then(function (res) {
-      if (res.status === 303 || res.status === 200) {
-        window.location.assign("/studio");
-        return;
-      }
-      setStatus("Unlock failed.", "error");
-    });
-  });
-
   api("GET", "/studio/api/me").then(function (data) {
     if (data._status === 200 && data.ok) {
       unlock.hidden = true;
