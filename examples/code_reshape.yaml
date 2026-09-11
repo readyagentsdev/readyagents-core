@@ -1,0 +1,27 @@
+name: code_reshape
+description: "Keyless type: code example. JSON in, JSON out, subprocess isolation."
+inputs:
+  rows:
+    - 10
+    - 12
+nodes:
+  - id: reshape
+    type: code
+    source: |
+      total = sum(inputs["rows"])
+      result = {"total": total, "count": len(inputs["rows"])}
+    inputs:
+      rows: "{{ rows }}"
+    output_schema:
+      type: object
+      properties:
+        total: {type: number}
+        count: {type: integer}
+      required: [total, count]
+    output_key: summary
+    limits:
+      cpu_seconds: 5
+      memory_mb: 512
+      wall_seconds: 10
+      output_bytes: 65536
+    network: false

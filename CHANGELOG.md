@@ -6,6 +6,13 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Sandboxed `type: code`.** Opt-in Python node: JSON stdin, JSON stdout
+  validated against `output_schema`, `subprocess` isolation by default
+  (minimal env, closed fds, confined cwd, import allowlist, rlimits where
+  the OS has them). `container` is an optional pack and fails closed when
+  missing. Recorded and replayable offline without executing. `subprocess`
+  is accident-grade, not hostile-code-proof. See
+  [docs/code-sandbox.md](docs/code-sandbox.md).
 - **Opt-in streaming.** `readyagents run --stream` and `--stream --json`
   (newline-delimited events). Provider `stream()` assembles the same complete
   result as `complete()`. Bounded partials, incremental redaction with a
