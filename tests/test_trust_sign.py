@@ -201,6 +201,8 @@ def test_infer_kind(tmp_path: Path) -> None:
     assert infer_kind("x.py") == "pack"
     assert infer_kind("flow.yaml") == "workflow"
     assert infer_kind("SKILL.md") == "skill"
+    assert infer_kind("demo-calc-1.0.0.rapkg") == "package"
+    assert infer_kind("readyagents.index.json") == "package_index"
     folder = tmp_path / "house-writing-style"
     folder.mkdir()
     (folder / "SKILL.md").write_text("placeholder", encoding="utf-8")

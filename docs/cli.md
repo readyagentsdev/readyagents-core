@@ -587,6 +587,20 @@ A local `.py` loads with `--pack PATH`, for example `readyagents packs --pack ex
 
 The optional Continuous pack is a **separate** executable, `readyagents-continuous`, not a `readyagents` subcommand. See [continuous-pack.md](continuous-pack.md). Core still has no `serve`/`tick` scheduler command.
 
+## `readyagents package build|install|list|show|remove|upgrade|index`
+
+Workflow package archives (`.rapkg`). Review-before-install; nothing executes
+during install; `--confirm` is required to write. Not a hosted registry.
+See [packaging.md](packaging.md).
+
+```bash
+readyagents package build ./my-pkg --out my-pkg-1.0.0.rapkg
+readyagents package install my-pkg-1.0.0.rapkg --json
+readyagents package install my-pkg-1.0.0.rapkg --confirm
+readyagents package list
+readyagents package index readyagents.index.json --json
+```
+
 ## `readyagents version`
 
 Prints the package version.

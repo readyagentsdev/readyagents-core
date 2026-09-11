@@ -60,6 +60,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Optional [long-horizon waits](docs/long-horizon.md) (`type: wait`, `readyagents wake` / `event`) — **Unreleased**; lazy wake, no daemon; `waiting` ≠ `paused`; not a scheduler
 - Optional [event triggers](docs/event-triggers.md) (`triggers:`, `readyagents triggers`) — **Unreleased**; core contract only, no listener in core; at-least-once plus idempotency, not exactly-once; loopback-default webhook
 - Optional [agent skills](docs/agent-skills.md) (`type: skill`, `readyagents skills` / `agents-md`) — **Unreleased**; open SKILL.md format; untrusted instructions; sandbox scripts; not a marketplace
+- Optional [workflow packaging](docs/packaging.md) (`readyagents package`) — **Unreleased**; review-before-install archives with policy, fixtures, and signature; signed static index; not a hosted marketplace
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -197,6 +198,7 @@ flowchart LR
 - [Long-horizon waits](docs/long-horizon.md) (opt-in `type: wait`; Unreleased; lazy `wake`; not a scheduler)
 - [Event triggers](docs/event-triggers.md) (opt-in `triggers:`; Unreleased; no listener in core; at-least-once plus idempotency)
 - [Agent Skills](docs/agent-skills.md) (opt-in `type: skill`; Unreleased; open format; not a marketplace)
+- [Packaging](docs/packaging.md) (opt-in `readyagents package`; Unreleased; review-before-install; not a marketplace)
 - [Packs](docs/packs.md)
 - [Supply-chain trust](docs/supply-chain.md) (signatures prove origin, not safety)
 - [Continuous pack](docs/continuous-pack.md) (optional, separate distribution)
