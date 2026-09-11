@@ -127,7 +127,7 @@ def test_unlock_js_does_not_intercept_native_post(tmp_settings) -> None:
     assert js.status == 200, js.body
     text = js.body.decode("utf-8")
     compact = text.replace(" ", "").replace("'", '"')
-    assert "redirect:\"manual\"" not in compact
+    assert 'redirect:"manual"' not in compact
     assert "unlock-form" not in text
     html = application.handle(
         "GET", "/studio", headers=_host_headers(application), body=b""
