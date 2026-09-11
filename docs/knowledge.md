@@ -17,6 +17,7 @@ Plain `type: memory` write/read/search/forget is unchanged.
   chunk: {strategy: heading, max_chars: 1200, overlap: 120}
   scope: "ns:policies"
   on_change: supersede          # supersede | keep_versions
+  embed: true                   # persist BYOK vectors; omit to stay keyword-only
 ```
 
 `source.kind` is `file`, `directory`, or `connector`. Paths are confined to the
@@ -74,9 +75,11 @@ blend: {bm25: 0.6, embedding: 0.4}
 ```
 
 `max_age` refuses the run (`KnowledgeStale`) when the oldest ingested stamp
-in the scope is older than the threshold. Hybrid blend weights are stored on
-the search result and the run record so the same query reproduces. Missing
-BYOK embeddings degrade to BM25 as they already do.
+in the scope is older than the threshold. Hybrid search needs vectors on the
+chunks: set `embed: true` on the ingest node (same BYOK path as
+`type: memory` write). Blend weights are stored on the search result and
+`metadata.knowledge_blend` so the same query reproduces. Missing BYOK
+embeddings degrade to BM25 as they already do.
 
 ## CLI
 
