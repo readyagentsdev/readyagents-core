@@ -6,6 +6,19 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Event triggers (`triggers:`).** A workflow may declare accepted event
+  shapes, input mapping, a required idempotency key and window, per-trigger
+  budget and concurrency (`drop` or `defer` on the ceiling), and
+  `require_signature`. Core validates and decides (`decide_trigger`); core
+  starts no listener. Delivery is at-least-once plus idempotency, not
+  exactly-once. Provenance records `cli` / `mcp` / `a2a` / `schedule` / named
+  trigger with event id and digest. Payloads are taint-marked; size, depth,
+  and rate caps apply before parse; unsigned or tampered signatures are
+  refused and audited; dead letters are inspectable and replayable. Pack
+  sources (webhook, file, queue, schedule) share that seam.
+  `readyagents triggers list|show|test|events`. Default webhook posture is
+  loopback. Workflows without `triggers:` are unchanged. See
+  [docs/event-triggers.md](docs/event-triggers.md).
 - **Long-horizon waits (`type: wait`).** Pause on `until`, `for_event`,
   `for_file`, and/or `for_run` with `whichever: first|all`. A wait without a
   deadline is a schema error. Status is `waiting`, distinct from `paused`.

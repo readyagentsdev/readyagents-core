@@ -1,0 +1,24 @@
+name: trigger_support
+version: "1"
+description: >
+  Opt-in triggers:. Validate without keys or a listener.
+  Core starts no webhook server, watcher, or scheduler.
+  Delivery is at-least-once with idempotent handling, not exactly-once.
+  Default webhook posture is loopback; exposing a bind is the operator's decision.
+
+triggers:
+  - name: support_email
+    accepts: {kind: webhook, schema: {type: object, required: [message_id, body]}}
+    require_signature: true
+    inputs: {ticket_id: "{{ event.message_id }}", text: "{{ event.body }}"}
+    idempotency_key: "{{ event.message_id }}"
+    idempotency_window: 24h
+    budget: {max_cost_usd: 0.20}
+    concurrency: 4
+    on_ceiling: defer
+
+nodes:
+  - id: echo
+    type: transform
+    template: "{{ text }}"
+    output_key: out

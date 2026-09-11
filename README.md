@@ -58,6 +58,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Optional [knowledge pipelines](docs/knowledge.md) (`type: ingest`, `readyagents knowledge`) — **Unreleased**; citations and freshness, not a retrieval-quality claim; plain memory writes unchanged
 - Optional [data pipelines](docs/data-pipelines.md) (`type: table`, `type: classify`, `readyagents table`) — **Unreleased**; deterministic ops and remainder-only classify; not a warehouse; `json_get`/`foreach` defaults unchanged
 - Optional [long-horizon waits](docs/long-horizon.md) (`type: wait`, `readyagents wake` / `event`) — **Unreleased**; lazy wake, no daemon; `waiting` ≠ `paused`; not a scheduler
+- Optional [event triggers](docs/event-triggers.md) (`triggers:`, `readyagents triggers`) — **Unreleased**; core contract only, no listener in core; at-least-once plus idempotency, not exactly-once; loopback-default webhook
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -193,6 +194,7 @@ flowchart LR
 - [Knowledge pipelines](docs/knowledge.md) (opt-in `type: ingest`; Unreleased; citations/freshness; not a retrieval-quality claim)
 - [Data pipelines](docs/data-pipelines.md) (opt-in `type: table` / `type: classify`; Unreleased; not a warehouse)
 - [Long-horizon waits](docs/long-horizon.md) (opt-in `type: wait`; Unreleased; lazy `wake`; not a scheduler)
+- [Event triggers](docs/event-triggers.md) (opt-in `triggers:`; Unreleased; no listener in core; at-least-once plus idempotency)
 - [Packs](docs/packs.md)
 - [Supply-chain trust](docs/supply-chain.md) (signatures prove origin, not safety)
 - [Continuous pack](docs/continuous-pack.md) (optional, separate distribution)
