@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReadyAgents studio</title>
+  <link rel="stylesheet" href="/studio/assets/style.css">
+  <script src="/studio/assets/app.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>ReadyAgents studio</h1>
+    <p>Foreground localhost canvas. The YAML file on disk is the source of truth. Not a hosted product.</p>
+  </header>
+  <p id="status" role="status" aria-live="polite"></p>
+  <section id="unlock">
+    <h2>Unlock</h2>
+    <p>Paste the bootstrap token printed on stderr. It is single-use and not in the URL.</p>
+    <form id="unlock-form" method="get" action="/studio">
+      <label for="token">Bootstrap token</label>
+      <input id="token" name="token" type="text" autocomplete="off" required>
+      <button type="submit">Unlock</button>
+    </form>
+  </section>
+  <nav id="tabs" hidden>
+    <button type="button" data-tab="graph">Graph</button>
+    <button type="button" data-tab="edit">Edit</button>
+    <button type="button" data-tab="runs">Runs</button>
+    <button type="button" data-tab="diff">Diff</button>
+  </nav>
+  <section id="graph" hidden>
+    <h2>Workflow graph</h2>
+    <form id="open-form">
+      <label for="wf-path">Workflow path</label>
+      <input id="wf-path" name="path" type="text" required>
+      <button type="submit">Open</button>
+    </form>
+    <pre id="graph-view"></pre>
+  </section>
+  <section id="edit" hidden>
+    <h2>Schema edit</h2>
+    <p>Invalid edits cannot be saved. An external disk change is refused.</p>
+    <form id="edit-form">
+      <label for="edit-node">Node id</label>
+      <input id="edit-node" name="node_id" type="text" required>
+      <label for="edit-field">Field</label>
+      <input id="edit-field" name="field" type="text" required>
+      <label for="edit-value">Value</label>
+      <textarea id="edit-value" name="value" rows="4"></textarea>
+      <button type="submit">Validate then save</button>
+    </form>
+    <pre id="edit-out"></pre>
+  </section>
+  <section id="runs" hidden>
+    <h2>Run explorer</h2>
+    <form id="runs-form">
+      <label for="run-status">Status</label>
+      <input id="run-status" name="status" type="text">
+      <button type="submit">List</button>
+    </form>
+    <pre id="runs-view"></pre>
+  </section>
+  <section id="diff" hidden>
+    <h2>Run diff</h2>
+    <form id="diff-form">
+      <label for="diff-a">Run A</label>
+      <input id="diff-a" name="a" type="text" required>
+      <label for="diff-b">Run B</label>
+      <input id="diff-b" name="b" type="text" required>
+      <button type="submit">Compare</button>
+    </form>
+    <pre id="diff-view"></pre>
+  </section>
+  <noscript>
+    <p>JavaScript is required for the studio canvas. Closing this process stops the server.</p>
+  </noscript>
+</body>
+</html>

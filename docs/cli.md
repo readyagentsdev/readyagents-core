@@ -477,6 +477,28 @@ readyagents approvals serve --host 127.0.0.1 --port 8766
 
 See [browser-approval-ui.md](browser-approval-ui.md).
 
+## `readyagents studio`
+
+Foreground **localhost** workflow canvas and run inspector (**Unreleased**).
+Not a hosted product. Binds loopback only. The bootstrap token is printed
+once on **stderr**, not in the URL. Stops when the command stops.
+
+```bash
+readyagents studio
+readyagents studio --port 8790 --read-only
+readyagents studio --open
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--host` | Loopback only (`127.0.0.1`, `localhost`, `::1`) |
+| `--port` | Default `8790` |
+| `--open` | Open the loopback URL (token still on stderr) |
+| `--read-only` | Disable save, fork, freeze, and decide on the server |
+| `--actor` | Actor id for RBAC |
+
+See [studio.md](studio.md).
+
 ## `readyagents approvals list`
 
 Queue of paused approval gates this caller may see. Unauthorized and missing

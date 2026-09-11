@@ -52,6 +52,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Optional [sandboxed code](docs/code-sandbox.md) (`type: code`, subprocess default) — **Unreleased**; accident-grade isolation, not hostile-code-proof; no bundled container runtime
 - Optional [output contracts](docs/guardrails.md) (`contract:` on a value-producing node) — **Unreleased**; declared schema and content rules, not a safety classifier
 - Optional [multi-agent teams](docs/teams.md) (`type: team`) — **Unreleased**; closed members, engine-enforced stop, no routing-quality claim
+- Optional [workflow studio](docs/studio.md) (`readyagents studio`) — **Unreleased**; loopback canvas and run inspector; YAML on disk stays the source of truth; not a hosted product
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -117,6 +118,7 @@ flowchart LR
 | `readyagents connectors list` / `show` / `test` | Small governed catalog (`rest`, `sql`, `object_storage`, `message`, `ingest`) — not 500 SaaS |
 | `readyagents sign` / `verify` / `lock` / `sbom` / `trust` | Supply-chain: signatures prove origin, not safety |
 | `readyagents approvals serve` | Foreground localhost approval page (not a hosted dashboard) |
+| `readyagents studio [--port 8790] [--open] [--read-only]` | Foreground localhost canvas and run inspector (**Unreleased**; not a hosted product) |
 | `readyagents mcp serve` | Stdio MCP server (builtin tools); `--json` prints protocol versions |
 | `readyagents mcp probe URL` | Read-only `server/discover` diagnostic (never calls a tool) |
 | `readyagents a2a serve PATH` | Foreground A2A door for one workflow (loopback by default) |

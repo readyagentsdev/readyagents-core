@@ -2799,6 +2799,47 @@ def spend_cmd(
     )
 
 
+@app.command("studio")
+def studio_cmd(
+    host: str = typer.Option(
+        "127.0.0.1",
+        "--host",
+        help="Bind host. Non-loopback binds are refused.",
+    ),
+    port: int = typer.Option(
+        8790,
+        "--port",
+        min=1,
+        max=65535,
+        help="Bind port (default 8790).",
+    ),
+    open_browser: bool = typer.Option(
+        False,
+        "--open",
+        help="Open the loopback URL in a browser. The bootstrap token stays on stderr.",
+    ),
+    read_only: bool = typer.Option(
+        False,
+        "--read-only",
+        help="Disable every write path server-side (save, fork, freeze, decide).",
+    ),
+    actor: str | None = typer.Option(None, "--actor", envvar="READYAGENTS_ACTOR"),
+) -> None:
+    """Foreground localhost workflow studio. Stops when this process stops."""
+    try:
+        from readyagents.studio.server import serve_studio
+
+        serve_studio(
+            host=host,
+            port=port,
+            open_browser=open_browser,
+            read_only=read_only,
+            actor=actor,
+        )
+    except ReadyAgentsError as exc:
+        _fail(exc)
+
+
 @app.command("graph")
 def graph_cmd(
     path: Path = _WORKFLOW_ARG,

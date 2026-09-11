@@ -1,0 +1,25 @@
+:root {
+  color-scheme: light dark;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  line-height: 1.4;
+}
+body {
+  margin: 1.5rem auto;
+  max-width: 52rem;
+  padding: 0 1rem;
+}
+h1, h2 { font-weight: 600; }
+nav { display: flex; gap: 0.5rem; margin: 1rem 0; }
+label { display: block; margin-top: 0.5rem; }
+input, textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+pre {
+  overflow: auto;
+  padding: 0.75rem;
+  border: 1px solid currentColor;
+  white-space: pre-wrap;
+}
+button { margin-top: 0.75rem; }
+#status[data-kind="error"] { color: #b00020; }
