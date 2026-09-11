@@ -197,9 +197,11 @@ def _ingest(
     if declared is not None:
         columns = declared
     else:
-        buffered = list(rows)
-        if len(buffered) > max_rows:
-            raise TableCapExceeded("rows", len(buffered), max_rows)
+        buffered: list[dict[str, Any]] = []
+        for index, row in enumerate(rows):
+            if index >= max_rows:
+                raise TableCapExceeded("rows", index + 1, max_rows)
+            buffered.append(row)
         columns = infer_columns(buffered, names=names or None)
         if names:
             order = [c for n in names for c in columns if c.name == n]
