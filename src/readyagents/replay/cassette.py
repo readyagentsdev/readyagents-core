@@ -208,6 +208,24 @@ class Cassette:
         self._put(key, entry)
         return key
 
+    def recorded_route(self, node_id: str) -> dict[str, Any] | None:
+        """Return the first sealed LLM route recorded for ``node_id``."""
+        if not node_id:
+            return None
+        for entry in self.entries.values():
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("kind") != _LLM:
+                continue
+            if str(entry.get("node_id") or "") != node_id:
+                continue
+            if entry.get("redacted_blocked"):
+                continue
+            route = entry.get("route")
+            if isinstance(route, dict) and str(route.get("model") or "").strip():
+                return dict(route)
+        return None
+
     def record_tool(
         self,
         *,
