@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from readyagents.approvals.gate import parse_clock
@@ -116,13 +116,36 @@ def _file(record: WaitRecord, world: WaitWorld, now: datetime) -> Any | None:
     if not info.get("exists"):
         return None
     if kind == "changed":
-        mtime = str(info.get("mtime") or "")
-        created = record.created_at
-        if mtime and created and mtime <= created:
+        mtime = _as_instant(info.get("mtime"))
+        created = _as_instant(record.created_at)
+        if mtime is None:
             return None
-        if not mtime:
+        if created is not None and mtime <= created:
             return None
     return {"path": path, "on": kind}
+
+
+def _as_instant(value: Any) -> datetime | None:
+    """Parse ISO timestamps or unix epoch seconds. Never string-compare them."""
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, datetime):
+        return parse_now(value)
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.fromtimestamp(float(value), tz=UTC)
+        except (OSError, OverflowError, ValueError):
+            return None
+    text = str(value).strip()
+    if not text:
+        return None
+    parsed = parse_clock(text)
+    if parsed is not None:
+        return parse_now(parsed)
+    try:
+        return datetime.fromtimestamp(float(text), tz=UTC)
+    except (OSError, OverflowError, ValueError):
+        return None
 
 
 def _run(record: WaitRecord, world: WaitWorld) -> Any | None:
