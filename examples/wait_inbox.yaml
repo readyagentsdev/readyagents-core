@@ -1,0 +1,17 @@
+name: wait_inbox
+version: "1"
+description: >
+  Opt-in type: wait. Validate without keys or a daemon.
+  Wake is lazy: readyagents wake. Core starts no timer.
+  Run: readyagents validate examples/wait_inbox.yaml
+
+nodes:
+  - id: await_signature
+    type: wait
+    whichever: first
+    until: "72h"
+    for_file: {path: "inbox/contract.pdf", "on": created}
+    for_event: {name: "contract.signed", match: {id: "c1"}}
+    on_deadline: escalate
+    escalate_to: [account_manager]
+    output_key: signal
