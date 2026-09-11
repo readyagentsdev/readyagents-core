@@ -300,6 +300,10 @@ class StudioApplication:
             if method != "GET":
                 return self._method_not_allowed(("GET",))
             return self._page(query=query, headers=headers)
+        if path == "/studio/session":
+            if method != "POST":
+                return self._method_not_allowed(("POST",))
+            return self._unlock(headers=headers, body=body)
         if path.startswith("/studio/assets/"):
             if method != "GET":
                 return self._method_not_allowed(("GET",))
@@ -368,26 +372,30 @@ class StudioApplication:
             raise ReadOnlyError("Studio is --read-only; write paths are disabled.")
 
     def _page(self, *, query: dict[str, str], headers: dict[str, str]) -> HttpResponse:
-        token = (query.get("token") or "").strip()
+        del query  # Bootstrap tokens are POST-only; never consume from the query string.
         cookies = _cookies(headers.get("cookie"))
         session = cookies.get(SESSION_COOKIE, "")
-        if token:
-            try:
-                session_token = self.tokens.consume_bootstrap(token)
-            except TokenError:
-                return _html_body(_unauthorized_html(), 401)
-            cookie = (
-                f"{SESSION_COOKIE}={session_token}; HttpOnly; SameSite=Strict; "
-                f"Path={COOKIE_PATH}; Max-Age={self.session_ttl}"
-            )
-            return _html_body(
-                b"",
-                303,
-                extra=[("Set-Cookie", cookie), ("Location", "/studio")],
-            )
         if not session or not self.tokens.verify_session(session):
             return _html_body(_index_html(), 200)
         return _html_body(_index_html(), 200)
+
+    def _unlock(self, *, headers: dict[str, str], body: bytes) -> HttpResponse:
+        token = _token_from_body(headers, body)
+        if not token:
+            return _html_body(_unauthorized_html(), 401)
+        try:
+            session_token = self.tokens.consume_bootstrap(token)
+        except TokenError:
+            return _html_body(_unauthorized_html(), 401)
+        cookie = (
+            f"{SESSION_COOKIE}={session_token}; HttpOnly; SameSite=Strict; "
+            f"Path={COOKIE_PATH}; Max-Age={self.session_ttl}"
+        )
+        return _html_body(
+            b"",
+            303,
+            extra=[("Set-Cookie", cookie), ("Location", "/studio")],
+        )
 
     def _asset(self, path: str) -> HttpResponse:
         if ".." in path or "\\" in path or "%" in path:
@@ -890,6 +898,19 @@ class StudioApplication:
         )
         resp.headers.append(("Allow", ", ".join(allowed)))
         return resp
+
+
+def _token_from_body(headers: dict[str, str], body: bytes) -> str:
+    ctype = (headers.get("content-type") or "").split(";")[0].strip().lower()
+    if ctype == "application/json":
+        parsed = _read_json(body)
+        if isinstance(parsed, HttpResponse):
+            return ""
+        token = parsed.get("token")
+        return token.strip() if isinstance(token, str) else ""
+    text = body.decode("utf-8") if body else ""
+    fields = {k: v[-1] for k, v in parse_qs(text, keep_blank_values=True).items()}
+    return str(fields.get("token") or "").strip()
 
 
 def _read_json(body: bytes) -> dict[str, Any] | HttpResponse:

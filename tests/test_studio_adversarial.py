@@ -41,16 +41,24 @@ def _make_studio(tmp_settings, store, *, read_only: bool = False, tokens=None):
     return application, coordinator
 
 
+def _unlock(application, token: str):
+    headers = _host_headers(application, origin=True)
+    headers["Content-Type"] = "application/json"
+    return application.handle(
+        "POST",
+        "/studio/session",
+        headers=headers,
+        body=json.dumps({"token": token}).encode(),
+    )
+
+
 def _session(application) -> str:
     token = application.tokens.issue_bootstrap()
-    response = application.handle(
-        "GET",
-        "/studio",
-        query={"token": token},
-        headers=_host_headers(application),
-        body=b"",
-    )
+    response = _unlock(application, token)
     assert response.status == 303, response.body
+    location = dict(response.headers).get("Location", "")
+    assert location == "/studio"
+    assert token not in location
     cookie = dict(response.headers).get("Set-Cookie", "")
     assert "HttpOnly" in cookie
     assert "SameSite=Strict" in cookie
@@ -258,21 +266,11 @@ def test_bootstrap_and_action_token_replay_rejected(tmp_settings) -> None:
     store = JsonRunStore(tmp_settings.runs_dir())
     application, _c = _make_studio(tmp_settings, store)
     token = application.tokens.issue_bootstrap()
-    first = application.handle(
-        "GET",
-        "/studio",
-        query={"token": token},
-        headers=_host_headers(application),
-        body=b"",
-    )
+    first = _unlock(application, token)
     assert first.status == 303, first.body
-    second = application.handle(
-        "GET",
-        "/studio",
-        query={"token": token},
-        headers=_host_headers(application),
-        body=b"",
-    )
+    assert dict(first.headers).get("Location") == "/studio"
+    assert token not in dict(first.headers).get("Location", "")
+    second = _unlock(application, token)
     assert second.status == 401, second.body
 
     session = _session(application)

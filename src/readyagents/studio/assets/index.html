@@ -16,9 +16,9 @@
   <section id="unlock">
     <h2>Unlock</h2>
     <p>Paste the bootstrap token printed on stderr. It is single-use and not in the URL.</p>
-    <form id="unlock-form" method="get" action="/studio">
+    <form id="unlock-form" method="post" action="/studio/session">
       <label for="token">Bootstrap token</label>
-      <input id="token" name="token" type="text" autocomplete="off" required>
+      <input id="token" name="token" type="password" autocomplete="off" required>
       <button type="submit">Unlock</button>
     </form>
   </section>
