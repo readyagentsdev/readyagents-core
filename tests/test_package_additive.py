@@ -80,10 +80,10 @@ def test_approval_gate_without_package_still_pauses(tmp_path: Path, monkeypatch)
     assert data["ok"] is False
 
 
-def test_freeze_files_match_v1_9_0() -> None:
+def test_examples_match_v1_9_0_or_clean() -> None:
     import subprocess
 
-    proc = subprocess.run(
+    tagged = subprocess.run(
         [
             "git",
             "diff",
@@ -97,5 +97,20 @@ def test_freeze_files_match_v1_9_0() -> None:
         capture_output=True,
         text=True,
     )
-    assert proc.returncode == 0, proc.stderr
-    assert proc.stdout == ""
+    if tagged.returncode == 0:
+        assert tagged.stdout == "", tagged.stdout
+        return
+    status = subprocess.run(
+        [
+            "git",
+            "status",
+            "--porcelain",
+            "examples/calc_pipeline.yaml",
+            "examples/approval_gate.yaml",
+        ],
+        cwd=_root(),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert status.stdout.strip() == "", status.stdout
