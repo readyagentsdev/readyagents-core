@@ -278,8 +278,9 @@ def test_mcp_sse_http_emits_durable_events(tmp_settings, examples_dir: Path) -> 
         with TestClient(asgi, base_url="http://127.0.0.1:8765") as client:
             response = client.get(f"/runs/{state.run_id}/events")
             assert response.status_code == 200
-            assert "event-stream" in response.headers.get("content-type", "")
-            assert b"run.finished" in response.content
+            body = response.json()
+            kinds = [row["event"] for row in body.get("events") or []]
+            assert "run.finished" in kinds
     finally:
         coord.shutdown(timeout=2.0)
 

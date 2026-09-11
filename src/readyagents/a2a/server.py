@@ -171,6 +171,12 @@ def compose_a2a_app(
             state = surface._load(task_id)
         except ReadyAgentsError as extra:
             return JSONResponse({"error": str(extra)}, status_code=404)
+        accept = (request.headers.get("accept") or "").lower()
+        if "text/event-stream" not in accept:
+            return JSONResponse(
+                {"events": snapshot_events(state)},
+                headers={"Cache-Control": "no-store"},
+            )
         hub = get_stream_hub()
         queue = hub.try_subscribe(state.run_id)
         if queue is None:

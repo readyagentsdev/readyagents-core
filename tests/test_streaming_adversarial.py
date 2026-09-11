@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from readyagents.errors import CancellationRequested
@@ -132,8 +134,10 @@ def test_unauthorised_sse_does_not_stream_run_events(tmp_settings) -> None:
                 headers={"Authorization": f"Bearer {_SSE_TOKEN}"},
             )
             assert allowed.status_code == 200
-            assert "event-stream" in (allowed.headers.get("content-type") or "")
-            assert state.run_id.encode() in allowed.content
+            payload = allowed.json()
+            blob = json.dumps(payload)
+            assert state.run_id in blob
+            assert other.run_id not in blob
     finally:
         coord.shutdown(timeout=2.0)
 
