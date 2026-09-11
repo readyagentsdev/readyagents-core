@@ -1,0 +1,12 @@
+name: skill_style
+version: "1"
+description: >
+  Opt-in type: skill. Install examples/skills/house-writing-style first.
+  Skill instructions are untrusted. Scripts run in the code sandbox.
+
+nodes:
+  - id: apply
+    type: skill
+    skill: house-writing-style
+    inputs: {draft: "{{ draft }}"}
+    output_key: styled

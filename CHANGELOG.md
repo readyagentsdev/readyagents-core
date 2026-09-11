@@ -6,6 +6,16 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Agent Skills interop.** Install open-format `SKILL.md` folders
+  (`readyagents skills add|list|show|remove`). `type: skill` injects
+  instructions as untrusted attributed text, runs bundled scripts only in
+  the code sandbox, and filters `allowed-tools` through the policy engine.
+  Progressive disclosure: name and description until the node selects the
+  skill. Install refuses zip-slip, symlinks, and oversized archives. Skills
+  are digested and drift-detected. `skills export` emits a valid skill
+  folder (no secrets or local paths); `readyagents agents-md` emits run /
+  validate / test context. Workflows without skill nodes are unchanged. See
+  [docs/agent-skills.md](docs/agent-skills.md).
 - **Event triggers (`triggers:`).** A workflow may declare accepted event
   shapes, input mapping, a required idempotency key and window, per-trigger
   budget and concurrency (`drop` or `defer` on the ceiling), and

@@ -160,6 +160,7 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
         "else",
         "next",
     ),
+    NodeType.skill: ("skill", "inputs", "script", "limits", "contract"),
 }
 
 NODE_TYPE_REQUIRED: dict[NodeType, tuple[str, ...]] = {
@@ -179,6 +180,7 @@ NODE_TYPE_REQUIRED: dict[NodeType, tuple[str, ...]] = {
     NodeType.table: ("op",),
     NodeType.classify: ("source",),
     NodeType.wait: ("until",),
+    NodeType.skill: ("skill",),
 }
 
 _PYTHON_ONLY_ALIASES: Final[tuple[str, ...]] = ("else_", "from_", "call_inputs")

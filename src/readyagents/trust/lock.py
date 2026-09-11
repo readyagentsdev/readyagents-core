@@ -18,6 +18,7 @@ from readyagents.trust.digest import (
     KIND_INCLUDE,
     KIND_MCP,
     KIND_PACK,
+    KIND_SKILL,
     KIND_WORKFLOW,
     digest_pack_bytes,
     inspect_workflow,
@@ -26,7 +27,7 @@ from readyagents.trust.digest import (
 
 LOCK_VERSION = 1
 LOCK_NAME = "readyagents.lock"
-KIND_ORDER = (KIND_WORKFLOW, KIND_INCLUDE, KIND_PACK, KIND_MCP)
+KIND_ORDER = (KIND_WORKFLOW, KIND_INCLUDE, KIND_PACK, KIND_MCP, KIND_SKILL)
 
 
 @dataclass

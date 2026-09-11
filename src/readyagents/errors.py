@@ -184,6 +184,37 @@ class TableRowError(TableError):
         super().__init__(f"Table row error at row {self.row}{where}: {reason}")
 
 
+class SkillError(ReadyAgentsError):
+    """Skill install, parse, or execution failure."""
+
+
+class SkillRefused(SkillError):
+    """Malformed, oversized, hostile, or untrusted skill. Fail closed."""
+
+    def __init__(self, message: str, *, reason: str = "refused") -> None:
+        self.reason = reason
+        super().__init__(message)
+
+
+class SkillPathDenied(SkillRefused):
+    """Install escaped the catalog, zip-slipped, or followed a symlink."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, reason="path")
+
+
+class SkillDrift(SkillRefused):
+    """Installed skill digest no longer matches the pin."""
+
+    def __init__(self, name: str, expected: str, actual: str) -> None:
+        self.expected = expected
+        self.actual = actual
+        super().__init__(
+            f"Skill '{name}' drifted: expected {expected} actual {actual}",
+            reason="drift",
+        )
+
+
 class TriggerError(ReadyAgentsError):
     """Trigger contract, event, or start-decision failure."""
 

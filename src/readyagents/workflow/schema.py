@@ -49,6 +49,7 @@ class NodeType(StrEnum):
     table = "table"
     classify = "classify"
     wait = "wait"
+    skill = "skill"
 
 
 class RetrySpec(BaseModel):
@@ -793,6 +794,14 @@ class NodeSpec(BaseModel):
         default=None,
         description="Wait on_deadline: continue payload. Never grants an approval.",
     )
+    skill: str | None = Field(
+        default=None,
+        description="Installed skill name for type: skill. Open-format directory name.",
+    )
+    script: str | None = Field(
+        default=None,
+        description="Optional skill-relative script path under scripts/.",
+    )
 
     @field_validator("for_file", mode="before")
     @classmethod
@@ -884,6 +893,11 @@ class NodeSpec(BaseModel):
             self.on_deadline = action
             if action == "escalate" and not self.escalate_to:
                 raise ValueError(f"Node '{self.id}': on_deadline: escalate requires escalate_to")
+        elif t == NodeType.skill.value:
+            name = (self.skill or "").strip()
+            if not name:
+                raise ValueError(f"Node '{self.id}': skill nodes require 'skill'")
+            self.skill = name
         elif self._hitl_declared():
             raise ValueError(
                 f"Node '{self.id}': quorum/expiry/delegation fields "
