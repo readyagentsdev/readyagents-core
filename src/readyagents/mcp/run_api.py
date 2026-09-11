@@ -975,10 +975,16 @@ class RunCoordinator:
                 _OneShotDecisions(raw_decisions) if input_request_key else raw_decisions
             )
             try:
-                # Inline: a queued/daemon worker can leave the gate paused on
-                # Windows/macOS CI (lastUpdatedAt never moves). The start
-                # worker has already left `_active`.
-                self._resume_job(run_id, decisions, actor, token)
+                # Non-daemon thread: a daemon died when the HTTP worker finished,
+                # so lastUpdatedAt never moved on CI. Do not use the run
+                # executor (start worker may still occupy a slot). Do not run
+                # inline (holds `_run_lock` and hides the 409 in-flight path).
+                threading.Thread(
+                    target=self._resume_job,
+                    args=(run_id, decisions, actor, token),
+                    name=f"readyagents-resume-{run_id[:8]}",
+                    daemon=False,
+                ).start()
             except Exception:
                 with self._lock:
                     self._in_flight_resume.pop(run_id, None)
