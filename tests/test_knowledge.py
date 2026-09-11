@@ -343,6 +343,104 @@ def test_hybrid_blend_recorded_and_reproducible() -> None:
     assert [h.score for h in hits_a] == [h.score for h in hits_b]
 
 
+def _fake_embed(texts, *, settings=None):
+    vectors = []
+    for text in texts:
+        low = (text or "").lower()
+        vectors.append(
+            [
+                1.0 if "ticket" in low else 0.0,
+                1.0 if "access" in low or "need-to-know" in low else 0.0,
+                1.0 if "legal" in low else 0.1,
+            ]
+        )
+    return vectors
+
+
+def test_ingest_embed_then_search_blend_records_weights(
+    tmp_settings, tmp_path: Path, monkeypatch
+) -> None:
+    _policy_md(tmp_path)
+    monkeypatch.setattr("readyagents.knowledge.ingest.embed_texts", _fake_embed)
+    monkeypatch.setattr("readyagents.memory.node.embed_texts", _fake_embed)
+    spec = _ingest_spec("paragraph", embed=True)
+    spec["nodes"][0]["next"] = "recall"
+    spec["nodes"].append(
+        {
+            "id": "recall",
+            "type": "memory",
+            "op": "search",
+            "scope": "ns:policies",
+            "query": "tickets",
+            "limit": 5,
+            "blend": {"bm25": 0.6, "embedding": 0.4},
+            "output_key": "hits",
+        }
+    )
+    first = _run(spec, tmp_settings, tmp_path)
+    assert first.status == "succeeded"
+    store = open_memory_store(tmp_settings.home_path())
+    recs = store.list(scope="ns:policies")
+    assert recs
+    assert any(store.vector(rec.id) for rec in recs)
+    store.close()
+    hits = first.output_keys["hits"]
+    assert hits["retrieval"] == "hybrid"
+    assert hits["blend"] == {"bm25": 0.6, "embedding": 0.4}
+    assert first.metadata.get("knowledge_blend") == hits["blend"]
+    second = _run(spec, tmp_settings, tmp_path)
+    assert second.status == "succeeded"
+    again = second.output_keys["hits"]
+    assert again["blend"] == hits["blend"]
+    assert second.metadata.get("knowledge_blend") == first.metadata.get("knowledge_blend")
+    assert [row["score"] for row in again["hits"]] == [row["score"] for row in hits["hits"]]
+    assert [row["id"] for row in again["hits"]] == [row["id"] for row in hits["hits"]]
+
+
+def test_removed_source_sync_forgets_document(tmp_settings, tmp_path: Path, monkeypatch) -> None:
+    _policy_md(tmp_path)
+    _run(_ingest_spec(), tmp_settings, tmp_path)
+    (tmp_path / "docs" / "access.md").unlink()
+    detected = _run(_ingest_spec(), tmp_settings, tmp_path)
+    assert detected.output_keys["loaded"]["removed"] >= 1
+    store = open_memory_store(tmp_settings.home_path())
+    leftover = [
+        rec
+        for rec in store.list(scope="ns:policies")
+        if rec.metadata.get("document_id") == "access.md"
+    ]
+    assert leftover, "ingest reports removed sources but does not auto-delete"
+    cite = citation_from_record(leftover[0])
+    store.close()
+    wf = tmp_path / "ingest.yaml"
+    wf.write_text(
+        "name: know\nmemory_scopes: [ns:policies]\nnodes:\n"
+        "  - id: load\n    type: ingest\n    source: {kind: directory, path: docs, glob: '*.md'}\n"
+        "    chunk: {strategy: heading, max_chars: 200}\n    scope: ns:policies\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("READYAGENTS_HOME", str(tmp_settings.home_path()))
+    from readyagents.config import clear_settings_cache
+
+    clear_settings_cache()
+    synced = runner.invoke(app, ["knowledge", "sync", str(wf), "--json"])
+    assert synced.exit_code == 0, synced.stdout + synced.stderr
+    body = json.loads(synced.stdout[synced.stdout.find("{") :])
+    assert body["removed"] >= 1
+    store = open_memory_store(tmp_settings.home_path())
+    gone = [
+        rec
+        for rec in store.list(scope="ns:policies")
+        if rec.metadata.get("document_id") == "access.md"
+    ]
+    assert gone == []
+    with pytest.raises(KnowledgeCiteDenied):
+        resolve_citation(store, cite, scope="ns:policies")
+    hits = store.search(scope="ns:policies", query="need-to-know")
+    assert all((h.record.metadata or {}).get("document_id") != "access.md" for h in hits)
+    store.close()
+
+
 def test_forget_document_unretrievable(tmp_settings, tmp_path: Path, monkeypatch) -> None:
     _policy_md(tmp_path)
     _run(_ingest_spec(), tmp_settings, tmp_path)

@@ -8,7 +8,7 @@ from typing import Any
 from uuid import uuid4
 
 from readyagents.errors import KnowledgeError
-from readyagents.knowledge.chunk import chunk_text
+from readyagents.knowledge.chunk import Chunk, chunk_text
 from readyagents.knowledge.cite import (
     META_DOC,
     META_END,
@@ -24,8 +24,9 @@ from readyagents.knowledge.cite import (
     citation_from_record,
 )
 from readyagents.knowledge.walk import walk_source
-from readyagents.memory.node import _policy, _store
+from readyagents.memory.node import _account_embed, _policy, _settings, _store
 from readyagents.memory.protocol import MemoryRecord
+from readyagents.memory.retrieve import embed_texts
 from readyagents.memory.scope import validate_scope
 from readyagents.workflow.state import utc_now
 from readyagents.workflow.templates import interpolate
@@ -73,6 +74,8 @@ def run_ingest_node(node: Any, state: Any, ctx: Any) -> Any:
             workspace=workspace,
             run_id=state.run_id,
             node_id=node.id,
+            embed=bool(getattr(node, "embed", False)),
+            ctx=ctx,
         )
         _maybe_freshness(node, store, scope)
         return report
@@ -97,6 +100,8 @@ def ingest_into(
     max_files: int | None = None,
     max_bytes: int | None = None,
     max_depth: int | None = None,
+    embed: bool = False,
+    ctx: Any = None,
 ) -> dict[str, Any]:
     files = walk_source(
         source,
@@ -130,6 +135,7 @@ def ingest_into(
             updated += 1
         else:
             added += 1
+        vectors_list = _chunk_vectors(chunks) if embed else None
         for index, chunk in enumerate(chunks):
             record = MemoryRecord(
                 id=uuid4().hex,
@@ -153,7 +159,10 @@ def ingest_into(
                 source_run_id=run_id,
                 provenance="ingest",
             )
-            store.write(record)
+            vector = vectors_list[index] if vectors_list else None
+            if vector is not None and ctx is not None:
+                _account_embed(ctx, chunk.text)
+            store.write(record, vector=vector)
             cite = citation_from_record(record)
             if cite:
                 written.append(cite)
@@ -174,6 +183,15 @@ def ingest_into(
         "on_change": on_change,
         "strategy": strategy,
     }
+
+
+def _chunk_vectors(chunks: list[Chunk]) -> list[list[float]] | None:
+    """BYOK embeddings for ingest chunks. None means degrade; no vectors stored."""
+    texts = [chunk.text for chunk in chunks]
+    vectors = embed_texts(texts, settings=_settings())
+    if vectors is None or len(vectors) != len(chunks):
+        return None
+    return vectors
 
 
 def _by_document(records: list[MemoryRecord]) -> dict[str, list[MemoryRecord]]:

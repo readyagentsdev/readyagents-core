@@ -112,6 +112,10 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- `type: ingest` with `embed: true` persists BYOK vectors on each chunk
+  (`store.write(..., vector=)`). A later memory search with `blend:` can then
+  run hybrid retrieval and record the weights on the search result and
+  `metadata.knowledge_blend`. Missing embeddings still degrade to keyword.
 - Routing taint follows ``{{outputs.<id>}}`` / ``{{inputs.<key>}}`` to the
   nested provenance key. Skipping the ``outputs`` namespace let a hosted pin
   fire on untrusted tool output.
