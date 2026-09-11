@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from readyagents.contracts.spec import ContractSpec
 from readyagents.errors import WorkflowError
 
 
@@ -433,6 +434,13 @@ class NodeSpec(BaseModel):
     require_isolation: str | None = Field(
         default=None,
         description="Minimum isolation tier. container fails closed without a runtime pack.",
+    )
+    contract: ContractSpec | None = Field(
+        default=None,
+        description=(
+            "Opt-in output contract: structural schema, named content rules, "
+            "and a declared action (fail, repair, fallback, gate, redact_and_continue)."
+        ),
     )
 
     @field_validator("id")

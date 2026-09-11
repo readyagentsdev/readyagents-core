@@ -297,41 +297,46 @@ def _execute_node_body(node: NodeSpec, state: RunState, ctx: ExecutionContext) -
     kind = node.type if isinstance(node.type, str) else str(node.type)
     handler = ctx.extra_handlers.get(kind)
     if handler is not None:
-        return handler.execute(node, state, ctx)
-
-    if kind == NodeType.agent.value:
-        return _run_agent(node, state, ctx)
-    if kind == NodeType.tool.value:
-        return _run_tool(node, state, ctx)
-    if kind == NodeType.transform.value:
-        return _run_transform(node, state, ctx)
-    if kind == NodeType.condition.value:
-        return _run_condition(node, state, ctx)
-    if kind == NodeType.approval.value:
-        return _run_approval(node, state, ctx)
-    if kind == NodeType.parallel.value:
-        return _run_parallel(node, state, ctx)
-    if kind == NodeType.include.value:
-        return _run_include(node, state, ctx)
-    if kind == NodeType.foreach.value:
-        return _run_foreach(node, state, ctx)
-    if kind == NodeType.a2a.value:
+        output = handler.execute(node, state, ctx)
+    elif kind == NodeType.agent.value:
+        output = _run_agent(node, state, ctx)
+    elif kind == NodeType.tool.value:
+        output = _run_tool(node, state, ctx)
+    elif kind == NodeType.transform.value:
+        output = _run_transform(node, state, ctx)
+    elif kind == NodeType.condition.value:
+        output = _run_condition(node, state, ctx)
+    elif kind == NodeType.approval.value:
+        output = _run_approval(node, state, ctx)
+    elif kind == NodeType.parallel.value:
+        output = _run_parallel(node, state, ctx)
+    elif kind == NodeType.include.value:
+        output = _run_include(node, state, ctx)
+    elif kind == NodeType.foreach.value:
+        output = _run_foreach(node, state, ctx)
+    elif kind == NodeType.a2a.value:
         from readyagents.a2a.node import run_a2a_node
 
-        return run_a2a_node(node, state, ctx)
-    if kind == NodeType.memory.value:
+        output = run_a2a_node(node, state, ctx)
+    elif kind == NodeType.memory.value:
         from readyagents.memory.node import run_memory_node
 
-        return run_memory_node(node, state, ctx)
-    if kind == NodeType.code.value:
+        output = run_memory_node(node, state, ctx)
+    elif kind == NodeType.code.value:
         from readyagents.code.node import run_code_node
 
-        return run_code_node(node, state, ctx)
-    known = ", ".join(t.value for t in NodeType)
-    raise WorkflowError(
-        f"Unsupported node type '{node.type}' on node '{node.id}'. "
-        f"Known types: {known}. Packs may register extra types via readyagents.packs."
-    )
+        output = run_code_node(node, state, ctx)
+    else:
+        known = ", ".join(t.value for t in NodeType)
+        raise WorkflowError(
+            f"Unsupported node type '{node.type}' on node '{node.id}'. "
+            f"Known types: {known}. Packs may register extra types via readyagents.packs."
+        )
+    if getattr(node, "contract", None) is not None:
+        from readyagents.contracts.enforce import enforce_contract
+
+        return enforce_contract(node, output, state, ctx)
+    return output
 
 
 def _run_agent(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
@@ -354,7 +359,8 @@ def _run_agent(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
     result = _complete_agent(node, state, ctx, messages, tools=tool_specs)
     if tool_specs:
         result = _agent_tool_loop(node, state, ctx, messages, result, allowlist, tool_specs)
-    if node.output_schema:
+    ctx.last_agent_messages = list(messages)
+    if node.output_schema and getattr(node, "contract", None) is None:
         return validate_structured_output(result.text, node.output_schema, node_id=node.id)
     return result.text
 

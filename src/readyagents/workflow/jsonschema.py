@@ -36,10 +36,18 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
         "tools",
         "max_tool_rounds",
         "rationale_key",
+        "contract",
     ),
-    NodeType.tool: ("tool", "arguments"),
+    NodeType.tool: ("tool", "arguments", "contract"),
     NodeType.condition: ("when", "then", "else"),
-    NodeType.transform: ("template", "source", "json_path", "parse_json", "rationale_key"),
+    NodeType.transform: (
+        "template",
+        "source",
+        "json_path",
+        "parse_json",
+        "rationale_key",
+        "contract",
+    ),
     NodeType.approval: (
         "prompt",
         "then",
@@ -60,7 +68,7 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
     NodeType.parallel: ("branches",),
     NodeType.include: ("path", "inputs"),
     NodeType.foreach: ("items", "max_items", "body"),
-    NodeType.a2a: ("agent_url", "message", "on_input_required", "token"),
+    NodeType.a2a: ("agent_url", "message", "on_input_required", "token", "contract"),
     NodeType.memory: (
         "op",
         "scope",
@@ -71,6 +79,7 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
         "limit",
         "embed",
         "context",
+        "contract",
     ),
     NodeType.code: (
         "source",
@@ -83,6 +92,7 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
         "limits",
         "require_isolation",
         "output_schema",
+        "contract",
     ),
 }
 

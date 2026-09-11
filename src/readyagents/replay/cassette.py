@@ -22,6 +22,7 @@ DEFAULT_MAX_CASSETTE_BYTES = 10_485_760
 _LLM = "llm"
 _TOOL = "tool"
 _CODE = "code"
+_CONTRACT = "contract"
 
 DETERMINISTIC_TOOLS = frozenset({"calc", "json_get", "json_set", "json_merge"})
 SEALABLE_TOOLS = frozenset({"now", "http_get", "read_file", "list_dir"})
@@ -317,6 +318,58 @@ class Cassette:
         self.report.note(node_id, "sealed")
         return entry.get("output")
 
+    def record_contract(
+        self,
+        *,
+        node_id: str,
+        output: Any,
+        report: Mapping[str, Any] | None,
+    ) -> str:
+        digest = self.tool_digest("contract", {"node": node_id})
+        occ = self._record.get(f"{_CONTRACT}:{digest}", 0)
+        self._record[f"{_CONTRACT}:{digest}"] = occ + 1
+        key = entry_storage_key(_CONTRACT, digest, occ)
+        entry = {
+            "kind": _CONTRACT,
+            "node_id": node_id,
+            "occurrence": occ,
+            "digest": digest,
+            "output": output,
+            "report": dict(report or {}),
+            "sealed": True,
+        }
+        self.report.note(node_id, "sealed")
+        self._put(key, entry)
+        return key
+
+    def replay_contract(self, *, node_id: str) -> Any:
+        digest = self.tool_digest("contract", {"node": node_id})
+        occ = self._consume.get(f"{_CONTRACT}:{digest}", 0)
+        key = entry_storage_key(_CONTRACT, digest, occ)
+        entry = self.entries.get(key)
+        if entry is None and occ == 0:
+            entry = self.entries.get(f"{_CONTRACT}:{digest}")
+        if entry is None:
+            nearest = self.nearest_key(_CONTRACT, digest)
+            miss = {
+                "node_id": node_id,
+                "reason": "missing",
+                "nearest_key": nearest,
+                "digest": digest,
+            }
+            self.report.note(node_id, "miss", miss=miss)
+            raise CassetteMiss(
+                f"Cassette miss at contract node '{node_id}' "
+                f"(digest {digest[:12]}…, nearest {nearest or 'none'}). "
+                "Offline replay never re-calls the model.",
+                node_id=node_id,
+                reason="missing",
+                nearest_key=nearest,
+            )
+        self._consume[f"{_CONTRACT}:{digest}"] = occ + 1
+        self.report.note(node_id, "sealed")
+        return entry.get("output")
+
     def replay_llm(
         self,
         *,
@@ -510,7 +563,7 @@ class Cassette:
             if not isinstance(key, str) or not isinstance(row, dict):
                 raise CassetteError(f"Cassette {file} has an invalid entry")
             kind = row.get("kind")
-            if kind not in {_LLM, _TOOL, _CODE}:
+            if kind not in {_LLM, _TOOL, _CODE, _CONTRACT}:
                 raise CassetteError(f"Cassette {file} entry {key!r} has invalid kind")
             tape.entries[key] = dict(row)
         det = loaded.get("determinism")
