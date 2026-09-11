@@ -52,6 +52,7 @@ STEPS: list[list[str]] = [
     ["run", str(EXAMPLES / "json_mutate.yaml"), "--no-persist"],
     ["run", str(EXAMPLES / "code_reshape.yaml"), "--no-persist"],
     ["run", str(EXAMPLES / "contract_reshape.yaml"), "--no-persist"],
+    ["run", str(EXAMPLES / "team_pipeline.yaml"), "--no-persist"],
 ]
 
 
