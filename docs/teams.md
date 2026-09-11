@@ -42,12 +42,13 @@ typed error (`TeamRoundsExceeded`, `TeamSpendExceeded`, `TeamWallExceeded`) with
 scratchpad and handoffs on the run record. Goal success is `stop: goal`.
 
 Scratchpad keys are declared. Per-member `read` / `write` grants are enforced
-on writes and on the interpolate namespace (`{{ scratchpad.<key> }}` sees only
-granted keys). Writes are taint-marked with the writer. Handoffs are
-`{from, to, reason, payload, ts}` and are durable checkpoints. A paused
-approval member resumes with `--approve <member_id>`. `runs fork` copies
-`metadata.teams`, including a mid-team pause that has no completed team
-`NodeResult`. Offline replay uses the existing cassette.
+on writes and on the member interpolate namespace: granted keys only, including
+aliases (`scratchpad`, `teams.<id>.scratchpad`, dumping `teams`). Writes are
+taint-marked with the writer. Handoffs are `{from, to, reason, payload, ts}`
+and are durable checkpoints (persisted each round). A paused approval member
+resumes with `--approve <member_id>`. `runs fork` copies `metadata.teams`,
+including a mid-team pause that has no completed team `NodeResult`. Offline
+replay uses the existing cassette.
 
 A team never widens the workflow's tool or egress permissions. See
 [examples/team_pipeline.yaml](../examples/team_pipeline.yaml).

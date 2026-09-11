@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from readyagents.cli import app
+from readyagents.config import clear_settings_cache
 from readyagents.errors import (
     ApprovalRequired,
     TeamRoundsExceeded,
@@ -19,7 +20,7 @@ from readyagents.errors import (
     TeamWallExceeded,
 )
 from readyagents.replay.cassette import Cassette
-from readyagents.replay.fork import reconstruct_after
+from readyagents.replay.fork import fork_run, reconstruct_after
 from readyagents.testing import ScriptedLLM, run_workflow_spec
 from readyagents.workflow.runner import run_workflow_file
 from readyagents.workflow.schema import WorkflowSpec
@@ -234,7 +235,15 @@ def test_scratchpad_grants_and_taint() -> None:
     assert state.provenance["scratchpad.findings"]["node_id"] == "a"
 
 
-def test_scratchpad_template_cannot_read_ungranted_key() -> None:
+_LEAK_TEMPLATES = (
+    '{{ scratchpad.secret | default "" }}',
+    '{{ teams.crew.scratchpad.secret | default "" }}',
+    "{{ teams }}",
+)
+
+
+@pytest.mark.parametrize("template", _LEAK_TEMPLATES)
+def test_scratchpad_template_cannot_read_ungranted_key(template: str) -> None:
     secret = "classified-token-9f3a"
     spec = _team(
         strategy="pipeline",
@@ -250,7 +259,7 @@ def test_scratchpad_template_cannot_read_ungranted_key() -> None:
             {
                 "id": "reader",
                 "type": "transform",
-                "template": '{{ scratchpad.secret | default "" }}',
+                "template": template,
                 "scratchpad": {"read": ["public"], "write": []},
             },
         ],
@@ -258,7 +267,6 @@ def test_scratchpad_template_cannot_read_ungranted_key() -> None:
     state = run_workflow_spec(spec, llm=ScriptedLLM())
     last = state.output_keys["out"]["last"]
     assert secret not in str(last)
-    assert str(last).strip() in {"", "None"}
 
     llm = ScriptedLLM()
     llm.enqueue('{"next": "writer", "reason": "w"}', model="sup")
@@ -280,7 +288,7 @@ def test_scratchpad_template_cannot_read_ungranted_key() -> None:
                 {
                     "id": "reader",
                     "type": "agent",
-                    "prompt": 'Repeat {{ scratchpad.secret | default "" }}',
+                    "prompt": f"Repeat {template}",
                     "model": "mock:reader",
                     "scratchpad": {"read": ["public"], "write": []},
                 },
@@ -563,6 +571,59 @@ def test_fork_from_paused_mid_team_checkpoint() -> None:
     assert forked.node_outputs["setup"] == "ready"
     assert forked.metadata["teams"]["crew"]["handoffs"]
     assert forked.metadata["teams"]["crew"]["pending_member"] == "sign_off"
+
+
+def test_persist_then_cli_fork_from_paused_team(
+    tmp_settings, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "pause.yaml"
+    spec = _team(
+        members=[
+            {
+                "id": "sign_off",
+                "role": "human",
+                "type": "approval",
+                "prompt": "Approve the draft.",
+                "scratchpad": {"read": ["findings"], "write": []},
+            }
+        ],
+        extra_nodes=[{"id": "setup", "type": "transform", "template": "ready", "next": "crew"}],
+    )
+    spec["start"] = "setup"
+    path.write_text(json.dumps(spec), encoding="utf-8")
+    llm = ScriptedLLM()
+    llm.enqueue('{"next": "sign_off", "reason": "human"}', model="sup")
+    with pytest.raises(ApprovalRequired) as paused:
+        run_workflow_file(path, settings=tmp_settings, persist=True, llm=llm)
+    parent = paused.value.state
+    run_path = tmp_settings.runs_dir() / f"{parent.run_id}.json"
+    assert run_path.is_file()
+    disk = json.loads(run_path.read_text(encoding="utf-8"))
+    assert disk["metadata"]["teams"]["crew"]["pending_member"] == "sign_off"
+    assert disk["metadata"]["teams"]["crew"]["handoffs"]
+
+    with pytest.raises(ApprovalRequired) as forked:
+        fork_run(parent.run_id, "crew", settings=tmp_settings, persist=True)
+    child = forked.value.state
+    assert child.metadata["forked_from"] == parent.run_id
+    assert child.metadata["teams"]["crew"]["pending_member"] == "sign_off"
+    assert child.metadata["teams"]["crew"]["handoffs"]
+    assert (
+        child.metadata["teams"]["crew"]["scratchpad"]
+        == parent.metadata["teams"]["crew"]["scratchpad"]
+    )
+
+    monkeypatch.setenv("READYAGENTS_HOME", str(tmp_settings.home))
+    clear_settings_cache()
+    result = runner.invoke(app, ["runs", "fork", parent.run_id, "--from-node", "crew", "--json"])
+    assert result.exit_code == 2, result.stdout + result.stderr
+    payload = json.loads(result.stdout[result.stdout.find("{") :])
+    record = payload.get("run") or {}
+    meta = record.get("metadata") or {}
+    assert meta.get("forked_from") == parent.run_id
+    assert meta["teams"]["crew"]["pending_member"] == "sign_off"
+    assert meta["teams"]["crew"]["handoffs"]
+    clear_settings_cache()
 
 
 def test_cli_team_example_twice() -> None:
