@@ -84,6 +84,8 @@ def ingest_bytes(
     kind: str | None = None,
     mime: str | None = None,
     page_index: int | None = None,
+    node: Any = None,
+    redact: bool = True,
 ) -> MediaPart:
     caps = caps or caps_from(getattr(ctx, "workflow", None))
     if len(data) > caps.max_bytes_per_part:
@@ -120,6 +122,18 @@ def ingest_bytes(
         kind = "video"
     elif kind == "image":
         raise MediaMalformed("malformed image container")
+    redaction_record = None
+    if redact:
+        from readyagents.media.redact import apply_redaction_bytes, spec_from_ctx_node
+
+        regions, classes = spec_from_ctx_node(ctx, node)
+        if regions or classes:
+            cleaned, redaction_record = apply_redaction_bytes(
+                cleaned, ctx=ctx, regions=regions, classes=classes
+            )
+            if is_png(cleaned):
+                width, height = png_dimensions(cleaned)
+                mime = "image/png"
     store = store_from(ctx)
     if store.used_bytes() + len(cleaned) > caps.max_run_bytes:
         raise MediaBudgetExceeded(store.used_bytes() + len(cleaned), caps.max_run_bytes)
@@ -140,6 +154,7 @@ def ingest_bytes(
         page_index=page_index,
         provenance={"trust": "untrusted", "source": source},
         metadata_stripped=True,
+        redaction=redaction_record,
     )
     return account_part(part)
 
@@ -151,6 +166,7 @@ def ingest_path(
     workspace: Path | str | None = None,
     caps: MediaCaps | None = None,
     source: str = "file",
+    node: Any = None,
 ) -> MediaPart:
     fallback = getattr(ctx, "workflow_dir", None) or "."
     root = Path(workspace) if workspace is not None else Path(fallback)
@@ -163,7 +179,7 @@ def ingest_path(
     if size > caps.max_bytes_per_part:
         raise MediaSizeExceeded(int(size), caps.max_bytes_per_part)
     data = resolved.read_bytes()
-    return ingest_bytes(data, ctx=ctx, caps=caps, source=source)
+    return ingest_bytes(data, ctx=ctx, caps=caps, source=source, node=node)
 
 
 def sniff(data: bytes) -> tuple[str, str]:
@@ -188,6 +204,12 @@ def remember_cassette_blob(cassette: Any, sha256: str, data: bytes) -> None:
         cassette.media_blobs = {}
         blobs = cassette.media_blobs
     blobs[sha256] = data
+
+
+def forget_cassette_blob(cassette: Any, sha256: str) -> None:
+    blobs = getattr(cassette, "media_blobs", None)
+    if isinstance(blobs, dict):
+        blobs.pop(str(sha256), None)
 
 
 def _check_pixels(width: int, height: int, nbytes: int, caps: MediaCaps) -> None:

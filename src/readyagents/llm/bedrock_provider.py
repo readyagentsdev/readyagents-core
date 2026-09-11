@@ -178,7 +178,9 @@ def _bedrock_messages(messages: list[Message]) -> tuple[list[dict[str, str]], li
             system.append({"text": message.content or ""})
             continue
         role = "assistant" if message.role == "assistant" else "user"
-        chat.append({"role": role, "content": [{"text": message.content or ""}]})
+        from readyagents.media.payload import bedrock_content
+
+        chat.append({"role": role, "content": bedrock_content(message)})
     return system, chat
 
 

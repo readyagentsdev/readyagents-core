@@ -41,6 +41,20 @@ class MediaStore:
     def has(self, sha256: str) -> bool:
         return self.path_for(sha256).is_file()
 
+    def delete(self, sha256: str) -> None:
+        path = self.path_for(sha256)
+        if not path.is_file():
+            return
+        try:
+            size = path.stat().st_size
+        except OSError:
+            size = 0
+        try:
+            path.unlink()
+        except OSError:
+            return
+        self._bytes = max(0, self._bytes - int(size))
+
     def path_for(self, sha256: str) -> Path:
         digest = str(sha256).strip().lower()
         if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
