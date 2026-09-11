@@ -222,6 +222,56 @@ class ContractExhausted(ContractError):
         super().__init__(node_id, message)
 
 
+class TeamError(NodeError):
+    """A `type: team` node failed."""
+
+
+class TeamUnknownMember(TeamError):
+    """Supervisor named a member id that is not in the closed set."""
+
+    def __init__(self, node_id: str, member_id: str) -> None:
+        self.member_id = member_id
+        super().__init__(node_id, f"unknown team member '{member_id}'")
+
+
+class TeamRoundsExceeded(TeamError):
+    """Engine stopped the team at max_rounds."""
+
+    def __init__(self, node_id: str, used: int, limit: int) -> None:
+        self.used = used
+        self.limit = limit
+        super().__init__(node_id, f"team max_rounds exceeded used={used} limit={limit}")
+
+
+class TeamSpendExceeded(TeamError):
+    """Engine stopped the team at max_cost_usd / max_spend."""
+
+    def __init__(self, node_id: str, used_micros: int, limit_micros: int) -> None:
+        self.used = used_micros
+        self.limit = limit_micros
+        super().__init__(
+            node_id, f"team max spend exceeded used_micros={used_micros} limit={limit_micros}"
+        )
+
+
+class TeamWallExceeded(TeamError):
+    """Engine stopped the team at max_wall_seconds."""
+
+    def __init__(self, node_id: str, used: float, limit: float) -> None:
+        self.used = used
+        self.limit = limit
+        super().__init__(node_id, f"team max_wall_seconds exceeded used={used} limit={limit}")
+
+
+class TeamScratchpadDenied(TeamError):
+    """Member read or wrote a scratchpad key outside its grant."""
+
+    def __init__(self, node_id: str, member_id: str, key: str, action: str) -> None:
+        self.member_id = member_id
+        self.key = key
+        super().__init__(node_id, f"team member '{member_id}' cannot {action} scratchpad '{key}'")
+
+
 class CircuitOpen(LLMError):
     """A model is skipped because its circuit breaker is open."""
 

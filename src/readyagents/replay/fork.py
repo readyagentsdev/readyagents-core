@@ -14,6 +14,7 @@ from readyagents.workflow.state import RunState, utc_now
 _FOREACH_META = "_foreach"
 _PARALLEL_META = "_parallel"
 _INCLUDE_META = "_include"
+_TEAMS_META = "teams"
 
 
 def reconstruct_after(
@@ -89,7 +90,7 @@ def _lineage_metadata(parent: RunState, node_id: str, chosen: Any) -> dict[str, 
     meta = {
         key: value
         for key, value in dict(parent.metadata).items()
-        if key not in {_FOREACH_META, _PARALLEL_META, _INCLUDE_META}
+        if key not in {_FOREACH_META, _PARALLEL_META, _INCLUDE_META, _TEAMS_META}
     }
     meta["forked_from"] = parent.run_id
     meta["forked_at_node"] = node_id
@@ -107,6 +108,9 @@ def _truncated_buckets(metadata: Mapping[str, Any], kept_ids: set[str]) -> dict[
             trimmed = {k: v for k, v in bucket.items() if k in kept_ids}
             if trimmed:
                 out[key] = trimmed
+    teams = metadata.get(_TEAMS_META)
+    if isinstance(teams, dict) and teams:
+        out[_TEAMS_META] = dict(teams)
     return out
 
 

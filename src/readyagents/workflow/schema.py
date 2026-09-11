@@ -42,6 +42,7 @@ class NodeType(StrEnum):
     a2a = "a2a"
     memory = "memory"
     code = "code"
+    team = "team"
 
 
 class RetrySpec(BaseModel):
@@ -177,7 +178,7 @@ class NodeSpec(BaseModel):
     type: str = Field(
         description=(
             "Node kind. Built-ins: agent, tool, condition, transform, approval, "
-            "parallel, include, foreach, a2a, memory, code. Packs may add types."
+            "parallel, include, foreach, a2a, memory, code, team. Packs may add types."
         )
     )
     timeout_seconds: float | None = Field(
@@ -442,6 +443,26 @@ class NodeSpec(BaseModel):
             "and a declared action (fail, repair, fallback, gate, redact_and_continue)."
         ),
     )
+    strategy: str | None = Field(
+        default=None,
+        description="team strategy: route, plan_then_execute, debate, or pipeline.",
+    )
+    supervisor: dict[str, Any] | None = Field(
+        default=None,
+        description="team supervisor: {prompt, model, system}.",
+    )
+    members: list[Any] | None = Field(
+        default=None,
+        description="Closed team member set. Nested type: team is refused.",
+    )
+    scratchpad: dict[str, Any] | None = Field(
+        default=None,
+        description="team scratchpad: {keys: [...]} plus per-member read/write grants.",
+    )
+    terminate: dict[str, Any] | None = Field(
+        default=None,
+        description="team terminate: max_rounds, max_cost_usd, max_wall_seconds, goal.",
+    )
 
     @field_validator("id")
     @classmethod
@@ -544,6 +565,14 @@ class NodeSpec(BaseModel):
                 from readyagents.approvals.gate import parse_expires_in
 
                 parse_expires_in(self.ttl)
+        if t == NodeType.team.value:
+            from readyagents.team.spec import parse_team
+
+            parse_team(self)
+        elif self.strategy or self.members or self.supervisor:
+            raise ValueError(
+                f"Node '{self.id}': strategy/members/supervisor are only valid on team nodes"
+            )
         return self
 
     def _hitl_declared(self) -> bool:
