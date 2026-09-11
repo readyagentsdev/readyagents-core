@@ -6,6 +6,7 @@ import io
 import stat
 import zipfile
 from pathlib import Path
+from uuid import uuid4
 
 from readyagents.errors import PackagePathDenied, PackageRefused
 from readyagents.package.layout import (
@@ -49,35 +50,43 @@ def extract_archive(blob: bytes, dest: Path) -> Path:
     """Write archive members under dest. Never import, chmod +x, or run."""
     dest = Path(dest)
     dest.mkdir(parents=True, exist_ok=True)
+    tmp = dest.parent / f".{dest.name}.{uuid4().hex}.zip"
+    tmp.write_bytes(blob)
     try:
-        zf = zipfile.ZipFile(io.BytesIO(blob))
-    except zipfile.BadZipFile as extra:
-        raise PackageRefused("package archive is not a zip", reason="malformed") from extra
-    with zf:
-        infos = list(zf.infolist())
-        if len(infos) > MAX_FILES:
-            raise PackageRefused("package exceeds file count cap", reason="too_many")
-        files = 0
-        for info in infos:
-            name = info.filename.replace("\\", "/")
-            _reject_member(name, info)
-            if name.endswith("/") or info.is_dir():
-                (dest / name).mkdir(parents=True, exist_ok=True)
-                continue
-            files += 1
-            if files > MAX_FILES:
+        try:
+            zf = zipfile.ZipFile(tmp, mode="r")
+        except zipfile.BadZipFile as extra:
+            raise PackageRefused("package archive is not a zip", reason="malformed") from extra
+        with zf:
+            infos = list(zf.infolist())
+            if len(infos) > MAX_FILES:
                 raise PackageRefused("package exceeds file count cap", reason="too_many")
-            if info.file_size > MAX_MEMBER_BYTES:
-                raise PackageRefused(f"package member exceeds size cap: {name}", reason="too_large")
-            target = (dest / name).resolve()
-            if dest.resolve() not in target.parents and target != dest.resolve():
-                raise PackagePathDenied(f"zip slip refused: {name}")
-            target.parent.mkdir(parents=True, exist_ok=True)
-            # Read by name on this ZipFile — ZipInfo from another handle fails on Windows.
-            data = zf.read(name)
-            if len(data) > MAX_MEMBER_BYTES:
-                raise PackageRefused(f"package member exceeds size cap: {name}", reason="too_large")
-            target.write_bytes(data)
+            files = 0
+            for info in infos:
+                name = info.filename.replace("\\", "/")
+                _reject_member(name, info)
+                if name.endswith("/") or info.is_dir():
+                    (dest / name).mkdir(parents=True, exist_ok=True)
+                    continue
+                files += 1
+                if files > MAX_FILES:
+                    raise PackageRefused("package exceeds file count cap", reason="too_many")
+                if info.file_size > MAX_MEMBER_BYTES:
+                    raise PackageRefused(
+                        f"package member exceeds size cap: {name}", reason="too_large"
+                    )
+                target = (dest / name).resolve()
+                if dest.resolve() not in target.parents and target != dest.resolve():
+                    raise PackagePathDenied(f"zip slip refused: {name}")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                data = zf.read(name)
+                if len(data) > MAX_MEMBER_BYTES:
+                    raise PackageRefused(
+                        f"package member exceeds size cap: {name}", reason="too_large"
+                    )
+                target.write_bytes(data)
+    finally:
+        tmp.unlink(missing_ok=True)
     if not (dest / MANIFEST_NAME).is_file():
         nested = _find_manifest_root(dest)
         return nested
