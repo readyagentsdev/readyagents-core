@@ -13,7 +13,6 @@ from readyagents.atomic import atomic_write_bytes
 from readyagents.errors import PackageRefused
 from readyagents.package.layout import (
     ARCHIVE_SUFFIX,
-    FILE_ATTR,
     KIND_MEMBER,
     LOCK_NAME,
     MANIFEST_NAME,
@@ -107,7 +106,5 @@ def _pack_zip(members: dict[str, bytes]) -> bytes:
         for name, data in sorted(members.items()):
             info = zipfile.ZipInfo(filename=name.replace("\\", "/"), date_time=ZIP_EPOCH)
             info.compress_type = zipfile.ZIP_STORED
-            info.create_system = 3
-            info.external_attr = FILE_ATTR
             zf.writestr(info, data)
     return buf.getvalue()
