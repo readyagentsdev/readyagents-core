@@ -387,6 +387,11 @@ def get_stream_hub() -> StreamHub:
         return _HUB
 
 
+def wants_event_stream(accept: str | None) -> bool:
+    """True only when the client asked for SSE. Default GET is a JSON snapshot."""
+    return "text/event-stream" in (accept or "").lower()
+
+
 def snapshot_events(state: Any) -> list[dict[str, Any]]:
     """Durable view of a run as stream events (no phantom complete from partials)."""
     run_id = getattr(state, "run_id", None)

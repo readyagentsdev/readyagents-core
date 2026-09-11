@@ -164,15 +164,19 @@ def compose_a2a_app(
     async def task_stream(request: Any) -> Any:
         from starlette.responses import StreamingResponse
 
-        from readyagents.workflow.stream import format_sse, get_stream_hub, snapshot_events
+        from readyagents.workflow.stream import (
+            format_sse,
+            get_stream_hub,
+            snapshot_events,
+            wants_event_stream,
+        )
 
         task_id = str(request.path_params.get("task_id") or "")
         try:
             state = surface._load(task_id)
         except ReadyAgentsError as extra:
             return JSONResponse({"error": str(extra)}, status_code=404)
-        accept = (request.headers.get("accept") or "").lower()
-        if "text/event-stream" not in accept:
+        if not wants_event_stream(request.headers.get("accept")):
             return JSONResponse(
                 {"events": snapshot_events(state)},
                 headers={"Cache-Control": "no-store"},

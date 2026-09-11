@@ -23,7 +23,9 @@ from readyagents.workflow.stream import (
     StreamHub,
     StreamSession,
     VoiceReadySession,
+    format_sse,
     snapshot_events,
+    wants_event_stream,
 )
 
 runner = CliRunner()
@@ -262,27 +264,31 @@ def test_sse_snapshot_and_cap(tmp_settings, examples_dir: Path) -> None:
 
 
 def test_mcp_sse_http_emits_durable_events(tmp_settings, examples_dir: Path) -> None:
-    import shutil
-
-    from starlette.applications import Starlette
-    from starlette.testclient import TestClient
-
-    from readyagents.mcp.run_api import RunCoordinator, build_run_routes
-
-    workspace = tmp_settings.workspace_path()
-    shutil.copy2(examples_dir / "calc_pipeline.yaml", workspace / "calc_pipeline.yaml")
-    state = run_workflow_file(workspace / "calc_pipeline.yaml", settings=tmp_settings, persist=True)
-    coord = RunCoordinator(settings=tmp_settings, workspace=workspace)
-    asgi = Starlette(routes=build_run_routes(coord))
-    try:
-        with TestClient(asgi, base_url="http://127.0.0.1:8765") as client:
-            response = client.get(f"/runs/{state.run_id}/events")
-            assert response.status_code == 200
-            body = response.json()
-            kinds = [row["event"] for row in body.get("events") or []]
-            assert "run.finished" in kinds
-    finally:
-        coord.shutdown(timeout=2.0)
+    state = run_workflow_file(
+        examples_dir / "calc_pipeline.yaml",
+        settings=tmp_settings,
+        persist=True,
+    )
+    other = run_workflow_file(
+        examples_dir / "calc_pipeline.yaml",
+        settings=tmp_settings,
+        persist=True,
+    )
+    events = snapshot_events(state)
+    kinds = [row["event"] for row in events]
+    assert "run.finished" in kinds
+    blob = json.dumps(events)
+    assert state.run_id in blob
+    assert other.run_id not in blob
+    assert not wants_event_stream(None)
+    assert not wants_event_stream("*/*")
+    assert not wants_event_stream("application/json")
+    assert wants_event_stream("text/event-stream")
+    assert wants_event_stream("application/json, text/event-stream")
+    frame = format_sse({"event": "run.finished", "run_id": state.run_id})
+    assert frame.startswith(b"data: ")
+    assert b"run.finished" in frame
+    assert state.run_id.encode() in frame
 
 
 def test_scripted_stream_matches_complete() -> None:
