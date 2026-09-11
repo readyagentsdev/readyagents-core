@@ -1197,6 +1197,12 @@ def build_run_routes(coordinator: RunCoordinator) -> list[Any]:
         except ReadyAgentsError as exc:
             caught = coordinator._caught(exc, request_id=_request_id(request), run_id=run_id)
             return _respond(*caught)
+        accept = (request.headers.get("accept") or "").lower()
+        if "text/event-stream" not in accept:
+            return JSONResponse(
+                {"events": snapshot_events(state)},
+                headers={"Cache-Control": "no-store"},
+            )
         hub = get_stream_hub()
         queue = hub.try_subscribe(run_id)
         if queue is None:
