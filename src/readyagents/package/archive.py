@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import io
 import zipfile
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import yaml
 
-from readyagents.atomic import atomic_write_bytes
 from readyagents.errors import PackageRefused
 from readyagents.package.layout import (
     ARCHIVE_SUFFIX,
@@ -38,15 +37,25 @@ def build_package(source: Path | str, *, out: Path | str | None = None) -> Path:
     lock_body = _lock_yaml(members)
     payload = dict(members)
     payload[LOCK_NAME] = lock_body.encode("utf-8")
-    blob = _pack_zip(payload)
-    if len(blob) > MAX_ARCHIVE_BYTES:
-        raise PackageRefused("package archive exceeds size cap", reason="too_large")
     if out is not None:
         dest = Path(out)
     else:
         dest = root / f"{manifest.name}-{manifest.version}{ARCHIVE_SUFFIX}"
     dest.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_bytes(dest, blob, restrict=False)
+    tmp = dest.parent / f".{dest.name}.{uuid4().hex}.tmp"
+    try:
+        _write_zip(tmp, payload)
+        size = tmp.stat().st_size
+        if size > MAX_ARCHIVE_BYTES:
+            raise PackageRefused("package archive exceeds size cap", reason="too_large")
+        with zipfile.ZipFile(tmp, mode="r") as zf:
+            bad = zf.testzip()
+        if bad:
+            raise PackageRefused(f"package archive member corrupt: {bad}", reason="malformed")
+        tmp.replace(dest)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
     return dest
 
 
@@ -99,12 +108,10 @@ def _lock_yaml(members: dict[str, bytes]) -> str:
     return yaml.safe_dump(body, sort_keys=False, allow_unicode=True)
 
 
-def _pack_zip(members: dict[str, bytes]) -> bytes:
+def _write_zip(path: Path, members: dict[str, bytes]) -> None:
     """Stored zip of files only. Directory entries are omitted (Windows zipfile)."""
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_STORED, allowZip64=False) as zf:
+    with zipfile.ZipFile(path, mode="w", compression=zipfile.ZIP_STORED, allowZip64=False) as zf:
         for name, data in sorted(members.items()):
-            info = zipfile.ZipInfo(filename=name.replace("\\", "/"), date_time=ZIP_EPOCH)
-            info.compress_type = zipfile.ZIP_STORED
+            rel = name.replace("\\", "/")
+            info = zipfile.ZipInfo(filename=rel, date_time=ZIP_EPOCH)
             zf.writestr(info, data)
-    return buf.getvalue()
