@@ -232,6 +232,9 @@ def test_fail_repair_fallback_gate_redact_actions() -> None:
     assert "Untrusted" in gated.value.prompt
     assert "alice@example.com" not in gated.value.prompt
     assert "[redacted]" in gated.value.prompt
+    pause = json.dumps(gated.value.pause or {}, default=str)
+    assert "alice@example.com" not in pause
+    assert "contract_output" not in (gated.value.pause or {})
     state = run_workflow_spec(
         _agent(
             {
@@ -293,6 +296,49 @@ def test_judge_delimited_injection_does_not_flip_verdict() -> None:
     judge_prompt = llm.calls[1]["messages"][0].content
     assert "UNTRUSTED OUTPUT START" in judge_prompt
     assert poison in judge_prompt
+    rows = (exc.value.state.metadata.get("contracts") or {}).get("n", {}).get("rules") or []
+    judge_row = next(r for r in rows if r.get("name") == "judge")
+    assert judge_row.get("score") == 0.1
+
+
+def test_judge_pass_records_score() -> None:
+    llm = ScriptedLLM()
+    llm.enqueue("plain summary", model="x")
+    llm.enqueue('{"score": 0.95, "pass": true}', model="judge")
+    state = run_workflow_spec(
+        _agent(
+            {
+                "rules": [
+                    {"deny": "___never___", "on_fail": "fail"},
+                    {
+                        "judge": {
+                            "model": "mock:judge",
+                            "rubric": "faithful summary",
+                            "min_score": 0.5,
+                        }
+                    },
+                ],
+                "on_invalid": "fail",
+            }
+        ),
+        llm=llm,
+    )
+    assert state.status == "succeeded"
+    rows = state.metadata["contracts"]["n"]["rules"]
+    judge_row = next(r for r in rows if r.get("name") == "judge")
+    assert judge_row["fired"] is False
+    assert judge_row["score"] == 0.95
+
+
+def test_language_rule_names_itself() -> None:
+    llm = ScriptedLLM()
+    llm.enqueue("这是中文", model="x")
+    with pytest.raises(ContractError) as exc:
+        run_workflow_spec(
+            _agent({"rules": [{"language": "en", "on_fail": "fail"}], "on_invalid": "fail"}),
+            llm=llm,
+        )
+    assert "language" in str(exc.value).lower()
 
 
 def test_malformed_contract_fails_at_validate_not_run() -> None:

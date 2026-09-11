@@ -113,13 +113,19 @@ def enforce_contract(node: Any, output: Any, state: Any, ctx: Any) -> Any:
             current = parsed
 
     for rule in spec.rules:
+        score: float | None = None
         if rule.judge is not None:
-            fired, reason = _eval_judge(rule, current, node, state, ctx)
+            fired, reason, score = _eval_judge(rule, current, node, state, ctx)
         else:
             fired, reason = eval_rule(rule, current, mapping=mapping)
-        report["rules"].append(
-            {"name": rule.recorded_name(), "fired": fired, "reason": reason or None}
-        )
+        row: dict[str, Any] = {
+            "name": rule.recorded_name(),
+            "fired": fired,
+            "reason": reason or None,
+        }
+        if score is not None:
+            row["score"] = score
+        report["rules"].append(row)
         if not fired:
             continue
         return _finish(
@@ -196,7 +202,7 @@ def _eval_judge(
     node: Any,
     state: Any,
     ctx: Any,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, float | None]:
     judge = rule.judge
     body = payload_text(output)
     prompt = (
@@ -214,7 +220,7 @@ def _eval_judge(
     model_ref = judge.model
     llm = getattr(ctx, "llm", None)
     if llm is None:
-        return True, f"{rule.recorded_name()} judge has no llm"
+        return True, f"{rule.recorded_name()} judge has no llm", None
     result = llm.complete(messages, model=model_id_for(model_ref))
     meter = getattr(ctx, "spend_meter", None)
     if meter is not None:
@@ -222,15 +228,15 @@ def _eval_judge(
     try:
         payload = json.loads(result.text.strip())
     except json.JSONDecodeError:
-        return True, f"{rule.recorded_name()} judge returned non-JSON"
+        return True, f"{rule.recorded_name()} judge returned non-JSON", None
     try:
         score = float(payload.get("score"))
     except (TypeError, ValueError):
-        return True, f"{rule.recorded_name()} judge score missing"
+        return True, f"{rule.recorded_name()} judge score missing", None
     passed = bool(payload.get("pass", score >= float(judge.min_score)))
     if score < float(judge.min_score) or not passed:
-        return True, f"{rule.recorded_name()} score {score} below {judge.min_score}"
-    return False, ""
+        return True, f"{rule.recorded_name()} score {score} below {judge.min_score}", score
+    return False, "", score
 
 
 def _finish(
@@ -250,9 +256,10 @@ def _finish(
     if action not in ACTIONS:
         action = "fail"
     shown = sanitize_rejected(output, getattr(ctx, "redactor", None))
+    shown_reason = sanitize_rejected(reason, getattr(ctx, "redactor", None)) if reason else ""
     report["rejected"] = shown
     report["disposition"] = action
-    report["reason"] = reason
+    report["reason"] = shown_reason or None
     if rule_name:
         report["rule"] = rule_name
     _store_report(state, ctx, node.id, report)
@@ -276,14 +283,14 @@ def _finish(
             raise ContractError(node.id, "contract gate was rejected")
         prompt = (
             "Untrusted output failed its declared contract "
-            f"({rule_name or reason}). Offending output (redacted):\n{shown}"
+            f"({rule_name or shown_reason}). Offending output (redacted):\n{shown}"
         )
         raise ApprovalRequired(
             node.id,
             state.run_id,
             prompt,
             state=state,
-            pause={"contract_output": output, "contract_reason": reason},
+            pause={"contract_reason": shown_reason},
         )
 
     if action == "fallback":
@@ -295,7 +302,7 @@ def _finish(
             return recovered
         action = "fail"
 
-    message = reason or "contract was not met"
+    message = shown_reason or "contract was not met"
     if refused:
         raise ContractRefused(node.id, message)
     if exhausted:
