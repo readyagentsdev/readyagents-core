@@ -80,6 +80,18 @@ readyagents memory forget --scope subject:T-1 --yes
 readyagents memory export --scope subject:T-1 --out mem.json --yes
 ```
 
+## `readyagents table head|schema|stats`
+
+Inspect an intermediate table file (CSV/JSONL) or a stored content hash.
+`schema` and `stats` print types and counts, not every cell. `head` shows at
+most 50 sample rows. No model call. See [data-pipelines.md](data-pipelines.md).
+
+```bash
+readyagents table schema exports.csv --json
+readyagents table head exports.csv --n 5
+readyagents table stats exports.csv
+```
+
 ## `readyagents a2a serve|card|probe`
 
 Serve one workflow as an A2A agent, print its Agent Card, or probe a remote

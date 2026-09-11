@@ -56,6 +56,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Optional [model routing](docs/model-routing.md) (`routing:`, Gemini/Bedrock/Vertex extras, `readyagents models`) — **Unreleased**; declared policy, not quality inference; no-policy selection unchanged
 - Optional [multimodal I/O](docs/multimodal.md) (`MediaPart`, `type: document`, `type: transcribe`, image/pdf/audio extras) — **Unreleased**; plumbing and governance, not extraction accuracy; text-only runs unchanged
 - Optional [knowledge pipelines](docs/knowledge.md) (`type: ingest`, `readyagents knowledge`) — **Unreleased**; citations and freshness, not a retrieval-quality claim; plain memory writes unchanged
+- Optional [data pipelines](docs/data-pipelines.md) (`type: table`, `type: classify`, `readyagents table`) — **Unreleased**; deterministic ops and remainder-only classify; not a warehouse; `json_get`/`foreach` defaults unchanged
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -155,6 +156,7 @@ flowchart LR
 | `examples/policy_gated.yaml` | Policy gate on tainted `write_file` (no keys) |
 | `examples/readyagents.policy.yaml` | Starter firewall policy |
 | `examples/json_mutate.yaml` | `json_set` / `json_merge` (no keys) |
+| `examples/table_pipeline.yaml` | `type: table` + `type: classify` (validate keyless) |
 | `examples/list_dir.yaml` | Builtin `list_dir` (no keys, no MCP, no Node) |
 | `examples/eval/pass.yaml` | Keyless `readyagents eval` fixture suite |
 | `examples/a2a_delegate.yaml` | `type: a2a` dry-run (no network) |
@@ -188,6 +190,7 @@ flowchart LR
 - [Model routing](docs/model-routing.md) (opt-in `routing:`; Unreleased; declared policy, not a quality claim)
 - [Multimodal I/O](docs/multimodal.md) (opt-in `MediaPart` / `type: document` / `type: transcribe`; Unreleased; extras; not an OCR claim)
 - [Knowledge pipelines](docs/knowledge.md) (opt-in `type: ingest`; Unreleased; citations/freshness; not a retrieval-quality claim)
+- [Data pipelines](docs/data-pipelines.md) (opt-in `type: table` / `type: classify`; Unreleased; not a warehouse)
 - [Packs](docs/packs.md)
 - [Supply-chain trust](docs/supply-chain.md) (signatures prove origin, not safety)
 - [Continuous pack](docs/continuous-pack.md) (optional, separate distribution)
@@ -213,6 +216,7 @@ pip install "readyagentsdev[all]"
 pip install "readyagentsdev[image]"
 pip install "readyagentsdev[pdf]"
 pip install "readyagentsdev[audio]"
+pip install "readyagentsdev[table]"
 ```
 
 From a clone, the same extras are `pip install -e ".[openai]"` (and `anthropic` /
@@ -220,8 +224,9 @@ From a clone, the same extras are `pip install -e ".[openai]"` (and `anthropic` 
 **not** included in `[all]`; it starts no collector (see
 [observability.md](docs/observability.md)). The optional `[sign]` extra (Ed25519
 artifact signatures), `[jwt]`, `[gemini]`, `[bedrock]`, `[vertex]`, `[image]`,
-`[pdf]`, and `[audio]` extras are also **not** in `[all]`. Unsigned default runs
-never import them. Codecs are extras; core installs stay text-only.
+`[pdf]`, `[audio]`, and `[table]` extras are also **not** in `[all]`. Unsigned default runs
+never import them. Codecs are extras; core installs stay text-only. Pandas is
+optional for table ops; stdlib is sufficient.
 
 Then `cp .env.example .env` and paste your own keys. Core workflows that only use builtin tools do **not** need extras, keys, or Node.js.
 
