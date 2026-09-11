@@ -227,6 +227,18 @@ class HealthRefused(HealthError):
         super().__init__(message)
 
 
+class BenchError(ReadyAgentsError):
+    """Benchmark suite, run, or compare failure."""
+
+
+class BenchRefused(BenchError):
+    """Live mode, CI, malformed baseline, or mixed timing refused."""
+
+    def __init__(self, message: str, *, reason: str = "refused") -> None:
+        self.reason = reason
+        super().__init__(message)
+
+
 class SimulateError(ReadyAgentsError):
     """Simulation generation, scoring, or freeze failure."""
 

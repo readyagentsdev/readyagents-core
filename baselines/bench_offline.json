@@ -1,0 +1,57 @@
+{
+  "schema": "readyagents.bench.baseline.v1",
+  "tolerance": {
+    "wall_ms_pct": 100.0,
+    "wall_ms_min": 500.0
+  },
+  "scenarios": {
+    "classify": {
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "tool_calls": 0,
+      "node_count": 1,
+      "success": true
+    },
+    "research": {
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "tool_calls": 2,
+      "node_count": 3,
+      "success": true
+    },
+    "approval": {
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "tool_calls": 1,
+      "node_count": 3,
+      "success": true
+    },
+    "foreach": {
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "tool_calls": 0,
+      "node_count": 1,
+      "success": true
+    },
+    "team": {
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "tool_calls": 0,
+      "node_count": 1,
+      "success": true
+    },
+    "document": {
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0.0,
+      "tool_calls": 1,
+      "node_count": 2,
+      "success": true
+    }
+  }
+}

@@ -73,6 +73,10 @@ jobs:
       - name: Baseline method is recorded
         run: |
           python -c "import json; json.load(open('baselines/bench_batch.json')); print('ok')"
+      - name: Offline benchmark suite
+        run: readyagents bench run --offline --out results.json --json
+      - name: Offline bench vs baseline
+        run: readyagents bench compare results.json --baseline baselines/bench_offline.json --json
 
   extras:
     runs-on: macos-latest

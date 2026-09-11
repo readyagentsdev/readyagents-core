@@ -1,0 +1,23 @@
+name: bench-research
+description: "Multi-step research with tools. Keyless calc + json_get."
+start: add
+nodes:
+  - id: add
+    type: tool
+    tool: calc
+    arguments:
+      expression: "2+2"
+    output_key: n
+    next: pack
+  - id: pack
+    type: transform
+    template: '{"value": {{n}}}'
+    output_key: payload
+    next: pick
+  - id: pick
+    type: tool
+    tool: json_get
+    arguments:
+      data: "{{payload}}"
+      path: value
+    output_key: found

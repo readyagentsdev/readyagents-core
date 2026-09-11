@@ -1,0 +1,19 @@
+name: bench-foreach
+description: "Foreach batch over calc expressions. Keyless."
+inputs:
+  expressions:
+    - "1+1"
+    - "2+2"
+start: each
+nodes:
+  - id: each
+    type: foreach
+    items: expressions
+    max_items: 8
+    output_key: results
+    body:
+      id: math
+      type: tool
+      tool: calc
+      arguments:
+        expression: "{{item}}"
