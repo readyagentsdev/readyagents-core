@@ -10,10 +10,13 @@ from readyagents.errors import (
     AuthorizationError,
     BudgetExceeded,
     CancellationRequested,
+    CapabilityError,
     CassetteMiss,
     CircuitOpen,
     PolicyDenied,
     ReadyAgentsError,
+    RouteBudgetExceeded,
+    RoutingError,
     RunawayGuard,
     WorkflowError,
 )
@@ -445,6 +448,9 @@ def _execute_with_policy(node: NodeSpec, state: RunState, ctx: ExecutionContext)
     except (BudgetExceeded, AuthorizationError, CircuitOpen, PolicyDenied, RunawayGuard):
         state.take_node_usage()
         raise
+    except (RoutingError, CapabilityError, RouteBudgetExceeded):
+        state.take_node_usage()
+        raise
     usage = state.take_node_usage()
     rounds = list(ctx.last_tool_rounds or [])
     ctx.last_tool_rounds = []
@@ -465,6 +471,7 @@ def _execute_with_policy(node: NodeSpec, state: RunState, ctx: ExecutionContext)
         ttft_ms=latency.get("ttft_ms"),
         total_ms=latency.get("total_ms"),
         inter_token_ms=latency.get("inter_token_ms"),
+        route=getattr(ctx, "last_route", None),
     )
     from readyagents.firewall.taint import note_node_output
 

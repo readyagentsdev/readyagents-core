@@ -152,6 +152,170 @@ class CircuitSpec(BaseModel):
     )
 
 
+_ROUTING_STRATEGIES = frozenset(
+    {
+        "cheapest_capable",
+        "fastest",
+        "highest_quality",
+        "local_only",
+        "pin",
+    }
+)
+
+
+def _normalize_strategy(value: str) -> str:
+    text = (value or "").strip().lower().replace("-", "_")
+    aliases = {
+        "highestquality": "highest_quality",
+        "localonly": "local_only",
+        "cheapestcapable": "cheapest_capable",
+        "explicit": "pin",
+        "explicit_pinning": "pin",
+        "explicit_pin": "pin",
+    }
+    return aliases.get(text, text)
+
+
+class RouteMatch(BaseModel):
+    """AND of declared match fields. Empty match is a catch-all."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    node: str | None = Field(default=None, description="Match this node id.")
+    node_tag: str | None = Field(default=None, description="Match when the tag is on the node.")
+    role: str | None = Field(default=None, description="Match this node role.")
+    taint: str | None = Field(
+        default=None,
+        description="trusted or untrusted. Indeterminate taint matches untrusted.",
+    )
+
+    @field_validator("taint")
+    @classmethod
+    def _taint(cls, value: str | None) -> str | None:
+        if value is None or not str(value).strip():
+            return None
+        cleaned = str(value).strip().lower()
+        if cleaned not in {"trusted", "untrusted"}:
+            raise ValueError("routing match.taint must be trusted or untrusted")
+        return cleaned
+
+
+class RouteRequire(BaseModel):
+    """Declared capability constraints. Unsatisfiable is a typed error, never a downgrade."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tool_calling: bool | None = None
+    structured_output: bool | None = None
+    media: bool | None = None
+    streaming: bool | None = None
+    local: bool | None = None
+    min_context_window: int | None = Field(default=None, ge=1)
+
+    def as_dict(self) -> dict[str, Any]:
+        data: dict[str, Any] = {}
+        if self.tool_calling:
+            data["tool_calling"] = True
+        if self.structured_output:
+            data["structured_output"] = True
+        if self.media:
+            data["media"] = True
+        if self.streaming:
+            data["streaming"] = True
+        if self.local:
+            data["local"] = True
+        if self.min_context_window is not None:
+            data["min_context_window"] = int(self.min_context_window)
+        return data
+
+
+class RouteBudget(BaseModel):
+    """Per-route spend/token ceiling. Applied on top of the run-level cap."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_cost_usd: float | None = Field(default=None, ge=0)
+    max_tokens: int | None = Field(default=None, ge=0)
+
+
+class RouteRule(BaseModel):
+    """One routing rule. First matching rule wins."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str | None = Field(default=None, description="Optional rule id recorded on the route.")
+    match: RouteMatch | None = None
+    strategy: str | None = Field(
+        default=None,
+        description=(
+            "cheapest_capable, fastest, highest_quality, local_only, or pin. "
+            "Declared attributes only; never inferred output quality."
+        ),
+    )
+    pin: str | None = Field(
+        default=None,
+        description="Explicit provider:model pin. Implies strategy pin.",
+    )
+    require: RouteRequire | None = None
+    pool: list[str] = Field(
+        default_factory=list,
+        description="Candidate model refs for this rule. Empty uses workflow pool or catalog.",
+    )
+
+    @field_validator("strategy")
+    @classmethod
+    def _strategy(cls, value: str | None) -> str | None:
+        if value is None or not str(value).strip():
+            return None
+        cleaned = _normalize_strategy(str(value))
+        if cleaned not in _ROUTING_STRATEGIES:
+            raise ValueError(
+                "routing strategy must be cheapest_capable, fastest, "
+                "highest_quality, local_only, or pin"
+            )
+        return cleaned
+
+    @model_validator(mode="after")
+    def _pin_or_strategy(self) -> RouteRule:
+        if self.pin and not self.strategy:
+            self.strategy = "pin"
+        if not self.strategy and not self.pin:
+            raise ValueError("routing rule requires strategy or pin")
+        if self.strategy == "pin" and not (self.pin or "").strip():
+            raise ValueError("routing strategy pin requires pin")
+        if self.pin:
+            self.pin = self.pin.strip()
+        return self
+
+
+class RoutingSpec(BaseModel):
+    """Optional workflow routing policy. Absent means byte-identical legacy selection."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    version: int = Field(default=1, description="Routing policy version. Must be 1.")
+    rules: list[RouteRule] = Field(default_factory=list)
+    budgets: dict[str, RouteBudget] = Field(
+        default_factory=dict,
+        description="Keyed by node id, tag, or rule id.",
+    )
+    pool: list[str] = Field(
+        default_factory=list,
+        description="Default candidate pool when a rule omits pool.",
+    )
+    capability_matrix: str | None = Field(
+        default=None,
+        description="Optional override path for the capability matrix (schema-validated).",
+    )
+
+    @field_validator("version")
+    @classmethod
+    def _version(cls, value: int) -> int:
+        if int(value) != 1:
+            raise ValueError("routing.version must be 1")
+        return int(value)
+
+
 class MCPServerSpec(BaseModel):
     """Stdio MCP server launched for this workflow."""
 
@@ -195,6 +359,14 @@ class NodeSpec(BaseModel):
     description: str | None = Field(
         default=None,
         description="Human-readable note; ignored at runtime.",
+    )
+    tags: list[str] = Field(
+        default_factory=list,
+        description="Optional tags for routing match.node_tag.",
+    )
+    role: str | None = Field(
+        default=None,
+        description="Optional role for routing match.role.",
     )
 
     # agent
@@ -682,6 +854,13 @@ class WorkflowSpec(BaseModel):
     fallback_models: list[str] = Field(
         default_factory=list,
         description="Workflow-level fallback LLM refs after the primary fails.",
+    )
+    routing: RoutingSpec | None = Field(
+        default=None,
+        description=(
+            "Optional model routing policy. Absent: legacy node.model / "
+            "default_model / fallback_models selection is unchanged."
+        ),
     )
     circuit: CircuitSpec | None = Field(
         default=None,

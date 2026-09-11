@@ -1622,6 +1622,27 @@
           "default": null,
           "description": "Retry policy for this node."
         },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional role for routing match.role.",
+          "title": "Role"
+        },
+        "tags": {
+          "description": "Optional tags for routing match.node_tag.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
         "timeout_seconds": {
           "anyOf": [
             {
@@ -1697,6 +1718,308 @@
         }
       },
       "title": "RetrySpec",
+      "type": "object"
+    },
+    "RouteBudget": {
+      "additionalProperties": false,
+      "description": "Per-route spend/token ceiling. Applied on top of the run-level cap.",
+      "properties": {
+        "max_cost_usd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Cost Usd"
+        },
+        "max_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Tokens"
+        }
+      },
+      "title": "RouteBudget",
+      "type": "object"
+    },
+    "RouteMatch": {
+      "additionalProperties": false,
+      "description": "AND of declared match fields. Empty match is a catch-all.",
+      "properties": {
+        "node": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Match this node id.",
+          "title": "Node"
+        },
+        "node_tag": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Match when the tag is on the node.",
+          "title": "Node Tag"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Match this node role.",
+          "title": "Role"
+        },
+        "taint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "trusted or untrusted. Indeterminate taint matches untrusted.",
+          "title": "Taint"
+        }
+      },
+      "title": "RouteMatch",
+      "type": "object"
+    },
+    "RouteRequire": {
+      "additionalProperties": false,
+      "description": "Declared capability constraints. Unsatisfiable is a typed error, never a downgrade.",
+      "properties": {
+        "local": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Local"
+        },
+        "media": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Media"
+        },
+        "min_context_window": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Context Window"
+        },
+        "streaming": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Streaming"
+        },
+        "structured_output": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structured Output"
+        },
+        "tool_calling": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Calling"
+        }
+      },
+      "title": "RouteRequire",
+      "type": "object"
+    },
+    "RouteRule": {
+      "additionalProperties": false,
+      "description": "One routing rule. First matching rule wins.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional rule id recorded on the route.",
+          "title": "Id"
+        },
+        "match": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RouteMatch"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "pin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Explicit provider:model pin. Implies strategy pin.",
+          "title": "Pin"
+        },
+        "pool": {
+          "description": "Candidate model refs for this rule. Empty uses workflow pool or catalog.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Pool",
+          "type": "array"
+        },
+        "require": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RouteRequire"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "strategy": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "cheapest_capable, fastest, highest_quality, local_only, or pin. Declared attributes only; never inferred output quality.",
+          "title": "Strategy"
+        }
+      },
+      "title": "RouteRule",
+      "type": "object"
+    },
+    "RoutingSpec": {
+      "additionalProperties": false,
+      "description": "Optional workflow routing policy. Absent means byte-identical legacy selection.",
+      "properties": {
+        "budgets": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RouteBudget"
+          },
+          "description": "Keyed by node id, tag, or rule id.",
+          "title": "Budgets",
+          "type": "object"
+        },
+        "capability_matrix": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional override path for the capability matrix (schema-validated).",
+          "title": "Capability Matrix"
+        },
+        "pool": {
+          "description": "Default candidate pool when a rule omits pool.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Pool",
+          "type": "array"
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/RouteRule"
+          },
+          "title": "Rules",
+          "type": "array"
+        },
+        "version": {
+          "default": 1,
+          "description": "Routing policy version. Must be 1.",
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "title": "RoutingSpec",
       "type": "object"
     },
     "RunawaySpec": {
@@ -1911,6 +2234,18 @@
       },
       "title": "Required Inputs",
       "type": "array"
+    },
+    "routing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RoutingSpec"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional model routing policy. Absent: legacy node.model / default_model / fallback_models selection is unchanged."
     },
     "runaway": {
       "anyOf": [
