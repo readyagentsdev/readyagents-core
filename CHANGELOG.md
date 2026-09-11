@@ -18,7 +18,10 @@ All notable changes to ReadyAgents Core.
   fallback successor) and never skips the node. `health explain` writes a
   confined, redacted, audited root-cause bundle (`--yes`). No telemetry, no
   hosted service, no automatic code or prompt edits, no prediction. Workflows
-  without `recovery:` are unchanged. See
+  without `recovery:` are unchanged. Health scores the newest window of a
+  newest-first store listing. Quarantined nodes are not successes.
+  `retry_with` sets the next completion `max_tokens`, not a run budget.
+  Flaky vs broken requires cassette inputs. See
   [docs/self-healing.md](docs/self-healing.md).
 - **Simulation.** `readyagents simulate` generates declaration-driven cases
   (seed-stable, no model required): boundaries, types, Unicode, control

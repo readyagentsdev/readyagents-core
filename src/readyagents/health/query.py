@@ -87,6 +87,8 @@ def query_health(
         for result in state.results:
             node_id = str(result.node_id)
             ok = result.status == "ok" and not result.error
+            if result.status == "quarantined":
+                ok = False
             sample = {
                 "ok": ok,
                 "attempts": int(result.attempts or 1),

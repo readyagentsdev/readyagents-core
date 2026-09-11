@@ -497,6 +497,11 @@ def _execute_with_policy(node: NodeSpec, state: RunState, ctx: ExecutionContext)
     stream = getattr(ctx, "stream", None)
     if stream is not None:
         latency = stream.latency_for(node.id)
+    status = "ok"
+    error = None
+    if isinstance(output, dict) and output.get("quarantined"):
+        status = "quarantined"
+        error = str(output.get("reason") or "quarantined")
     state.record(
         node.id,
         output,
@@ -511,6 +516,8 @@ def _execute_with_policy(node: NodeSpec, state: RunState, ctx: ExecutionContext)
         total_ms=latency.get("total_ms"),
         inter_token_ms=latency.get("inter_token_ms"),
         route=getattr(ctx, "last_route", None),
+        status=status,
+        error=error,
     )
     from readyagents.firewall.taint import note_node_output
 

@@ -59,7 +59,7 @@ class ScriptedLLM:
         tools: Any = None,
         **kwargs: Any,
     ) -> CompletionResult:
-        self.calls.append({"model": model, "messages": messages, "tools": tools})
+        self.calls.append({"model": model, "messages": messages, "tools": tools, **kwargs})
         item: CompletionResult | BaseException | None = None
         bucket = self._by_model.get(model)
         if bucket:

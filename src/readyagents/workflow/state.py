@@ -102,16 +102,19 @@ class RunState:
         total_ms: int | None = None,
         inter_token_ms: float | None = None,
         route: Mapping[str, Any] | None = None,
+        status: str = "ok",
+        error: str | None = None,
     ) -> None:
         self.node_outputs[node_id] = output
-        if output_key:
+        if output_key and status == "ok":
             self.output_keys[output_key] = output
         self.results.append(
             NodeResult(
                 node_id=node_id,
                 type=node_type,
-                status="ok",
+                status=status,
                 output=_jsonable(output),
+                error=error,
                 attempts=attempts,
                 started_at=started_at,
                 finished_at=finished_at,
