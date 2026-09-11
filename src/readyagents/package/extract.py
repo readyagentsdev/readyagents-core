@@ -55,7 +55,7 @@ def extract_archive(blob: bytes, dest: Path) -> Path:
         for info in infos:
             name = info.filename.replace("\\", "/")
             _reject_member(name, info)
-            if name.endswith("/"):
+            if name.endswith("/") or info.is_dir():
                 (dest / name).mkdir(parents=True, exist_ok=True)
                 continue
             files += 1
