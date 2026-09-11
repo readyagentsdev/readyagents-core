@@ -586,6 +586,21 @@ class RunCoordinator:
                     return
             time.sleep(0.02)
 
+    def _wait_worker_idle(self, run_id: str, *, timeout: float = 5.0) -> None:
+        """Wait until the start/resume worker has left ``_active``.
+
+        A just-paused run still occupies ``_active`` until ``_run_job`` finishes
+        unwinding. Submitting ``_resume_job`` in that window races the store
+        (Windows file replace) and lets the start worker's ``finally`` discard
+        the resume's ``_active`` flag.
+        """
+        deadline = time.monotonic() + max(0.0, float(timeout))
+        while time.monotonic() < deadline:
+            with self._lock:
+                if run_id not in self._active:
+                    return
+            time.sleep(0.02)
+
     def _token_for(self, run_id: str) -> Any:
         with self._lock:
             token = self._tokens.get(run_id)
@@ -920,6 +935,15 @@ class RunCoordinator:
                         self._in_flight_resume[run_id] = node_id
                 else:
                     raise RunConflict(f"Run {run_id} already has a resume in flight")
+            self._wait_worker_idle(run_id)
+            state = self._load_exact(run_id)
+            if state.status != "paused" or state.pending_node != node_id:
+                with self._lock:
+                    self._in_flight_resume.pop(run_id, None)
+                raise RunConflict(
+                    f"Run {run_id} is not paused at node '{node_id}' "
+                    f"(status={state.status}, pending_node={state.pending_node})"
+                )
             if input_request_key:
                 meta = dict(state.metadata)
                 responses = dict(meta.get("mcp_input_responses") or {})
