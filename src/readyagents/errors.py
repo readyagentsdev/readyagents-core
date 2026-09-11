@@ -204,6 +204,24 @@ class StructuredOutputError(NodeError):
     """An agent node's LLM output did not match its Pydantic/JSON schema."""
 
 
+class ContractError(NodeError):
+    """A declared output contract was not met."""
+
+
+class ContractRefused(ContractError):
+    """The model refused; distinct from a malformed answer."""
+
+    def __init__(self, node_id: str, message: str = "model refused") -> None:
+        super().__init__(node_id, message)
+
+
+class ContractExhausted(ContractError):
+    """Bounded repair attempts did not produce a valid output."""
+
+    def __init__(self, node_id: str, message: str = "contract repairs exhausted") -> None:
+        super().__init__(node_id, message)
+
+
 class CircuitOpen(LLMError):
     """A model is skipped because its circuit breaker is open."""
 

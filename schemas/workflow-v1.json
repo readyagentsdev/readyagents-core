@@ -149,6 +149,168 @@
       "title": "ContextSpec",
       "type": "object"
     },
+    "ContractRule": {
+      "additionalProperties": false,
+      "description": "One named deterministic (or opt-in judge) content rule.",
+      "properties": {
+        "deny": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Literal substring deny.",
+          "title": "Deny"
+        },
+        "deny_regex": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Deny Regex"
+        },
+        "judge": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JudgeSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Language"
+        },
+        "max_chars": {
+          "default": null,
+          "title": "Max Chars"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Recorded name when the rule fires.",
+          "title": "Name"
+        },
+        "on_fail": {
+          "default": "fail",
+          "description": "Declared action when this rule fires.",
+          "title": "On Fail",
+          "type": "string"
+        },
+        "pii": {
+          "default": null,
+          "title": "Pii"
+        },
+        "require_citation": {
+          "default": null,
+          "title": "Require Citation"
+        }
+      },
+      "title": "ContractRule",
+      "type": "object"
+    },
+    "ContractSpec": {
+      "additionalProperties": false,
+      "description": "Node `contract:` block. extra=forbid so unknown keys fail at validate.",
+      "properties": {
+        "max_repairs": {
+          "anyOf": [
+            {
+              "maximum": 5,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Repairs"
+        },
+        "on_exhausted": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "On Exhausted"
+        },
+        "on_invalid": {
+          "description": "Action when the structural schema is not met.",
+          "title": "On Invalid",
+          "type": "string"
+        },
+        "on_refusal": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "On Refusal"
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/ContractRule"
+          },
+          "title": "Rules",
+          "type": "array"
+        },
+        "schema": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "JSON Schema for the node output. Structural checks run first.",
+          "title": "Schema"
+        }
+      },
+      "required": [
+        "on_invalid"
+      ],
+      "title": "ContractSpec",
+      "type": "object"
+    },
     "EdgeSpec": {
       "additionalProperties": false,
       "description": "Optional explicit edge between two nodes.",
@@ -182,6 +344,37 @@
         "to"
       ],
       "title": "EdgeSpec",
+      "type": "object"
+    },
+    "JudgeSpec": {
+      "additionalProperties": false,
+      "description": "Opt-in model-graded check. Never the only rule on a contract.",
+      "properties": {
+        "min_score": {
+          "default": 0.5,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Min Score",
+          "type": "number"
+        },
+        "model": {
+          "description": "provider:model for the judge call.",
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "rubric": {
+          "description": "Fixed rubric. Graded text is untrusted.",
+          "minLength": 1,
+          "title": "Rubric",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model",
+        "rubric"
+      ],
+      "title": "JudgeSpec",
       "type": "object"
     },
     "MCPServerSpec": {
@@ -258,6 +451,18 @@
                 "default": null,
                 "description": "Override workflow/settings LLM cache for this agent node.",
                 "title": "Cache"
+              },
+              "contract": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContractSpec"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Opt-in output contract: structural schema, named content rules, and a declared action (fail, repair, fallback, gate, redact_and_continue)."
               },
               "fallback_models": {
                 "description": "Extra provider:model refs if this agent's primary model fails.",
@@ -383,6 +588,18 @@
                 "title": "Arguments",
                 "type": "object"
               },
+              "contract": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContractSpec"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Opt-in output contract: structural schema, named content rules, and a declared action (fail, repair, fallback, gate, redact_and_continue)."
+              },
               "tool": {
                 "anyOf": [
                   {
@@ -477,6 +694,18 @@
           },
           "then": {
             "properties": {
+              "contract": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContractSpec"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Opt-in output contract: structural schema, named content rules, and a declared action (fail, repair, fallback, gate, redact_and_continue)."
+              },
               "json_path": {
                 "anyOf": [
                   {
@@ -881,6 +1110,18 @@
                 "description": "Remote A2A agent URL (card origin). type: a2a only.",
                 "title": "Agent Url"
               },
+              "contract": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContractSpec"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Opt-in output contract: structural schema, named content rules, and a declared action (fail, repair, fallback, gate, redact_and_continue)."
+              },
               "message": {
                 "anyOf": [
                   {
@@ -952,6 +1193,18 @@
                 ],
                 "default": null,
                 "description": "Declared compaction budget for this memory node."
+              },
+              "contract": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContractSpec"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Opt-in output contract: structural schema, named content rules, and a declared action (fail, repair, fallback, gate, redact_and_continue)."
               },
               "embed": {
                 "default": false,
@@ -1081,6 +1334,18 @@
                 },
                 "title": "Allow Imports",
                 "type": "array"
+              },
+              "contract": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContractSpec"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Opt-in output contract: structural schema, named content rules, and a declared action (fail, repair, fallback, gate, redact_and_continue)."
               },
               "filesystem": {
                 "anyOf": [
