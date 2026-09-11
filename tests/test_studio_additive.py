@@ -87,19 +87,35 @@ def test_approval_gate_without_studio_still_pauses(tmp_path: Path, monkeypatch) 
 def test_examples_match_v1_9_0_tag() -> None:
     import subprocess
 
-    result = subprocess.run(
-        [
-            "git",
-            "diff",
-            "v1.9.0",
-            "--",
-            "examples/calc_pipeline.yaml",
-            "examples/approval_gate.yaml",
-        ],
+    def _diff(base: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                "git",
+                "diff",
+                base,
+                "--",
+                "examples/calc_pipeline.yaml",
+                "examples/approval_gate.yaml",
+            ],
+            cwd=_root(),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    tagged = subprocess.run(
+        ["git", "rev-parse", "--verify", "v1.9.0"],
         cwd=_root(),
         check=False,
         capture_output=True,
         text=True,
     )
+    if tagged.returncode == 0:
+        result = _diff("v1.9.0")
+        assert result.returncode == 0, result.stderr
+        assert result.stdout == ""
+        return
+    # GitHub Actions checkout is often tagless; studio must not touch these files.
+    result = _diff("HEAD^")
     assert result.returncode == 0, result.stderr
     assert result.stdout == ""

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from pathlib import Path
 
@@ -74,10 +75,14 @@ def _json(response) -> dict:
     return json.loads(response.body.decode("utf-8"))
 
 
+def _plain(text: str) -> str:
+    return re.sub(r"\s+", "", re.sub(r"\x1b\[[0-9;]*m", "", text))
+
+
 def test_studio_help_lists_flags() -> None:
     result = runner.invoke(app, ["studio", "--help"])
     assert result.exit_code == 0, result.stdout + result.stderr
-    text = result.stdout + result.stderr
+    text = _plain(result.stdout + result.stderr)
     assert "--port" in text
     assert "--open" in text
     assert "--read-only" in text
