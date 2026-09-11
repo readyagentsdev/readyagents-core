@@ -382,6 +382,10 @@ class RunCoordinator:
             max_workers=self.max_concurrent_runs,
             thread_name_prefix="readyagents-run",
         )
+        self._resume_pool = ThreadPoolExecutor(
+            max_workers=max(4, self.max_concurrent_runs),
+            thread_name_prefix="readyagents-resume",
+        )
         self._store = None
         self._persist_delay_s = 0.0
         try:
@@ -411,6 +415,7 @@ class RunCoordinator:
             except Exception:  # noqa: BLE001
                 pass
         self._executor.shutdown(wait=False, cancel_futures=True)
+        self._resume_pool.shutdown(wait=False, cancel_futures=True)
         closer = getattr(self._store, "close", None)
         if callable(closer):
             try:
@@ -882,6 +887,8 @@ class RunCoordinator:
         actor = actor if actor is not None else self.settings.actor
         node_id = node_id.strip()
 
+        self._wait_worker_idle(run_id, timeout=2.0)
+        resume_args: tuple[Any, ...] | None = None
         with self._run_lock(run_id):
             state = self._load_exact(run_id)
             if state.status != "paused" or state.pending_node != node_id:
@@ -935,7 +942,6 @@ class RunCoordinator:
                         self._in_flight_resume[run_id] = node_id
                 else:
                     raise RunConflict(f"Run {run_id} already has a resume in flight")
-            self._wait_worker_idle(run_id)
             state = self._load_exact(run_id)
             if state.status != "paused" or state.pending_node != node_id:
                 with self._lock:
@@ -974,58 +980,29 @@ class RunCoordinator:
             decisions: dict[str, str] = (
                 _OneShotDecisions(raw_decisions) if input_request_key else raw_decisions
             )
-            try:
-                self._launch_resume(run_id, decisions, actor, token)
-            except Exception:
-                with self._lock:
-                    self._in_flight_resume.pop(run_id, None)
-                    self._active.discard(run_id)
-                raise
+            resume_args = (run_id, decisions, actor, token)
+        # Submit after releasing `_run_lock` so a concurrent decide can 409.
+        # A dedicated pool is not the start executor (just-paused worker).
+        if resume_args is None:
+            return {
+                "ok": True,
+                "run_id": run_id,
+                "status": "running",
+                "links": _links(run_id),
+            }
+        try:
+            self._resume_pool.submit(self._resume_job, *resume_args)
+        except Exception:
+            with self._lock:
+                self._in_flight_resume.pop(run_id, None)
+                self._active.discard(run_id)
+            raise
         return {
             "ok": True,
             "run_id": run_id,
             "status": "running",
             "links": _links(run_id),
         }
-
-    def _launch_resume(
-        self,
-        run_id: str,
-        decisions: dict[str, str],
-        actor: str | None,
-        token: Any,
-    ) -> None:
-        """Start ``_resume_job`` off the decide lock; inline if the thread never runs.
-
-        A daemon thread died with the HTTP worker. The shared run executor can
-        sit behind a just-paused start worker. Inline-only held ``_run_lock``
-        and hid the 409 in-flight path. Claim the job once.
-        """
-        started = threading.Event()
-        claimed = threading.Lock()
-        taken = False
-
-        def _run() -> None:
-            nonlocal taken
-            started.set()
-            with claimed:
-                if taken:
-                    return
-                taken = True
-            self._resume_job(run_id, decisions, actor, token)
-
-        threading.Thread(
-            target=_run,
-            name=f"readyagents-resume-{run_id[:8]}",
-            daemon=False,
-        ).start()
-        if started.wait(timeout=1.0):
-            return
-        with claimed:
-            if taken:
-                return
-            taken = True
-        self._resume_job(run_id, decisions, actor, token)
 
     def _resume_job(
         self,
