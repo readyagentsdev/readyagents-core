@@ -50,6 +50,7 @@ def sync_workflow(
                 on_change=str(getattr(node, "on_change", None) or "supersede"),
                 workspace=workspace,
                 node_id=node.id,
+                embed=bool(getattr(node, "embed", False)),
             )
             if apply_removed and report.get("removed"):
                 seen = _walk_ids(node.source, workspace)
