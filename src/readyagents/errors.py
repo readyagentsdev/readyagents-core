@@ -140,6 +140,50 @@ class KnowledgeCiteDenied(KnowledgeError):
     """Citation resolved outside the caller's scope."""
 
 
+class TableError(ReadyAgentsError):
+    """Table ingest, op, schema, cap, or I/O failure. Never includes cell values."""
+
+
+class TableSchemaError(TableError):
+    """Declared schema mismatch. Names the row and column, never the cell value."""
+
+    def __init__(self, row: int, column: str) -> None:
+        self.row = int(row)
+        self.column = str(column)
+        super().__init__(f"Table schema mismatch at row {self.row}, column {self.column}")
+
+
+class TableCapExceeded(TableError):
+    """Row or byte cap fired. Typed refusal, not an OOM."""
+
+    def __init__(self, kind: str, used: int, limit: int) -> None:
+        self.kind = kind
+        self.used = int(used)
+        self.limit = int(limit)
+        super().__init__(f"Table cap exceeded: {kind} used={self.used} limit={self.limit}")
+
+
+class TablePathDenied(TableError):
+    """Table path escaped the workspace or used a forbidden form."""
+
+
+class TableExtraMissing(TableError):
+    """Optional table extra (pandas/pyarrow) is not installed."""
+
+    def __init__(self, label: str = "table", extra: str = "table") -> None:
+        super().__init__(missing_extra_message(label, extra))
+
+
+class TableRowError(TableError):
+    """A single row failed under on_row_error: fail. No cell value."""
+
+    def __init__(self, row: int, *, column: str | None = None, reason: str = "row error") -> None:
+        self.row = int(row)
+        self.column = column
+        where = f", column {column}" if column else ""
+        super().__init__(f"Table row error at row {self.row}{where}: {reason}")
+
+
 class ApprovalRequired(ReadyAgentsError):
     """An approval node is waiting for an explicit operator decision."""
 

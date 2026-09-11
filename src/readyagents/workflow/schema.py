@@ -46,6 +46,8 @@ class NodeType(StrEnum):
     document = "document"
     transcribe = "transcribe"
     ingest = "ingest"
+    table = "table"
+    classify = "classify"
 
 
 class RetrySpec(BaseModel):
@@ -372,7 +374,7 @@ class NodeSpec(BaseModel):
         description=(
             "Node kind. Built-ins: agent, tool, condition, transform, approval, "
             "parallel, include, foreach, a2a, memory, code, team, document, "
-            "transcribe, ingest. Packs may add types."
+            "transcribe, ingest, table, classify. Packs may add types."
         )
     )
     timeout_seconds: float | None = Field(
@@ -492,6 +494,18 @@ class NodeSpec(BaseModel):
         ge=1,
         le=100,
         description="Maximum items this foreach will process (1–100).",
+    )
+    scale_items: int | None = Field(
+        default=None,
+        ge=101,
+        le=100000,
+        description="Opt-in foreach cap above 100. Default 32/100 is unchanged when omitted.",
+    )
+    concurrency: int | None = Field(
+        default=None,
+        ge=1,
+        le=8,
+        description="Opt-in foreach workers (1–8). Omitted means sequential.",
     )
     body: NodeSpec | None = Field(default=None, description="Node executed once per item.")
     rationale_key: str | None = Field(
@@ -693,6 +707,63 @@ class NodeSpec(BaseModel):
         default=None,
         description="Optional hybrid retrieval weights: {bm25, embedding}.",
     )
+    column_schema: dict[str, Any] | None = Field(
+        default=None,
+        alias="schema",
+        description="Declared table column types: {name: int|str|float|bool}.",
+    )
+    columns: list[str] = Field(
+        default_factory=list,
+        description="table select column names.",
+    )
+    keys: list[str] = Field(
+        default_factory=list,
+        description="table dedupe/join/aggregate key columns.",
+    )
+    keep: str | None = Field(
+        default=None,
+        description="dedupe keep: first or last.",
+    )
+    how: str | None = Field(
+        default=None,
+        description="join how: inner or left.",
+    )
+    on: list[str] = Field(
+        default_factory=list,
+        description="join key column names shared by both tables.",
+    )
+    right: str | None = Field(
+        default=None,
+        description="Right table template for join/union.",
+    )
+    metrics: dict[str, Any] | None = Field(
+        default=None,
+        description="aggregate metrics: {column: sum|count|avg|min|max}.",
+    )
+    by: list[str] = Field(
+        default_factory=list,
+        description="sort column names.",
+    )
+    descending: bool = Field(
+        default=False,
+        description="sort descending when true.",
+    )
+    derive: dict[str, Any] | None = Field(
+        default=None,
+        description="derive: {name, expr}.",
+    )
+    rules: list[Any] | None = Field(
+        default=None,
+        description="classify deterministic rules: [{when, label}].",
+    )
+    model_for_remainder: dict[str, Any] | None = Field(
+        default=None,
+        description="classify remainder: {model, batch, labels}.",
+    )
+    on_row_error: str | None = Field(
+        default=None,
+        description="Row error policy: fail, skip, or quarantine.",
+    )
 
     @field_validator("id")
     @classmethod
@@ -825,6 +896,47 @@ class NodeSpec(BaseModel):
             if change not in {"supersede", "keep_versions"}:
                 raise ValueError(f"Node '{self.id}': on_change must be supersede or keep_versions")
             self.on_change = change
+        if t == NodeType.table.value:
+            op = (self.op or "").strip().lower()
+            allowed = {
+                "read",
+                "write",
+                "select",
+                "filter",
+                "join",
+                "aggregate",
+                "sort",
+                "dedupe",
+                "union",
+                "derive",
+            }
+            if op not in allowed:
+                raise ValueError(
+                    f"Node '{self.id}': table nodes require op read, write, "
+                    "select, filter, join, aggregate, sort, dedupe, union, or derive"
+                )
+            self.op = op
+            if op == "read" and not self.source:
+                raise ValueError(f"Node '{self.id}': table read requires 'source'")
+            if op == "filter" and not self.when:
+                raise ValueError(f"Node '{self.id}': table filter requires 'when'")
+            keep = str(self.keep or "first").strip().lower()
+            if keep not in {"first", "last"}:
+                raise ValueError(f"Node '{self.id}': keep must be first or last")
+            self.keep = keep
+            how = str(self.how or "inner").strip().lower()
+            if how not in {"inner", "left"}:
+                raise ValueError(f"Node '{self.id}': how must be inner or left")
+            self.how = how
+        if t == NodeType.classify.value:
+            if not self.source:
+                raise ValueError(f"Node '{self.id}': classify nodes require 'source'")
+            err = str(self.on_row_error or "fail").strip().lower()
+            if err not in {"fail", "skip", "quarantine"}:
+                raise ValueError(
+                    f"Node '{self.id}': on_row_error must be fail, skip, or quarantine"
+                )
+            self.on_row_error = err
         if self.media and t != NodeType.agent.value:
             raise ValueError(f"Node '{self.id}': 'media' is only valid on agent nodes")
         if self.render is not None and t != NodeType.document.value:

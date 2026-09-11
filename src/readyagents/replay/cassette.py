@@ -25,6 +25,7 @@ _CODE = "code"
 _CONTRACT = "contract"
 _DOCUMENT = "document"
 _TRANSCRIBE = "transcribe"
+_TABLE = "table"
 _MEDIA = "media"
 
 DETERMINISTIC_TOOLS = frozenset({"calc", "json_get", "json_set", "json_merge"})
@@ -71,8 +72,10 @@ def classify_node_type(node_type: str) -> str:
         return "unsealable"
     if kind == "code":
         return "sealed"
-    if kind in {"document", "transcribe"}:
+    if kind in {"document", "transcribe", "table"}:
         return "sealed"
+    if kind == "classify":
+        return "unsealable"
     return "unsealable"
 
 
@@ -347,6 +350,42 @@ class Cassette:
                 reason="missing",
             )
         self._consume[f"{_DOCUMENT}:{digest}"] = occ + 1
+        self.report.note(node_id, "sealed")
+        return entry.get("output")
+
+    def record_table(self, *, node_id: str, output: Any) -> str:
+        digest = self.tool_digest("table", {"node": node_id})
+        occ = self._record.get(f"{_TABLE}:{digest}", 0)
+        self._record[f"{_TABLE}:{digest}"] = occ + 1
+        key = entry_storage_key(_TABLE, digest, occ)
+        ref = output if isinstance(output, dict) else output
+        entry = {
+            "kind": _TABLE,
+            "node_id": node_id,
+            "occurrence": occ,
+            "digest": digest,
+            "output": ref,
+            "sealed": True,
+            "sha256": (ref or {}).get("sha256") if isinstance(ref, dict) else None,
+        }
+        self.report.note(node_id, "sealed")
+        self._put(key, entry)
+        return key
+
+    def replay_table(self, *, node_id: str) -> Any:
+        digest = self.tool_digest("table", {"node": node_id})
+        occ = self._consume.get(f"{_TABLE}:{digest}", 0)
+        key = entry_storage_key(_TABLE, digest, occ)
+        entry = self.entries.get(key)
+        if entry is None and occ == 0:
+            entry = self.entries.get(f"{_TABLE}:{digest}")
+        if entry is None:
+            raise CassetteMiss(
+                f"Cassette miss at node '{node_id}': table entry missing",
+                node_id=node_id,
+                reason="missing",
+            )
+        self._consume[f"{_TABLE}:{digest}"] = occ + 1
         self.report.note(node_id, "sealed")
         return entry.get("output")
 
@@ -670,7 +709,16 @@ class Cassette:
             if not isinstance(key, str) or not isinstance(row, dict):
                 raise CassetteError(f"Cassette {file} has an invalid entry")
             kind = row.get("kind")
-            if kind not in {_LLM, _TOOL, _CODE, _CONTRACT, _DOCUMENT, _TRANSCRIBE, _MEDIA}:
+            if kind not in {
+                _LLM,
+                _TOOL,
+                _CODE,
+                _CONTRACT,
+                _DOCUMENT,
+                _TRANSCRIBE,
+                _TABLE,
+                _MEDIA,
+            }:
                 raise CassetteError(f"Cassette {file} entry {key!r} has invalid kind")
             tape.entries[key] = dict(row)
         det = loaded.get("determinism")

@@ -493,6 +493,9 @@ def _jsonable(value: Any) -> Any:
         return value
     if isinstance(value, Path):
         return str(value)
+    as_ref = getattr(value, "as_ref", None)
+    if callable(as_ref):
+        return _jsonable(as_ref())
     if isinstance(value, dict):
         return {str(k): _jsonable(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):

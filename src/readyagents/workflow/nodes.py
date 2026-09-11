@@ -30,6 +30,7 @@ from readyagents.errors import (
     RouteBudgetExceeded,
     RoutingError,
     RunawayGuard,
+    TableError,
     TeamError,
     TemplateError,
     ToolError,
@@ -64,6 +65,7 @@ _MAX_INCLUDE_DEPTH = 8
 _MAX_PARALLEL = 8
 _DEFAULT_MAX_FOREACH = 32
 _HARD_MAX_FOREACH = 100
+_HARD_SCALE_FOREACH = 100_000
 _FOREACH_META = "_foreach"
 _INCLUDE_META = "_include"
 _PARALLEL_META = "_parallel"
@@ -122,6 +124,7 @@ class ExecutionContext:
         vote_signature_status: str = "unsigned",
         stream: Any | None = None,
         media_store: Any = None,
+        table_store: Any = None,
         transcribe_provider: Any = None,
         redact_detector: Any = None,
     ) -> None:
@@ -177,6 +180,7 @@ class ExecutionContext:
         self.route_budgets: Any = None
         self.capability_matrix: Any = None
         self.media_store = media_store
+        self.table_store = table_store
         self.transcribe_provider = transcribe_provider
         self.redact_detector = redact_detector
         self._persist_lock = threading.RLock()
@@ -263,10 +267,12 @@ class ExecutionContext:
             vote_signature_status=self.vote_signature_status,
             stream=self.stream,
             media_store=self.media_store,
+            table_store=self.table_store,
             transcribe_provider=self.transcribe_provider,
             redact_detector=self.redact_detector,
         )
         spawned.media_store = self.media_store
+        spawned.table_store = self.table_store
         spawned.transcribe_provider = self.transcribe_provider
         spawned.redact_detector = self.redact_detector
         spawned.capability_matrix = self.capability_matrix
@@ -365,6 +371,14 @@ def _execute_node_body(node: NodeSpec, state: RunState, ctx: ExecutionContext) -
         from readyagents.knowledge.ingest import run_ingest_node
 
         output = run_ingest_node(node, state, ctx)
+    elif kind == NodeType.table.value:
+        from readyagents.table.node import run_table_node
+
+        output = run_table_node(node, state, ctx)
+    elif kind == NodeType.classify.value:
+        from readyagents.table.classify import run_classify_node
+
+        output = run_classify_node(node, state, ctx)
     else:
         known = ", ".join(t.value for t in NodeType)
         raise WorkflowError(
@@ -1414,6 +1428,8 @@ def execute_node_with_policy(
             raise
         except MediaError:
             raise
+        except TableError:
+            raise
         except ReadyAgentsError as exc:
             last_error = exc
         except Exception as exc:  # noqa: BLE001
@@ -1464,6 +1480,9 @@ def _call_with_timeout(node: NodeSpec, state: RunState, ctx: ExecutionContext) -
 
 
 def _foreach_cap(node: NodeSpec) -> int:
+    scale = getattr(node, "scale_items", None)
+    if scale is not None:
+        return max(1, min(int(scale), _HARD_SCALE_FOREACH))
     raw = node.max_items if node.max_items is not None else _DEFAULT_MAX_FOREACH
     return max(1, min(int(raw), _HARD_MAX_FOREACH))
 
@@ -1509,59 +1528,88 @@ def _run_foreach(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> list
         if isinstance(row, dict) and row.get("status") == "ok":
             outputs.append(row.get("output"))
     start = len(outputs)
-    from readyagents.firewall.taint import seed_foreach_item_provenance
 
-    for index, item in enumerate(items):
-        if index < start:
-            continue
-        child = RunState.start(
-            state.workflow_name,
-            {**state.inputs, "item": item, "index": index},
-            metadata=state.metadata,
-            run_id=state.run_id,
-        )
-        child.node_outputs = dict(state.node_outputs)
-        child.output_keys = dict(state.output_keys)
-        child.node_outputs["item"] = item
-        child.output_keys["item"] = item
-        child.node_outputs["index"] = index
-        child.output_keys["index"] = index
-        seed_foreach_item_provenance(state, child, items_expr=node.items or "", node_id=node.id)
-        item_ctx = ctx
-        prev_rounds = item_ctx.last_tool_rounds
-        item_ctx.last_tool_rounds = []
-        try:
-            output, _attempt = execute_node_with_policy(body, child, item_ctx)
-        except ApprovalRequired:
+    workers = int(getattr(node, "concurrency", None) or 1)
+    remaining = [(index, item) for index, item in enumerate(items) if index >= start]
+    if workers <= 1 or len(remaining) <= 1:
+        for index, item in remaining:
+            output = _foreach_one(body, state, ctx, node, item, index)
+            outputs.append(output)
             bucket[node.id] = [
                 {"index": i, "status": "ok", "output": outputs[i]} for i in range(len(outputs))
             ]
             if ctx.on_persist is not None:
                 ctx.on_persist(state)
-            raise
-        except CancellationRequested:
-            bucket[node.id] = [
-                {"index": i, "status": "ok", "output": outputs[i]} for i in range(len(outputs))
-            ]
-            if ctx.on_persist is not None:
-                ctx.on_persist(state)
-            raise
-        except Exception:
-            bucket[node.id] = [
-                {"index": i, "status": "ok", "output": outputs[i]} for i in range(len(outputs))
-            ]
-            if ctx.on_persist is not None:
-                ctx.on_persist(state)
-            raise
-        finally:
-            item_ctx.last_tool_rounds = prev_rounds
-        outputs.append(output)
+        return outputs
+    collected: dict[int, Any] = {}
+    first_error: BaseException | None = None
+    with ThreadPoolExecutor(
+        max_workers=max(1, min(workers, _MAX_PARALLEL, len(remaining)))
+    ) as pool:
+        futures = {
+            pool.submit(_foreach_one, body, state, ctx, node, item, index): index
+            for index, item in remaining
+        }
+        for fut in as_completed(futures):
+            index = futures[fut]
+            try:
+                collected[index] = fut.result()
+            except Exception as exc:  # noqa: BLE001
+                if first_error is None:
+                    first_error = exc
+                continue
+            ordered = outputs + [collected[i] for i in range(start, index + 1) if i in collected]
+            if len(ordered) == index + 1:
+                bucket[node.id] = [
+                    {"index": i, "status": "ok", "output": ordered[i]} for i in range(len(ordered))
+                ]
+                if ctx.on_persist is not None:
+                    ctx.on_persist(state)
+    if first_error is not None:
+        done = outputs + [collected[i] for i in sorted(collected)]
         bucket[node.id] = [
-            {"index": i, "status": "ok", "output": outputs[i]} for i in range(len(outputs))
+            {"index": i, "status": "ok", "output": done[i]} for i in range(len(outputs))
         ]
         if ctx.on_persist is not None:
             ctx.on_persist(state)
+        raise first_error
+    for index, _item in remaining:
+        outputs.append(collected[index])
+    bucket[node.id] = [
+        {"index": i, "status": "ok", "output": outputs[i]} for i in range(len(outputs))
+    ]
+    if ctx.on_persist is not None:
+        ctx.on_persist(state)
     return outputs
+
+
+def _foreach_one(
+    body: NodeSpec, state: RunState, ctx: ExecutionContext, node: NodeSpec, item: Any, index: int
+) -> Any:
+    from readyagents.firewall.taint import seed_foreach_item_provenance
+
+    child = RunState.start(
+        state.workflow_name,
+        {**state.inputs, "item": item, "index": index},
+        metadata=state.metadata,
+        run_id=state.run_id,
+    )
+    child.node_outputs = dict(state.node_outputs)
+    child.output_keys = dict(state.output_keys)
+    child.node_outputs["item"] = item
+    child.output_keys["item"] = item
+    child.node_outputs["index"] = index
+    child.output_keys["index"] = index
+    seed_foreach_item_provenance(state, child, items_expr=node.items or "", node_id=node.id)
+    prev_rounds = ctx.last_tool_rounds
+    ctx.last_tool_rounds = []
+    try:
+        output, _attempt = execute_node_with_policy(body, child, ctx)
+        return output
+    except (ApprovalRequired, CancellationRequested):
+        raise
+    finally:
+        ctx.last_tool_rounds = prev_rounds
 
 
 def _meta_bucket(state: RunState, key: str) -> dict[str, Any]:
