@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -171,6 +172,81 @@ def test_for_file_and_for_run_kinds() -> None:
     )
     assert evaluate_wait(rec2, now=T0, world=WaitWorld(runs={"abc": "running"})).satisfied is False
     assert evaluate_wait(rec2, now=T0, world=WaitWorld(runs={"abc": "succeeded"})).reason == "run"
+
+
+def test_changed_compares_unix_mtime_to_iso_created() -> None:
+    rec = WaitRecord(
+        node_id="w",
+        until="1h",
+        deadline_at=(T0 + timedelta(hours=1)).isoformat(),
+        for_file={"path": "inbox/a.pdf", "on": "changed"},
+        created_at=T0.isoformat(),
+    )
+    before = str((T0 - timedelta(minutes=1)).timestamp())
+    stale = WaitWorld(files={"inbox/a.pdf": {"exists": True, "mtime": before, "symlink": False}})
+    assert evaluate_wait(rec, now=T0 + timedelta(minutes=2), world=stale).satisfied is False
+    after = str((T0 + timedelta(minutes=1)).timestamp())
+    ready = WaitWorld(files={"inbox/a.pdf": {"exists": True, "mtime": after, "symlink": False}})
+    hit = evaluate_wait(rec, now=T0 + timedelta(minutes=2), world=ready)
+    assert hit.satisfied is True
+    assert hit.reason == "file"
+
+
+def test_for_file_changed_after_wait_via_inspect_file(tmp_path: Path) -> None:
+    from readyagents.wait.world import inspect_file
+
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    target = inbox / "doc.pdf"
+    target.write_bytes(b"before")
+    past = datetime.now(UTC).timestamp() - 120
+    os.utime(target, (past, past))
+    spec = _spec(for_file={"path": "inbox/doc.pdf", "on": "changed"}, on_deadline="fail")
+    with pytest.raises(WaitingRequired) as parked:
+        _run(
+            spec,
+            clock=lambda: datetime.now(UTC),
+            pin_home=tmp_path,
+            workflow_dir=tmp_path,
+        )
+    assert parked.value.state.status == "waiting"
+    before = inspect_file("inbox/doc.pdf", tmp_path)
+    assert before["exists"] is True
+    assert before["symlink"] is False
+    assert "T" in str(before["mtime"])
+    wf = WorkflowSpec.model_validate(spec)
+    ctx_same = ExecutionContext(
+        wf,
+        ToolRegistry(),
+        clock=lambda: datetime.now(UTC),
+        pin_home=tmp_path,
+        workflow_dir=tmp_path,
+        default_model="mock:test",
+    )
+    with pytest.raises(WaitingRequired) as still:
+        run_workflow(wf, {}, ctx_same, state=parked.value.state)
+    assert still.value.state.status == "waiting"
+    later = datetime.now(UTC).timestamp() + 5
+    target.write_bytes(b"after")
+    os.utime(target, (later, later))
+    changed = inspect_file("inbox/doc.pdf", tmp_path)
+    created = still.value.state.pending["wait"]["created_at"]
+    assert changed["mtime"] != before["mtime"]
+    rec = WaitRecord.from_dict(still.value.state.pending["wait"])
+    world = WaitWorld(files={"inbox/doc.pdf": changed})
+    assert evaluate_wait(rec, now=datetime.now(UTC), world=world).satisfied is True
+    ctx_ready = ExecutionContext(
+        wf,
+        ToolRegistry(),
+        clock=lambda: datetime.now(UTC),
+        pin_home=tmp_path,
+        workflow_dir=tmp_path,
+        default_model="mock:test",
+    )
+    done = run_workflow(wf, {}, ctx_ready, state=still.value.state)
+    assert done.status == "succeeded"
+    assert done.output_keys["signal"]["reason"] == "file"
+    assert created  # wait record carried created_at from the park
 
 
 def test_on_deadline_fail_escalate_branch(tmp_path: Path) -> None:
@@ -364,6 +440,25 @@ def test_file_wait_symlink_refused(tmp_path: Path) -> None:
             inspect_file("inbox/a.pdf", tmp_path)
     with pytest.raises(WaitPathDenied):
         inspect_file("../escape.pdf", tmp_path)
+    inside = link / "real.pdf"
+    inside.write_bytes(b"y")
+    local = link / "link.pdf"
+    try:
+        local.symlink_to(inside)
+        local_linked = True
+    except OSError:
+        local_linked = False
+    if local_linked:
+        with pytest.raises(WaitPathDenied):
+            inspect_file("inbox/link.pdf", tmp_path)
+        spec = _spec(for_file={"path": "inbox/link.pdf", "on": "created"}, on_deadline="fail")
+        with pytest.raises(WaitPathDenied):
+            _run(
+                spec,
+                clock=lambda: T0,
+                pin_home=tmp_path,
+                workflow_dir=tmp_path,
+            )
 
 
 def test_continue_does_not_grant_approval(tmp_path: Path) -> None:

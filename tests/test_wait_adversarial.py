@@ -136,6 +136,15 @@ def test_for_file_symlink_and_parent_escape_denied(tmp_path: Path) -> None:
         return
     with pytest.raises(WaitPathDenied):
         inspect_file("inbox/watched.pdf", tmp_path)
+    inside = inbox / "real.pdf"
+    inside.write_bytes(b"inside")
+    local = inbox / "link.pdf"
+    try:
+        local.symlink_to(inside)
+    except OSError:
+        return
+    with pytest.raises(WaitPathDenied):
+        inspect_file("inbox/link.pdf", tmp_path)
 
 
 def test_stalling_world_does_not_extend_deadline_into_approval(tmp_path: Path) -> None:
