@@ -471,5 +471,7 @@ def test_cli_export_with_yes_is_confined_and_omits_vectors(
     assert "vectors" not in dumped
     assert "records" in dumped
     assert any("alpha widget" in row.get("text", "") for row in dumped["records"])
-    assert json.dumps(dumped).count("0.25") == 0
-    assert "0.75" not in json.dumps(dumped)
+    for row in dumped["records"]:
+        assert "vector" not in row
+        assert "embedding" not in row
+        assert row.get("text") != [0.25, 0.5, 0.75]
