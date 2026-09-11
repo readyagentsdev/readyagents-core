@@ -124,8 +124,8 @@ def test_spawn_sandboxed_minimal_env_omits_openai_api_key(
     monkeypatch.setenv("OPENAI_API_KEY", _SECRET)
     recorded = _spawn(
         tmp_path,
-        "import os\nresult = {\"key\": os.environ.get(\"OPENAI_API_KEY\"), "
-        "\"keys\": sorted(os.environ)}\n",
+        'import os\nresult = {"key": os.environ.get("OPENAI_API_KEY"), '
+        '"keys": sorted(os.environ)}\n',
         allow_imports=["json", "os"],
     )
     assert recorded["output"]["key"] is None
