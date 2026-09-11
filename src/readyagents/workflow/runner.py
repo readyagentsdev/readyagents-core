@@ -874,6 +874,15 @@ def _write_ledger(
     if labels:
         state.metadata["labels"] = dict(labels)
     entry = spend_entry_from_state(state, labels=labels)
+    spend_meta = state.metadata.get("spend")
+    if isinstance(spend_meta, dict):
+        if entry.get("by_member"):
+            spend_meta["by_member"] = entry["by_member"]
+        if entry.get("by_role"):
+            spend_meta["by_role"] = entry["by_role"]
+    persist_fn = getattr(ctx, "on_persist", None)
+    if persist_fn is not None:
+        persist_fn(state)
     append_spend(settings.ledger_dir(), entry, redactor=ctx.redactor)
 
 

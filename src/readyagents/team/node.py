@@ -353,7 +353,7 @@ def _supervisor_choice(
         raw = _run_agent(sup, state, ctx)
     finally:
         _pop_scratchpad(state, previous)
-    _note_usage(bucket, "supervisor", state, ctx, before=before)
+    _note_usage(bucket, "supervisor", state, ctx, before=before, role="supervisor")
     data = _parse_json(raw)
     if not isinstance(data, dict):
         data = {"next": str(raw).strip(), "reason": "plain", "done": False}
@@ -402,7 +402,7 @@ def _run_member(
         output = execute_node(spec_node, state, ctx)
     finally:
         _pop_member_view(state, previous)
-    _note_usage(bucket, member.id, state, ctx, before=before)
+    _note_usage(bucket, member.id, state, ctx, before=before, role=member.role or member.id)
     return output
 
 
@@ -497,6 +497,7 @@ def _note_usage(
     ctx: Any,
     *,
     before: dict[str, Any] | None = None,
+    role: str | None = None,
 ) -> None:
     now = dict(state.usage)
     prev = before or {}
@@ -515,8 +516,11 @@ def _note_usage(
             "total_tokens": 0,
             "cost_micros": 0,
             "tool_calls": 0,
+            "role": role or who,
         },
     )
+    if role:
+        row["role"] = role
     row["prompt_tokens"] += max(0, delta_prompt)
     row["completion_tokens"] += max(0, delta_completion)
     row["total_tokens"] += max(0, delta_total)

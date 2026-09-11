@@ -68,7 +68,8 @@ All notable changes to ReadyAgents Core.
   whole metadata namespace (`scratchpad`, `teams.<id>.scratchpad`, dumping
   `teams`, last_output, handoff payloads). Mid-team checkpoints persist via
   `on_persist`. `runs fork` from a paused mid-team checkpoint reconstructs
-  from `metadata.teams` when the team node has no completed result.
+  from `metadata.teams` when the team node has no completed result. Per-member
+  and per-role tokens, cost, and tool calls are written on the spend ledger.
 - Team member `max_cost_usd` is enforced before the next member call. A paused
   team resumes from `metadata.teams` pending_member.
 - `redact_and_continue` masks the firing `deny` / `deny_regex` / PII match
