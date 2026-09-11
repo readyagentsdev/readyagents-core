@@ -128,6 +128,8 @@ def select_route(
         )
 
     matrix = matrix or _matrix_for(policy, ctx)
+    if ctx is not None:
+        ctx.capability_matrix = matrix
     prices = prices or load_price_table()
     breaker = getattr(ctx, "circuit_breaker", None) if ctx is not None else None
 

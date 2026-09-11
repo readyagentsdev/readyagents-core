@@ -616,10 +616,13 @@ def _complete_agent(
     ctx.last_route = decision.as_dict()
     if decision.policy:
         candidates = list(decision.candidates) or [decision.model]
-        if ctx.cassette is not None:
-            ctx.cassette.pending_route = decision.as_dict()
     else:
         candidates = legacy
+    if ctx.offline and ctx.cassette is not None:
+        recorded = ctx.cassette.recorded_route(node.id)
+        if recorded and str(recorded.get("model") or "").strip():
+            candidates = [str(recorded["model"]).strip()]
+            ctx.last_route = dict(recorded)
     use_cache = bool(ctx.cache_llm if node.cache is None else node.cache)
     last_error: BaseException | None = None
     skipped: list[str] = []
@@ -671,10 +674,14 @@ def _complete_agent(
         )
         meter = getattr(ctx, "spend_meter", None)
         hint = _prompt_token_hint(messages)
-        if decision.policy:
+        if decision.policy and not ctx.offline:
             from readyagents.llm.capabilities import assert_capable
 
-            assert_capable(ref, decision.require)
+            assert_capable(
+                ref,
+                decision.require,
+                matrix=getattr(ctx, "capability_matrix", None),
+            )
             tracker = _route_tracker(ctx)
             if tracker is not None:
                 tracker.consult(
@@ -724,6 +731,11 @@ def _complete_agent(
                         secrets=ctx.cassette_secrets,
                     )
             tried.append(ref)
+            if decision.policy and ctx.cassette is not None:
+                pending = dict(ctx.last_route or decision.as_dict())
+                pending["model"] = ref
+                pending["fallback"] = tried[0] != ref
+                ctx.cassette.pending_route = pending
             result = _invoke_provider(
                 provider,
                 messages,
@@ -777,8 +789,9 @@ def _complete_agent(
             )
         if decision.policy:
             record = dict(ctx.last_route or decision.as_dict())
-            record["model"] = ref
-            record["fallback"] = bool(tried and tried[0] != ref)
+            if not ctx.offline:
+                record["model"] = ref
+                record["fallback"] = bool(tried and tried[0] != ref)
             record["node_id"] = node.id
             state.metadata.setdefault("routes", []).append(record)
             ctx.last_route = record

@@ -381,6 +381,115 @@ def test_models_cli_list_show_route_twice_no_provider() -> None:
         assert "add ->" in result.stdout or "node add" in result.stdout
 
 
+def _override_matrix(*, tool_calling: bool = True) -> dict:
+    return {
+        "version": 1,
+        "updated_at": "2026-09-11T00:00:00Z",
+        "warn_after_days": 90,
+        "models": {
+            "ollama:llama3": {
+                "context_window": 8192,
+                "tool_calling": tool_calling,
+                "structured_output": False,
+                "media": False,
+                "streaming": True,
+                "local": True,
+                "latency_class": "standard",
+                "quality_class": "compact",
+            }
+        },
+        "prefixes": {},
+    }
+
+
+def test_capability_override_honoured_before_spend(tmp_path: Path) -> None:
+    path = tmp_path / "caps.json"
+    path.write_text(json.dumps(_override_matrix(tool_calling=True)), encoding="utf-8")
+    llm = ScriptedLLM()
+    llm.enqueue("from-override")
+    spec = _spec_with_routing(
+        [
+            {
+                "match": {"node": "draft"},
+                "strategy": "cheapest_capable",
+                "require": {"tool_calling": True},
+                "pool": ["ollama:llama3"],
+            }
+        ]
+    )
+    spec["routing"]["capability_matrix"] = str(path)
+    state = run_workflow_spec(spec, llm=llm)
+    assert state.status == "succeeded"
+    assert llm.calls[0]["model"] == "llama3"
+    assert state.output_keys["out"] == "from-override"
+
+
+def test_fallback_route_stamped_and_offline_replay_uses_recorded_model() -> None:
+    tape = Cassette.new(run_id="r-fb", workflow="routed")
+    llm = ScriptedLLM()
+    llm.enqueue(error=LLMError("primary-down"), model="gpt-4o-mini")
+    llm.enqueue("from-fallback", model="gpt-4o")
+    spec = _spec_with_routing(
+        [
+            {
+                "match": {"node": "draft"},
+                "strategy": "cheapest_capable",
+                "pool": ["openai:gpt-4o-mini", "openai:gpt-4o"],
+            }
+        ]
+    )
+    first = run_workflow_spec(spec, llm=llm, cassette=tape, recording=True)
+    assert first.output_keys["out"] == "from-fallback"
+    assert first.metadata["routes"][0]["model"] == "openai:gpt-4o"
+    assert first.metadata["routes"][0]["fallback"] is True
+    llm_entries = [e for e in tape.entries.values() if e.get("kind") == "llm"]
+    assert llm_entries
+    assert llm_entries[0].get("route", {}).get("model") == "openai:gpt-4o"
+    assert llm_entries[0].get("route", {}).get("fallback") is True
+
+    class Boom:
+        name = "boom"
+
+        def complete(self, *a, **k):
+            raise AssertionError("offline replay must not call complete")
+
+    second = run_workflow_spec(spec, llm=Boom(), cassette=tape, offline=True)
+    assert second.output_keys["out"] == "from-fallback"
+    assert second.metadata["routes"][0]["model"] == "openai:gpt-4o"
+    assert second.metadata["routes"][0]["fallback"] is True
+
+
+def test_offline_replay_uses_recorded_route_when_circuit_now_closed() -> None:
+    tape = Cassette.new(run_id="r-circ", workflow="routed")
+    llm = ScriptedLLM()
+    llm.enqueue("from-gpt4o", model="gpt-4o")
+    breaker = CircuitBreaker(failure_threshold=1, cooldown_seconds=60)
+    breaker.record_failure("openai:gpt-4o-mini")
+    spec = _spec_with_routing(
+        [
+            {
+                "match": {"node": "draft"},
+                "strategy": "cheapest_capable",
+                "pool": ["openai:gpt-4o-mini", "openai:gpt-4o"],
+            }
+        ]
+    )
+    first = run_workflow_spec(spec, llm=llm, cassette=tape, recording=True, circuit_breaker=breaker)
+    assert first.metadata["routes"][0]["model"] == "openai:gpt-4o"
+    llm_entries = [e for e in tape.entries.values() if e.get("kind") == "llm"]
+    assert llm_entries[0].get("route", {}).get("model") == "openai:gpt-4o"
+
+    class Boom:
+        name = "boom"
+
+        def complete(self, *a, **k):
+            raise AssertionError("offline replay must not call complete")
+
+    second = run_workflow_spec(spec, llm=Boom(), cassette=tape, offline=True)
+    assert second.output_keys["out"] == "from-gpt4o"
+    assert second.metadata["routes"][0]["model"] == "openai:gpt-4o"
+
+
 def test_route_record_and_offline_replay_traps_complete() -> None:
     tape = Cassette.new(run_id="r1", workflow="routed")
     llm = ScriptedLLM()

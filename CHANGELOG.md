@@ -82,6 +82,10 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- Offline replay uses the cassette-recorded route (surviving model and
+  fallback), not a fresh `select_route` that can CassetteMiss on a recovered
+  primary. Capability checks honour `routing.capability_matrix` / ctx matrix
+  rather than always loading the bundled file.
 - Team member interpolation sees only granted scratchpad keys across the
   whole metadata namespace (`scratchpad`, `teams.<id>.scratchpad`, dumping
   `teams`, last_output, handoff payloads). Mid-team checkpoints persist via
