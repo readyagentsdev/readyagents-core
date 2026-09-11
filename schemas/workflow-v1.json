@@ -1456,6 +1456,111 @@
             },
             "type": "object"
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "team"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "members": {
+                "anyOf": [
+                  {
+                    "items": {},
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Closed team member set. Nested type: team is refused.",
+                "title": "Members"
+              },
+              "model": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "LLM ref for this agent (provider:model). Overrides default_model.",
+                "title": "Model"
+              },
+              "scratchpad": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "team scratchpad: {keys: [...]} plus per-member read/write grants.",
+                "title": "Scratchpad"
+              },
+              "strategy": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "team strategy: route, plan_then_execute, debate, or pipeline.",
+                "title": "Strategy"
+              },
+              "supervisor": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "team supervisor: {prompt, model, system}.",
+                "title": "Supervisor"
+              },
+              "terminate": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "team terminate: max_rounds, max_cost_usd, max_wall_seconds, goal.",
+                "title": "Terminate"
+              }
+            },
+            "required": [
+              "strategy",
+              "supervisor",
+              "members"
+            ],
+            "type": "object"
+          }
         }
       ],
       "description": "One node in the workflow graph.",
@@ -1545,14 +1650,15 @@
                 "foreach",
                 "a2a",
                 "memory",
-                "code"
+                "code",
+                "team"
               ]
             },
             {
               "type": "string"
             }
           ],
-          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory, code. Packs may add additional types.",
+          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory, code, team. Packs may add additional types.",
           "title": "Type"
         }
       },

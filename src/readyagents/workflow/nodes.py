@@ -26,6 +26,7 @@ from readyagents.errors import (
     PolicyDenied,
     ReadyAgentsError,
     RunawayGuard,
+    TeamError,
     TemplateError,
     ToolError,
     TrustError,
@@ -326,6 +327,10 @@ def _execute_node_body(node: NodeSpec, state: RunState, ctx: ExecutionContext) -
         from readyagents.code.node import run_code_node
 
         output = run_code_node(node, state, ctx)
+    elif kind == NodeType.team.value:
+        from readyagents.team.node import run_team_node
+
+        output = run_team_node(node, state, ctx)
     else:
         known = ", ".join(t.value for t in NodeType)
         raise WorkflowError(
@@ -1261,6 +1266,8 @@ def execute_node_with_policy(
         except A2AError:
             raise
         except MemoryError:
+            raise
+        except TeamError:
             raise
         except (BudgetExceeded, AuthorizationError, CircuitOpen, RunawayGuard):
             raise

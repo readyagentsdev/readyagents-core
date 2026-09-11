@@ -6,6 +6,12 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Opt-in `type: team`.** Supervisor plus a closed declared member set
+  (`route`, `plan_then_execute`, `debate`, `pipeline`). Engine-enforced
+  `max_rounds` / spend / wall-clock / goal with distinct typed reasons,
+  permissioned scratchpad, typed handoffs, per-member accounting, approval
+  members, cassette replay, and fork of `metadata.teams`. Nested teams are
+  refused. No routing-quality claim. See [docs/teams.md](docs/teams.md).
 - **Opt-in output contracts (`contract:`).** Structural schema plus named
   deterministic content rules (`deny_regex`, literal deny, citation, language,
   length, PII via existing detectors). Deterministic JSON repair runs before

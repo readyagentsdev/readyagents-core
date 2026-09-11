@@ -94,6 +94,14 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
         "output_schema",
         "contract",
     ),
+    NodeType.team: (
+        "strategy",
+        "supervisor",
+        "members",
+        "scratchpad",
+        "terminate",
+        "model",
+    ),
 }
 
 NODE_TYPE_REQUIRED: dict[NodeType, tuple[str, ...]] = {
@@ -106,6 +114,7 @@ NODE_TYPE_REQUIRED: dict[NodeType, tuple[str, ...]] = {
     NodeType.foreach: ("items", "body"),
     NodeType.a2a: ("agent_url",),
     NodeType.memory: ("op", "scope"),
+    NodeType.team: ("strategy", "supervisor", "members"),
 }
 
 _PYTHON_ONLY_ALIASES: Final[tuple[str, ...]] = ("else_", "from_", "call_inputs")
