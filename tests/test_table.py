@@ -384,6 +384,47 @@ def test_row_cap_typed(tmp_settings, tmp_path: Path) -> None:
         _run(spec, tmp_settings, tmp_path)
 
 
+def test_infer_ingest_stops_at_max_rows(tmp_settings, tmp_path: Path) -> None:
+    from readyagents.table.io import _ingest
+
+    lines = ["id,note"] + [f"{i},n{i}" for i in range(1, 5)]
+    (tmp_path / "many.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    spec = {
+        "name": "infer-cap",
+        "nodes": [
+            {
+                "id": "load",
+                "type": "table",
+                "op": "read",
+                "source": {"kind": "csv", "path": "many.csv"},
+                "limits": {"max_rows": 2},
+                "output_key": "rows",
+            }
+        ],
+    }
+    with pytest.raises(TableCapExceeded, match="rows"):
+        _run(spec, tmp_settings, tmp_path)
+    pulled = {"n": 0}
+
+    def rows():
+        for i in range(10):
+            pulled["n"] += 1
+            yield {"id": i, "note": f"n{i}"}
+
+    store = TableStore(tmp_path / "cap-store")
+    with pytest.raises(TableCapExceeded, match="rows"):
+        _ingest(
+            store,
+            rows(),
+            ["id", "note"],
+            None,
+            max_rows=2,
+            max_bytes=10_000_000,
+            op="read",
+        )
+    assert pulled["n"] == 3
+
+
 def test_cli_schema_head_stats_twice(tmp_settings, tmp_path: Path, monkeypatch) -> None:
     _csv(tmp_path)
     monkeypatch.chdir(tmp_path)
@@ -438,51 +479,42 @@ def test_replay_uses_content_hash(tmp_settings, tmp_path: Path, monkeypatch) -> 
     assert second.output_keys["kept"]["sha256"] == sha
 
 
+def _foreach_scale_spec(n: int, *, scale_items: int | None = None, concurrency: int | None = None):
+    node: dict = {
+        "id": "each",
+        "type": "foreach",
+        "items": "expressions",
+        "output_key": "results",
+        "body": {
+            "id": "math",
+            "type": "tool",
+            "tool": "calc",
+            "arguments": {"expression": "{{item}}"},
+        },
+    }
+    if scale_items is not None:
+        node["scale_items"] = scale_items
+    if concurrency is not None:
+        node["concurrency"] = concurrency
+    return {
+        "name": f"foreach-{n}",
+        "inputs": {"expressions": [f"{i}+0" for i in range(n)]},
+        "nodes": [node],
+    }
+
+
 def test_foreach_scale_items_opt_in(tmp_path: Path) -> None:
     tools = default_registry(allow_http=False, workspace=tmp_path)
-    items = [f"{i}+0" for i in range(5)]
-    spec = {
-        "name": "scaled",
-        "inputs": {"expressions": items},
-        "nodes": [
-            {
-                "id": "each",
-                "type": "foreach",
-                "items": "expressions",
-                "scale_items": 1000,
-                "concurrency": 2,
-                "output_key": "results",
-                "body": {
-                    "id": "math",
-                    "type": "tool",
-                    "tool": "calc",
-                    "arguments": {"expression": "{{item}}"},
-                },
-            }
-        ],
-    }
-    state = run_workflow_spec(spec, tools=tools)
-    assert state.status == "succeeded"
-    assert len(state.output_keys["results"]) == 5
-    too_many = {
-        "name": "default-cap",
-        "inputs": {"expressions": [f"{i}+0" for i in range(33)]},
-        "nodes": [
-            {
-                "id": "each",
-                "type": "foreach",
-                "items": "expressions",
-                "body": {
-                    "id": "math",
-                    "type": "tool",
-                    "tool": "calc",
-                    "arguments": {"expression": "{{item}}"},
-                },
-            }
-        ],
-    }
+    thirty_three = run_workflow_spec(
+        _foreach_scale_spec(33, scale_items=1000, concurrency=2), tools=tools
+    )
+    assert thirty_three.status == "succeeded"
+    assert thirty_three.output_keys["results"] == list(range(33))
+    hundred_one = run_workflow_spec(_foreach_scale_spec(101, scale_items=101), tools=tools)
+    assert hundred_one.status == "succeeded"
+    assert hundred_one.output_keys["results"] == list(range(101))
     with pytest.raises(NodeError, match="max_items=32"):
-        run_workflow_spec(too_many, tools=tools)
+        run_workflow_spec(_foreach_scale_spec(33), tools=tools)
 
 
 def test_eight_ops_via_workflow(tmp_settings, tmp_path: Path) -> None:
