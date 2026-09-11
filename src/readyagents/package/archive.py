@@ -47,7 +47,7 @@ def build_package(source: Path | str, *, out: Path | str | None = None) -> Path:
     else:
         dest = root / f"{manifest.name}-{manifest.version}{ARCHIVE_SUFFIX}"
     dest.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_bytes(dest, blob)
+    atomic_write_bytes(dest, blob, restrict=False)
     return dest
 
 
@@ -109,7 +109,5 @@ def _pack_zip(members: dict[str, bytes]) -> bytes:
             info.compress_type = zipfile.ZIP_STORED
             info.create_system = 3
             info.external_attr = FILE_ATTR
-            info.comment = b""
-            info.extra = b""
             zf.writestr(info, data)
     return buf.getvalue()

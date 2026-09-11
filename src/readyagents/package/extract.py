@@ -49,8 +49,14 @@ def extract_archive(blob: bytes, dest: Path) -> Path:
     """Write archive members under dest. Never import, chmod +x, or run."""
     dest = Path(dest)
     dest.mkdir(parents=True, exist_ok=True)
-    infos = list_members(blob)
-    with zipfile.ZipFile(io.BytesIO(blob)) as zf:
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(blob))
+    except zipfile.BadZipFile as extra:
+        raise PackageRefused("package archive is not a zip", reason="malformed") from extra
+    with zf:
+        infos = list(zf.infolist())
+        if len(infos) > MAX_FILES:
+            raise PackageRefused("package exceeds file count cap", reason="too_many")
         files = 0
         for info in infos:
             name = info.filename.replace("\\", "/")
@@ -67,7 +73,8 @@ def extract_archive(blob: bytes, dest: Path) -> Path:
             if dest.resolve() not in target.parents and target != dest.resolve():
                 raise PackagePathDenied(f"zip slip refused: {name}")
             target.parent.mkdir(parents=True, exist_ok=True)
-            data = zf.read(info)
+            # Read by name on this ZipFile — ZipInfo from another handle fails on Windows.
+            data = zf.read(name)
             if len(data) > MAX_MEMBER_BYTES:
                 raise PackageRefused(f"package member exceeds size cap: {name}", reason="too_large")
             target.write_bytes(data)
