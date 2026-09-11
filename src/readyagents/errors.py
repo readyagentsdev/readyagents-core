@@ -215,6 +215,39 @@ class SkillDrift(SkillRefused):
         )
 
 
+class PackageError(ReadyAgentsError):
+    """Workflow package build, install, catalog, or index failure."""
+
+
+class PackageRefused(PackageError):
+    """Malformed, oversized, untrusted, or unconfirmed package. Fail closed."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        reason: str = "refused",
+        review: dict | None = None,
+    ) -> None:
+        self.reason = reason
+        self.review = review
+        super().__init__(message)
+
+
+class PackagePathDenied(PackageRefused):
+    """Archive member escaped the catalog, zip-slipped, or followed a symlink."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, reason="path")
+
+
+class PackageNeedsConfirm(PackageRefused):
+    """Install or upgrade requires an explicit confirm; nothing was written."""
+
+    def __init__(self, message: str, *, review: dict) -> None:
+        super().__init__(message, reason="confirm", review=review)
+
+
 class TriggerError(ReadyAgentsError):
     """Trigger contract, event, or start-decision failure."""
 

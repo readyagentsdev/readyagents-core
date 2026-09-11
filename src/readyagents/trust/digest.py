@@ -25,6 +25,8 @@ KIND_INCLUDE = "include"
 KIND_PACK = "pack"
 KIND_MCP = "mcp_server"
 KIND_SKILL = "skill"
+KIND_PACKAGE = "package"
+KIND_INDEX = "package_index"
 _MAX_INCLUDE_DEPTH = 8
 
 
