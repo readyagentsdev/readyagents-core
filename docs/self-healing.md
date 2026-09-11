@@ -42,9 +42,10 @@ and no new store.
 ```
 
 Classes: `truncation`, `rate_limit`, `schema_violation`, `provider_error`.
-Actions: `retry_with`, `backoff`, `repair`, `fallback`. An undeclared class
-falls through to existing retry only. Every adaptation is recorded on the run
-(`metadata.recovery`).
+Actions: `retry_with`, `backoff`, `repair`, `fallback`. `retry_with` sets
+`max_tokens` on the next completion only — it does not install a run-level
+budget. An undeclared class falls through to existing retry only. Every
+adaptation is recorded on the run (`metadata.recovery`).
 
 ## Flaky vs broken
 

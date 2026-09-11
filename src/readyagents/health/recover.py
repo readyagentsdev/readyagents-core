@@ -57,8 +57,7 @@ def apply_recovery(ctx: Any, match: RecoveryMatch) -> dict[str, Any]:
         "at": utc_now(),
     }
     if match.action == "retry_with" and match.max_tokens is not None:
-        current = getattr(ctx, "budget_tokens", None)
-        ctx.budget_tokens = max(int(current or 0), int(match.max_tokens))
+        ctx.recovery_max_tokens = int(match.max_tokens)
         note["max_tokens"] = int(match.max_tokens)
     elif match.action == "fallback":
         ctx.recovery_force_fallback = True

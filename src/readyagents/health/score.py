@@ -47,11 +47,11 @@ def score_node(
 ) -> NodeHealth:
     """Combine success rate, retry rate, latency variance, and cost variance.
 
-    ``samples`` is newest-first or oldest-first; only the last ``window`` items
-    are used. Score is in [0, 1]; 1 is healthy. No prediction.
+    ``samples`` is newest-first (store order). The first ``window`` items are
+    used. Score is in [0, 1]; 1 is healthy. No prediction.
     """
     window = max(1, int(window))
-    rows = list(samples)[-window:]
+    rows = list(samples)[:window]
     n = len(rows)
     if n == 0:
         return NodeHealth(

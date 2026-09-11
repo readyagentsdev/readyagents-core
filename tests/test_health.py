@@ -13,10 +13,12 @@ from readyagents.cli import app
 from readyagents.config import clear_settings_cache
 from readyagents.errors import ApprovalRequired, ConfigError, LLMError, NodeError
 from readyagents.health.fingerprint import classify_failure, fingerprint
-from readyagents.health.flaky import classify_stability
+from readyagents.health.flaky import classify_stability, input_digest
 from readyagents.health.layout import HARD_MAX_RUNS
 from readyagents.health.query import query_health
 from readyagents.health.score import score_node
+from readyagents.llm.base import CompletionResult, Message
+from readyagents.replay.cassette import Cassette
 from readyagents.run_store import open_run_store
 from readyagents.testing.helpers import ScriptedLLM, run_workflow_spec
 from readyagents.workflow.runner import run_workflow_file
@@ -246,6 +248,8 @@ def test_recovery_retry_with_and_fallback() -> None:
     )
     assert state.status == "succeeded"
     assert any(n.get("action") == "retry_with" for n in (state.metadata.get("recovery") or []))
+    assert any(call.get("max_tokens") == 4000 for call in llm.calls)
+    assert llm.calls[0].get("max_tokens") is None
 
     llm_fb = ScriptedLLM()
     llm_fb.enqueue(error=LLMError("provider 503"))
@@ -308,6 +312,66 @@ def test_flaky_vs_broken() -> None:
     assert classify_stability([("abc", True), ("abc", False)]) == "flaky"
     assert classify_stability([("abc", False), ("def", False)]) == "broken"
     assert classify_stability([("abc", True), ("def", True)]) == "healthy"
+
+
+def test_query_health_window_is_newest_not_oldest(tmp_settings) -> None:
+    for i in range(5):
+        _save_run(
+            tmp_settings,
+            workflow="win",
+            node="n",
+            error=None,
+            cost=1,
+            status="succeeded",
+            run_id=f"{i:032x}",
+            started=f"2026-01-01T00:00:{i:02d}+00:00",
+        )
+    for i in range(5, 8):
+        _save_run(
+            tmp_settings,
+            workflow="win",
+            node="n",
+            error="truncated max_tokens",
+            cost=9,
+            run_id=f"{i:032x}",
+            started=f"2026-01-02T00:00:{i:02d}+00:00",
+        )
+    store = open_run_store(tmp_settings)
+    try:
+        report = query_health(store, workflow="win", window=3, limit=8)
+    finally:
+        store.close()
+    by_id = {row.node_id: row for row in report.nodes}
+    assert by_id["n"].samples == 3
+    assert by_id["n"].success_rate == 0.0
+    assert by_id["n"].failures == 3
+
+
+def test_retry_with_does_not_cap_run_budget() -> None:
+    llm = ScriptedLLM()
+    llm.enqueue(error=LLMError("truncated max_tokens"))
+    llm.enqueue(text="ok", usage={"total_tokens": 5000})
+    state = run_workflow_spec(
+        {
+            "name": "nobudget",
+            "default_model": "mock:x",
+            "nodes": [
+                {
+                    "id": "a",
+                    "type": "agent",
+                    "prompt": "hi",
+                    "output_key": "t",
+                    "retry": {"max_attempts": 1},
+                    "recovery": {
+                        "on": [{"class": "truncation", "action": "retry_with", "max_tokens": 4000}]
+                    },
+                }
+            ],
+        },
+        llm=llm,
+    )
+    assert state.status == "succeeded"
+    assert any(call.get("max_tokens") == 4000 for call in llm.calls)
 
 
 def test_health_score_moves_with_failures() -> None:
@@ -396,6 +460,22 @@ def test_quarantine_fallback_path(tmp_settings) -> None:
     assert state.output_keys.get("summary") == "gated-ok"
     assert "draft" in (state.metadata.get("quarantine") or {})
     assert not llm.calls
+    draft = next(row for row in state.results if row.node_id == "draft")
+    assert draft.status == "quarantined"
+    assert draft.status != "ok"
+    llm2 = ScriptedLLM()
+    llm2.enqueue(text="still-must-not-run")
+    again = run_workflow_file(flow, llm=llm2, settings=tmp_settings, persist=True)
+    assert again.status == "succeeded"
+    assert again.output_keys.get("summary") == "gated-ok"
+    assert not llm2.calls
+    for _ in range(4):
+        run_workflow_file(flow, llm=ScriptedLLM(), settings=tmp_settings, persist=True)
+    late = ScriptedLLM()
+    late.enqueue(text="gate-must-hold")
+    held = run_workflow_file(flow, llm=late, settings=tmp_settings, persist=True)
+    assert held.output_keys.get("summary") == "gated-ok"
+    assert not late.calls
 
 
 def test_untrusted_below_skip_refused() -> None:
@@ -478,6 +558,139 @@ def test_health_explain_bundle(tmp_settings, tmp_path: Path) -> None:
             )
         finally:
             store2.close()
+
+
+def _write_node_cassette(path: Path, *, run_id: str, node_id: str, prompt: str) -> Path:
+    tape = Cassette.new(run_id=run_id, workflow="flaky")
+    tape.record_llm(
+        node_id=node_id,
+        model="mock:x",
+        messages=[Message(role="user", content=prompt)],
+        tools=None,
+        result=CompletionResult(text="x", model="mock:x"),
+    )
+    tape.save(path)
+    return path
+
+
+def test_input_digest_none_without_cassette() -> None:
+    state = RunState.start("no-tape", {"draft": "same"})
+    assert input_digest(state, "draft") is None
+
+
+def test_query_health_flaky_requires_identical_cassette(tmp_settings) -> None:
+    workspace = tmp_settings.workspace_path()
+    same = "same-prompt"
+    fail_id = "1" * 32
+    ok_id = "2" * 32
+    fail_tape = _write_node_cassette(
+        workspace / f"{fail_id}.json", run_id=fail_id, node_id="draft", prompt=same
+    )
+    ok_tape = _write_node_cassette(
+        workspace / f"{ok_id}.json", run_id=ok_id, node_id="draft", prompt=same
+    )
+    failed = _save_run(
+        tmp_settings,
+        workflow="flaky",
+        node="draft",
+        error="truncated max_tokens",
+        cost=1,
+        run_id=fail_id,
+        started="2026-01-01T00:00:00+00:00",
+    )
+    failed.metadata["cassette"] = str(fail_tape)
+    store = open_run_store(tmp_settings)
+    try:
+        store.save(failed)
+    finally:
+        store.close()
+    succeeded = _save_run(
+        tmp_settings,
+        workflow="flaky",
+        node="draft",
+        error=None,
+        cost=1,
+        status="succeeded",
+        run_id=ok_id,
+        started="2026-01-02T00:00:00+00:00",
+    )
+    succeeded.metadata["cassette"] = str(ok_tape)
+    store = open_run_store(tmp_settings)
+    try:
+        store.save(succeeded)
+        report = query_health(store, workflow="flaky", window=10, limit=10)
+    finally:
+        store.close()
+    by_id = {row.node_id: row for row in report.nodes}
+    assert by_id["draft"].flaky is True
+    assert by_id["draft"].broken is False
+
+    other = _write_node_cassette(
+        workspace / "other.json", run_id="3" * 32, node_id="draft", prompt="different-prompt"
+    )
+    alt = _save_run(
+        tmp_settings,
+        workflow="flaky2",
+        node="draft",
+        error="truncated max_tokens",
+        cost=1,
+        run_id="3" * 32,
+        started="2026-01-01T00:00:00+00:00",
+    )
+    alt.metadata["cassette"] = str(other)
+    ok2 = _save_run(
+        tmp_settings,
+        workflow="flaky2",
+        node="draft",
+        error=None,
+        cost=1,
+        status="succeeded",
+        run_id="4" * 32,
+        started="2026-01-02T00:00:00+00:00",
+    )
+    ok2.metadata["cassette"] = str(
+        _write_node_cassette(
+            workspace / "ok2.json", run_id="4" * 32, node_id="draft", prompt="other-ok"
+        )
+    )
+    store = open_run_store(tmp_settings)
+    try:
+        store.save(alt)
+        store.save(ok2)
+        report2 = query_health(store, workflow="flaky2", window=10, limit=10)
+    finally:
+        store.close()
+    by_id2 = {row.node_id: row for row in report2.nodes}
+    assert by_id2["draft"].flaky is False
+
+    bare_fail = _save_run(
+        tmp_settings,
+        workflow="nocas",
+        node="draft",
+        error="truncated max_tokens",
+        cost=1,
+        run_id="5" * 32,
+        started="2026-01-01T00:00:00+00:00",
+    )
+    bare_ok = _save_run(
+        tmp_settings,
+        workflow="nocas",
+        node="draft",
+        error=None,
+        cost=1,
+        status="succeeded",
+        run_id="6" * 32,
+        started="2026-01-02T00:00:00+00:00",
+    )
+    assert input_digest(bare_fail, "draft") is None
+    assert input_digest(bare_ok, "draft") is None
+    store = open_run_store(tmp_settings)
+    try:
+        report3 = query_health(store, workflow="nocas", window=10, limit=10)
+    finally:
+        store.close()
+    by_id3 = {row.node_id: row for row in report3.nodes}
+    assert by_id3["draft"].flaky is False
 
 
 def test_cli_health_help_twice_and_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

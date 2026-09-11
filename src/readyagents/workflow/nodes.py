@@ -197,6 +197,7 @@ class ExecutionContext:
         self.recovery_force_fallback = False
         self.recovery_repair = False
         self.recovery_repairs = 0
+        self.recovery_max_tokens: int | None = None
         self._persist_lock = threading.RLock()
         self._in_flight = 0
         self._in_flight_lock = threading.Lock()
@@ -645,8 +646,13 @@ def _invoke_provider(
     stream = getattr(ctx, "stream", None)
     buffer = bool(getattr(node, "output_schema", None))
     stream_fn = getattr(provider, "stream", None)
+    extra: dict[str, Any] = {}
+    recovery_tokens = getattr(ctx, "recovery_max_tokens", None)
+    if recovery_tokens is not None:
+        extra["max_tokens"] = int(recovery_tokens)
+        ctx.recovery_max_tokens = None
     if stream is None or not callable(stream_fn):
-        return provider.complete(messages, model=model_id, tools=tools)
+        return provider.complete(messages, model=model_id, tools=tools, **extra)
     if buffer and stream is not None:
         stream.buffer_nodes.add(node.id)
 
@@ -661,6 +667,7 @@ def _invoke_provider(
         model=model_id,
         tools=tools,
         on_token=None if buffer else on_token,
+        **extra,
     )
 
 

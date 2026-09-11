@@ -153,6 +153,8 @@ def fingerprint_from_result(
 ) -> FailureFingerprint | None:
     status = str(getattr(row, "status", "") or "")
     error = getattr(row, "error", None)
+    if status == "quarantined":
+        return None
     if status not in {"failed", "error"} and not error:
         return None
     message = str(error or "")

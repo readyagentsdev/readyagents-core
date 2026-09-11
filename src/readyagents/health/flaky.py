@@ -11,34 +11,32 @@ from readyagents.replay.cassette import Cassette
 
 
 def input_digest(state: Any, node_id: str) -> str | None:
-    """Content hash proving the node saw these inputs. None if unprovable."""
+    """Content hash of cassette inputs for this node. None without a cassette."""
     cassette = _cassette(state)
-    if cassette is not None:
-        parts: list[str] = []
-        for key, entry in cassette.entries.items():
-            if not isinstance(entry, dict):
-                continue
-            if str(entry.get("node_id") or "") not in {"", node_id} and f":{node_id}" not in key:
-                continue
-            blob = json.dumps(
-                {
-                    "kind": entry.get("kind"),
-                    "messages": entry.get("messages"),
-                    "arguments": entry.get("arguments"),
-                    "name": entry.get("name"),
-                },
-                sort_keys=True,
-                default=str,
-            )
-            parts.append(blob)
-        if parts:
-            joined = "\n".join(sorted(parts))
-            return hashlib.sha256(joined.encode("utf-8")).hexdigest()
-    inputs = getattr(state, "inputs", None)
-    if isinstance(inputs, dict) and inputs:
-        blob = json.dumps(inputs, sort_keys=True, default=str)
-        return hashlib.sha256(blob.encode("utf-8")).hexdigest()
-    return None
+    if cassette is None:
+        return None
+    parts: list[str] = []
+    for key, entry in cassette.entries.items():
+        if not isinstance(entry, dict):
+            continue
+        if str(entry.get("node_id") or "") not in {"", node_id} and f":{node_id}" not in key:
+            continue
+        blob = json.dumps(
+            {
+                "kind": entry.get("kind"),
+                "digest": entry.get("digest") or key,
+                "messages": entry.get("messages"),
+                "arguments": entry.get("arguments"),
+                "name": entry.get("name"),
+            },
+            sort_keys=True,
+            default=str,
+        )
+        parts.append(blob)
+    if not parts:
+        return None
+    joined = "\n".join(sorted(parts))
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
 
 
 def classify_stability(
