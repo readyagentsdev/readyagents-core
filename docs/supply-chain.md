@@ -21,6 +21,8 @@ every platform.
 | Workflow | Parsed YAML/JSON plus every resolved `include`, in sorted path order, with each include's digest embedded. Changing an include changes the parent. Includes stay confined to the parent workflow directory. |
 | Pack | File bytes. |
 | Skill | Installed skill folder bytes (relative paths, regular files). `*.sig` files are excluded so a detached signature does not change the digest. |
+| Workflow package | `.rapkg` archive bytes (`kind: package`). Not a Python `kind: pack` file. |
+| Package index | Static JSON index bytes (`kind: package_index`). Unsigned indexes are refused. |
 | MCP server | Advertised tool names, descriptions, and schemas (same canonical JSON as the firewall pin). A description-only change is a digest change. |
 
 ## Detached signatures

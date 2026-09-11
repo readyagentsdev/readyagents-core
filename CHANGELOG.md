@@ -6,6 +6,19 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Workflow packaging.** `readyagents.pkg.yaml` plus
+  `readyagents package build|install|list|show|remove|upgrade`. Build emits a
+  deterministic `.rapkg` archive (manifest, workflows, policy, fixtures,
+  docs, member lockfile). Install verifies signature and digests, shows a
+  capability review, and writes nothing without `--confirm`. Nothing executes
+  during install. Extraction refuses zip-slip, symlinks, absolute paths, and
+  size/count/depth caps. Local policy narrows package declarations and names
+  the extras. Secret values are refused at build and install. Upgrade keeps
+  `overlay.yaml` and still requires confirm when permissions widen. Installed
+  fixtures run under `readyagents eval`. A signed static JSON index
+  (`kind: package_index`) is verified; unsigned indexes are refused. Not a
+  hosted marketplace. Repos that never package are unchanged. See
+  [docs/packaging.md](docs/packaging.md).
 - **Agent Skills interop.** Install open-format `SKILL.md` folders
   (`readyagents skills add|list|show|remove`). `type: skill` injects
   instructions as untrusted attributed text, runs bundled scripts only in
