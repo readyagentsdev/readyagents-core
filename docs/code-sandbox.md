@@ -34,8 +34,9 @@ value written to stdout. A schema mismatch is a typed error, not `None`.
   `time.sleep` under wall with CPU remaining succeeds.
 - **`cpu_seconds`** is `RLIMIT_CPU` where the OS accepts it, plus a child
   `process_time` watchdog (sleep does not count).
-- **`memory_mb`** is `RLIMIT_AS` on Linux, plus a child RSS watchdog everywhere.
-  macOS does not let a process lower `RLIMIT_AS`; Windows has no `resource`.
+- **`memory_mb`** is `RLIMIT_AS` on Linux, a child RSS watchdog, and a parent
+  RSS poll of the child. macOS does not let a process lower `RLIMIT_AS`;
+  Windows has no `resource`. Zero-filled pages may not raise RSS on Darwin.
 - **`file_size_bytes`** is `RLIMIT_FSIZE` where the OS accepts it, plus a capped
   `open` in the child.
 - **`nproc`** is spawn wrappers (`os.fork` / `os.system` / `subprocess`), not a

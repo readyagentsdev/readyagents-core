@@ -130,13 +130,14 @@ def _run_subprocess(
         kwargs["preexec_fn"] = preexec
     proc = subprocess.Popen(**kwargs)  # noqa: S603
     started = time.monotonic()
-    try:
-        stdout, stderr = proc.communicate(input=stdin_blob, timeout=wall)
-    except subprocess.TimeoutExpired:
-        _kill(proc)
-        leftover = proc.communicate()
-        stdout, stderr = leftover[0] or b"", leftover[1] or b""
-        raise CodeWallLimitExceeded(node_id) from None
+    mem_bytes = int(bound["memory_mb"]) * 1024 * 1024
+    stdout, stderr = _wait_child(
+        proc,
+        stdin_blob=stdin_blob,
+        wall=wall,
+        mem_bytes=mem_bytes,
+        node_id=node_id,
+    )
     elapsed = time.monotonic() - started
     out_limit = int(bound["output_bytes"])
     if len(stdout) + len(stderr) > out_limit:
@@ -258,6 +259,177 @@ def _minimal_env(sandbox: Path) -> dict[str, str]:
         env["TEMP"] = str(sandbox)
         env["TMP"] = str(sandbox)
     return env
+
+
+def _wait_child(
+    proc: Any,
+    *,
+    stdin_blob: bytes,
+    wall: float,
+    mem_bytes: int,
+    node_id: str,
+) -> tuple[bytes, bytes]:
+    """Wait with wall-clock timeout; poll child RSS so memory is not billed as wall.
+
+    A single communicate(timeout=wall) cannot see RSS. Zero-filled pages on
+    Darwin stay compressed, so the child thread may also miss the cap.
+    """
+    import subprocess
+
+    started = time.monotonic()
+    try:
+        if proc.stdin is not None:
+            proc.stdin.write(stdin_blob)
+            proc.stdin.close()
+    except (BrokenPipeError, OSError):
+        pass
+    proc.stdin = None
+    while True:
+        remaining = float(wall) - (time.monotonic() - started)
+        if remaining <= 0:
+            _kill(proc)
+            proc.communicate()
+            raise CodeWallLimitExceeded(node_id) from None
+        try:
+            stdout, stderr = proc.communicate(timeout=min(0.2, remaining))
+            return stdout or b"", stderr or b""
+        except subprocess.TimeoutExpired:
+            rss = _child_rss_bytes(proc.pid)
+            if mem_bytes and rss >= mem_bytes:
+                _kill(proc)
+                proc.communicate()
+                raise CodeMemoryLimitExceeded(node_id) from None
+
+
+def _child_rss_bytes(pid: int | None) -> int:
+    if not pid:
+        return 0
+    if sys.platform == "darwin":
+        return _darwin_rss(pid)
+    if sys.platform.startswith("linux"):
+        try:
+            parts = Path(f"/proc/{pid}/statm").read_text(encoding="ascii").split()
+            return int(parts[1]) * int(os.sysconf("SC_PAGE_SIZE"))
+        except (OSError, ValueError, IndexError):
+            return 0
+    if os.name == "nt":
+        return _windows_child_rss(pid)
+    return 0
+
+
+def _darwin_rss(pid: int) -> int:
+    try:
+        import ctypes
+        import ctypes.util
+
+        libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+
+        class proc_taskinfo(ctypes.Structure):
+            _fields_ = (
+                ("pti_virtual_size", ctypes.c_uint64),
+                ("pti_resident_size", ctypes.c_uint64),
+                ("pti_total_user", ctypes.c_uint64),
+                ("pti_total_system", ctypes.c_uint64),
+                ("pti_threads_user", ctypes.c_uint64),
+                ("pti_threads_system", ctypes.c_uint64),
+                ("pti_policy", ctypes.c_int32),
+                ("pti_faults", ctypes.c_int32),
+                ("pti_pageins", ctypes.c_int32),
+                ("pti_cow_faults", ctypes.c_int32),
+                ("pti_messages_sent", ctypes.c_int32),
+                ("pti_messages_received", ctypes.c_int32),
+                ("pti_syscalls_mach", ctypes.c_int32),
+                ("pti_syscalls_unix", ctypes.c_int32),
+                ("pti_csw", ctypes.c_int32),
+                ("pti_threadnum", ctypes.c_int32),
+                ("pti_numrunning", ctypes.c_int32),
+                ("pti_priority", ctypes.c_int32),
+            )
+
+        libc.proc_pidinfo.argtypes = [
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_uint64,
+            ctypes.c_void_p,
+            ctypes.c_int,
+        ]
+        libc.proc_pidinfo.restype = ctypes.c_int
+        info = proc_taskinfo()
+        n = libc.proc_pidinfo(int(pid), 4, 0, ctypes.byref(info), ctypes.sizeof(info))
+        if n >= ctypes.sizeof(info):
+            return int(info.pti_resident_size)
+    except Exception:
+        pass
+    try:
+        import subprocess
+
+        out = subprocess.check_output(  # noqa: S603
+            ["ps", "-o", "rss=", "-p", str(pid)],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+        return int(out.strip().split()[0]) * 1024
+    except Exception:
+        return 0
+
+
+def _windows_child_rss(pid: int) -> int:
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except ImportError:
+        return 0
+
+    class PROCESS_MEMORY_COUNTERS_EX(ctypes.Structure):
+        _fields_ = (
+            ("cb", wintypes.DWORD),
+            ("PageFaultCount", wintypes.DWORD),
+            ("PeakWorkingSetSize", ctypes.c_size_t),
+            ("WorkingSetSize", ctypes.c_size_t),
+            ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+            ("PagefileUsage", ctypes.c_size_t),
+            ("PeakPagefileUsage", ctypes.c_size_t),
+            ("PrivateUsage", ctypes.c_size_t),
+        )
+
+    PROCESS_QUERY_INFORMATION = 0x0400
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    PROCESS_VM_READ = 0x0010
+    try:
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        psapi = ctypes.WinDLL("psapi", use_last_error=True)
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        psapi.GetProcessMemoryInfo.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(PROCESS_MEMORY_COUNTERS_EX),
+            wintypes.DWORD,
+        ]
+        psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
+        handle = kernel32.OpenProcess(
+            PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | PROCESS_QUERY_LIMITED_INFORMATION,
+            False,
+            int(pid),
+        )
+        if not handle:
+            handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
+        if not handle:
+            return 0
+        try:
+            counters = PROCESS_MEMORY_COUNTERS_EX()
+            counters.cb = ctypes.sizeof(counters)
+            if psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb):
+                return int(counters.WorkingSetSize or counters.PrivateUsage)
+        finally:
+            kernel32.CloseHandle(handle)
+    except Exception:
+        return 0
+    return 0
 
 
 def _kill(proc: Any) -> None:
