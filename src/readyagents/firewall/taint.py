@@ -250,6 +250,8 @@ def note_node_output(state: RunState, node: Any, output: Any) -> None:
         prov = untrusted(source="a2a", node_id=node_id)
     elif kind == "memory":
         prov = untrusted(source="memory", node_id=node_id)
+    elif kind == "ingest":
+        prov = untrusted(source="knowledge", node_id=node_id)
     elif kind in {"document", "transcribe"}:
         prov = untrusted(source="media", node_id=node_id)
     elif kind == "include":

@@ -96,6 +96,43 @@ def embedding_search(
     return [MemoryHit(record=row[2], score=row[0]) for row in scored[:cap]]
 
 
+def hybrid_search(
+    records: Sequence[MemoryRecord],
+    query: str,
+    *,
+    vectors: dict[str, list[float]] | None = None,
+    query_vector: Sequence[float] | None = None,
+    bm25_weight: float = 0.5,
+    embedding_weight: float = 0.5,
+    limit: int = 5,
+) -> tuple[list[MemoryHit], dict[str, float]]:
+    """Blend BM25 and embedding scores. Weights are recorded, not a quality claim."""
+    w_b = max(0.0, float(bm25_weight))
+    w_e = max(0.0, float(embedding_weight))
+    total = w_b + w_e
+    if total <= 0:
+        w_b, w_e, total = 1.0, 0.0, 1.0
+    w_b /= total
+    w_e /= total
+    bm25_hits = bm25_search(records, query, limit=50)
+    emb_hits: list[MemoryHit] = []
+    if query_vector and vectors:
+        emb_hits = embedding_search(records, vectors, query_vector, limit=50)
+    bm25_max = max((hit.score for hit in bm25_hits), default=0.0) or 1.0
+    emb_max = max((hit.score for hit in emb_hits), default=0.0) or 1.0
+    by_id: dict[str, tuple[MemoryRecord, float]] = {}
+    for hit in bm25_hits:
+        by_id[hit.record.id] = (hit.record, w_b * (hit.score / bm25_max))
+    for hit in emb_hits:
+        rec, prev = by_id.get(hit.record.id, (hit.record, 0.0))
+        by_id[hit.record.id] = (rec, prev + w_e * (hit.score / emb_max))
+    ranked = sorted(by_id.items(), key=lambda item: (-item[1][1], item[0]))
+    cap = bound_limit(limit)
+    hits = [MemoryHit(record=row[1][0], score=row[1][1]) for row in ranked[:cap] if row[1][1] > 0]
+    weights = {"bm25": w_b, "embedding": w_e}
+    return hits, weights
+
+
 def embed_texts(
     texts: Sequence[str], *, settings: object | None = None
 ) -> list[list[float]] | None:

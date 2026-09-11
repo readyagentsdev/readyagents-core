@@ -105,6 +105,41 @@ class MemoryScopeError(MemoryError):
     """Templated scope escaped its declared pattern, kind, or safe token."""
 
 
+class KnowledgeError(MemoryError):
+    """Knowledge ingest, sync, cite, or freshness failure."""
+
+
+class KnowledgeStale(KnowledgeError):
+    """Declared staleness threshold refused the run."""
+
+    def __init__(self, oldest: str, limit: str) -> None:
+        self.oldest = oldest
+        self.limit = limit
+        super().__init__(f"Knowledge is stale: oldest={oldest} limit={limit}")
+
+
+class KnowledgeWalkExceeded(KnowledgeError):
+    """Directory walk hit a size, count, or depth cap."""
+
+    def __init__(self, kind: str, used: int, limit: int) -> None:
+        self.kind = kind
+        self.used = used
+        self.limit = limit
+        super().__init__(f"Knowledge walk exceeded: {kind} used={used} limit={limit}")
+
+
+class KnowledgePathDenied(KnowledgeError):
+    """Ingest path escaped the workspace or used a forbidden form."""
+
+
+class KnowledgeArchiveRefused(KnowledgeError):
+    """Archive entry traversed out of the extract root (zip-slip)."""
+
+
+class KnowledgeCiteDenied(KnowledgeError):
+    """Citation resolved outside the caller's scope."""
+
+
 class ApprovalRequired(ReadyAgentsError):
     """An approval node is waiting for an explicit operator decision."""
 

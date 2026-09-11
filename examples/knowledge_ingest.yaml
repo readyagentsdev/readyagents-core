@@ -1,0 +1,24 @@
+name: knowledge_ingest
+version: "1"
+description: >
+  Opt-in type: ingest. Validate without keys or embedders.
+  Plumbing and governance, not a retrieval-quality claim.
+  Run: readyagents validate examples/knowledge_ingest.yaml
+
+memory_scopes:
+  - "ns:policies"
+
+nodes:
+  - id: load_policies
+    type: ingest
+    source:
+      kind: directory
+      path: docs
+      glob: "*.md"
+    chunk:
+      strategy: heading
+      max_chars: 1200
+      overlap: 120
+    scope: "ns:policies"
+    on_change: supersede
+    output_key: loaded

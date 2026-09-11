@@ -361,6 +361,10 @@ def _execute_node_body(node: NodeSpec, state: RunState, ctx: ExecutionContext) -
         from readyagents.media.transcribe import run_transcribe_node
 
         output = run_transcribe_node(node, state, ctx)
+    elif kind == NodeType.ingest.value:
+        from readyagents.knowledge.ingest import run_ingest_node
+
+        output = run_ingest_node(node, state, ctx)
     else:
         known = ", ".join(t.value for t in NodeType)
         raise WorkflowError(
@@ -375,6 +379,7 @@ def _execute_node_body(node: NodeSpec, state: RunState, ctx: ExecutionContext) -
 
 
 def _run_agent(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
+    _preflight_retrieved_citation(node, state)
     ns = state.mapping()
     prompt = interpolate(node.prompt or "", ns)
     system = interpolate(node.system, ns) if node.system else None
@@ -1320,6 +1325,29 @@ def _approval_output(
         output["issuer"] = getattr(verified, "issuer", None)
         output["method"] = getattr(verified, "method", "none")
     return output
+
+
+def _preflight_retrieved_citation(node: NodeSpec, state: RunState) -> None:
+    spec = getattr(node, "contract", None)
+    if spec is None:
+        return
+    rules = getattr(spec, "rules", None) or []
+    mapping = state.mapping()
+    for rule in rules:
+        kind = rule.kind() if hasattr(rule, "kind") else ""
+        if kind != "require_citation":
+            continue
+        from readyagents.contracts.spec import _normalize_citation
+
+        raw = _normalize_citation(getattr(rule, "require_citation", None))
+        if str(raw.get("from") or "") != "retrieved":
+            continue
+        from readyagents.errors import ContractError
+        from readyagents.knowledge.cite import collect_retrieved_citations
+
+        docs = collect_retrieved_citations(mapping)
+        if not docs:
+            raise ContractError(node.id, "require_citation from retrieved has no retrieved chunks")
 
 
 def _estimate_tokens(*texts: str) -> int:

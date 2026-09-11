@@ -82,6 +82,8 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
         "embed",
         "context",
         "contract",
+        "blend",
+        "freshness",
     ),
     NodeType.code: (
         "source",
@@ -106,6 +108,16 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
     ),
     NodeType.document: ("source", "render", "media_redact", "contract"),
     NodeType.transcribe: ("source", "model", "media_redact", "contract"),
+    NodeType.ingest: (
+        "source",
+        "scope",
+        "scope_pattern",
+        "chunk",
+        "on_change",
+        "freshness",
+        "embed",
+        "contract",
+    ),
 }
 
 NODE_TYPE_REQUIRED: dict[NodeType, tuple[str, ...]] = {
@@ -121,6 +133,7 @@ NODE_TYPE_REQUIRED: dict[NodeType, tuple[str, ...]] = {
     NodeType.team: ("strategy", "supervisor", "members"),
     NodeType.document: ("source",),
     NodeType.transcribe: ("source",),
+    NodeType.ingest: ("source", "scope"),
 }
 
 _PYTHON_ONLY_ALIASES: Final[tuple[str, ...]] = ("else_", "from_", "call_inputs")
