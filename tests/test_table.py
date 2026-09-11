@@ -9,6 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from readyagents.cli import app
+from readyagents.cost.ledger import read_spend_entries
 from readyagents.cost.meter import SpendMeter
 from readyagents.errors import (
     NodeError,
@@ -26,6 +27,7 @@ from readyagents.table.part import is_table_ref
 from readyagents.table.store import TableStore
 from readyagents.testing.helpers import ScriptedLLM, run_workflow_spec
 from readyagents.tools import default_registry
+from readyagents.workflow.runner import run_workflow_file
 
 runner = CliRunner()
 
@@ -112,6 +114,7 @@ def test_stdlib_and_frame_hashes_match(tmp_settings, tmp_path: Path) -> None:
     state = _run(_load_spec(), tmp_settings, tmp_path)
     store = TableStore(tmp_settings.home_path() / "tables")
     left = _part(tmp_settings, state.output_keys["rows"])
+    right = apply_op("select", store, left, columns=["id", "email", "amount"])
     cases = [
         ("select", {"columns": ["email", "amount"]}),
         ("filter", {"when": "amount > 10"}),
@@ -119,6 +122,8 @@ def test_stdlib_and_frame_hashes_match(tmp_settings, tmp_path: Path) -> None:
         ("dedupe", {"keys": ["email"], "keep": "first"}),
         ("derive", {"derive": {"name": "n", "expr": "amount + 1"}}),
         ("aggregate", {"keys": ["email"], "metrics": {"amount": "sum"}}),
+        ("union", {"right": right}),
+        ("join", {"right": right, "on": ["id"], "how": "inner"}),
     ]
     for op, kwargs in cases:
         std = apply_op(op, store, left, **kwargs)
@@ -403,7 +408,7 @@ def test_cli_schema_head_stats_twice(tmp_settings, tmp_path: Path, monkeypatch) 
     assert body["row_count"] == 4
 
 
-def test_replay_uses_content_hash(tmp_settings, tmp_path: Path) -> None:
+def test_replay_uses_content_hash(tmp_settings, tmp_path: Path, monkeypatch) -> None:
     _csv(tmp_path)
     spec = _load_spec()
     spec["nodes"][0]["next"] = "keep"
@@ -423,6 +428,12 @@ def test_replay_uses_content_hash(tmp_settings, tmp_path: Path) -> None:
     dest = tmp_path / "tape.json"
     tape.save(dest)
     loaded = Cassette.load(dest)
+
+    def boom(*_a, **_k):
+        raise AssertionError("offline replay must not recompute table ops")
+
+    monkeypatch.setattr("readyagents.table.node.apply_op", boom)
+    monkeypatch.setattr("readyagents.table.node.read_table", boom)
     second = _run(spec, tmp_settings, tmp_path, cassette=loaded, offline=True)
     assert second.output_keys["kept"]["sha256"] == sha
 
@@ -472,6 +483,181 @@ def test_foreach_scale_items_opt_in(tmp_path: Path) -> None:
     }
     with pytest.raises(NodeError, match="max_items=32"):
         run_workflow_spec(too_many, tools=tools)
+
+
+def test_eight_ops_via_workflow(tmp_settings, tmp_path: Path) -> None:
+    _csv(tmp_path)
+    spec = {
+        "name": "ops",
+        "nodes": [
+            {
+                "id": "load",
+                "type": "table",
+                "op": "read",
+                "source": {"kind": "csv", "path": "exports.csv"},
+                "schema": {"id": "int", "email": "str", "amount": "float"},
+                "output_key": "rows",
+                "next": "keep",
+            },
+            {
+                "id": "keep",
+                "type": "table",
+                "op": "select",
+                "source": "{{ rows }}",
+                "columns": ["id", "email", "amount"],
+                "output_key": "selected",
+                "next": "high",
+            },
+            {
+                "id": "high",
+                "type": "table",
+                "op": "filter",
+                "source": "{{ selected }}",
+                "when": "amount > 10",
+                "output_key": "filtered",
+                "next": "ordered",
+            },
+            {
+                "id": "ordered",
+                "type": "table",
+                "op": "sort",
+                "source": "{{ filtered }}",
+                "by": ["amount"],
+                "descending": True,
+                "output_key": "sorted",
+                "next": "unique",
+            },
+            {
+                "id": "unique",
+                "type": "table",
+                "op": "dedupe",
+                "source": "{{ rows }}",
+                "keys": ["email"],
+                "keep": "first",
+                "output_key": "deduped",
+                "next": "doubled",
+            },
+            {
+                "id": "doubled",
+                "type": "table",
+                "op": "derive",
+                "source": "{{ rows }}",
+                "derive": {"name": "double", "expr": "amount * 2"},
+                "output_key": "derived",
+                "next": "grouped",
+            },
+            {
+                "id": "grouped",
+                "type": "table",
+                "op": "aggregate",
+                "source": "{{ rows }}",
+                "keys": ["email"],
+                "metrics": {"amount": "sum"},
+                "output_key": "grouped",
+                "next": "joined",
+            },
+            {
+                "id": "joined",
+                "type": "table",
+                "op": "join",
+                "source": "{{ rows }}",
+                "right": "{{ selected }}",
+                "on": ["id"],
+                "how": "inner",
+                "output_key": "joined",
+                "next": "united",
+            },
+            {
+                "id": "united",
+                "type": "table",
+                "op": "union",
+                "source": "{{ rows }}",
+                "right": "{{ selected }}",
+                "output_key": "united",
+            },
+        ],
+    }
+    state = _run(spec, tmp_settings, tmp_path)
+    assert state.status == "succeeded"
+    assert state.output_keys["selected"]["row_count"] == 4
+    assert state.output_keys["filtered"]["row_count"] == 3
+    assert state.output_keys["deduped"]["row_count"] == 3
+    assert state.output_keys["grouped"]["row_count"] == 3
+    assert state.output_keys["united"]["row_count"] == 8
+    assert state.output_keys["joined"]["row_count"] >= 4
+    store = TableStore(tmp_settings.home_path() / "tables")
+    derived = next(store.iter_rows(state.output_keys["derived"]["sha256"]))
+    assert derived["double"] == derived["amount"] * 2
+    blob = json.dumps(state.to_record())
+    assert "ada@x.test" not in blob
+
+
+def test_classify_remainder_on_spend_ledger(tmp_settings, tmp_path: Path) -> None:
+    _csv(tmp_path)
+    wf = tmp_path / "triage.yaml"
+    wf.write_text(
+        "name: triage\nnodes:\n"
+        "  - id: load\n    type: table\n    op: read\n"
+        "    source: {kind: csv, path: exports.csv}\n"
+        "    schema: {id: int, email: str, amount: float}\n"
+        "    output_key: rows\n    next: triage\n"
+        "  - id: triage\n    type: classify\n    source: '{{ rows }}'\n"
+        "    rules: [{when: 'amount < 10', label: auto_approve}]\n"
+        "    model_for_remainder: {model: mock:test, batch: 25, labels: [review, reject]}\n"
+        "    output_key: labelled\n",
+        encoding="utf-8",
+    )
+    llm = ScriptedLLM().enqueue(
+        '[{"index": 1, "label": "review"}, {"index": 2, "label": "review"}, '
+        '{"index": 3, "label": "reject"}]',
+        model="mock:test",
+        usage={"prompt_tokens": 12, "completion_tokens": 3, "total_tokens": 15},
+    )
+    state = run_workflow_file(wf, settings=tmp_settings, persist=True, llm=llm)
+    assert state.status == "succeeded"
+    assert state.metadata["classify"]["triage"]["model_rows"] == 3
+    assert state.metadata["classify"]["triage"]["rule_rows"] == 1
+    spend = state.metadata.get("spend") or {}
+    assert spend.get("model_calls") == 1
+    assert spend.get("total_tokens") == 15
+    entries = read_spend_entries(tmp_settings.ledger_dir())
+    assert entries
+    assert entries[-1]["total_tokens"] == 15
+    assert llm.calls and "ada@x.test" not in llm.calls[0]["messages"][0].content
+
+
+def test_read_on_row_error_skip_and_quarantine(tmp_settings, tmp_path: Path) -> None:
+    (tmp_path / "mixed.csv").write_text(
+        "id,email\n1,ok@x.test\nnope,bad@x.test\n3,also@x.test\n", encoding="utf-8"
+    )
+    skip_spec = {
+        "name": "skip",
+        "nodes": [
+            {
+                "id": "load",
+                "type": "table",
+                "op": "read",
+                "source": {"kind": "csv", "path": "mixed.csv"},
+                "schema": {"id": "int", "email": "str"},
+                "on_row_error": "skip",
+                "output_key": "rows",
+            }
+        ],
+    }
+    skipped = _run(skip_spec, tmp_settings, tmp_path)
+    assert skipped.output_keys["rows"]["row_count"] == 2
+    skip_spec["nodes"][0]["on_row_error"] = "quarantine"
+    skip_spec["name"] = "q"
+    quarantined = _run(skip_spec, tmp_settings, tmp_path)
+    ref = quarantined.output_keys["rows"]
+    assert ref["row_count"] == 2
+    assert ref["errors_row_count"] == 1
+    store = TableStore(tmp_settings.home_path() / "tables")
+    err = list(store.iter_rows(ref["errors_sha256"]))
+    assert err[0]["row"] == 1
+    assert err[0]["column"] == "id"
+    assert "nope" not in json.dumps(err)
+    assert "bad@x.test" not in json.dumps(quarantined.to_record())
 
 
 def test_validate_table_example_twice() -> None:

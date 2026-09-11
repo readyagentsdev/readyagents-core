@@ -127,6 +127,8 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- Table `on_row_error` skip/quarantine applies on ingest schema mismatches as
+  well as classify, so a single bad row does not poison the result table.
 - `type: ingest` with `embed: true` persists BYOK vectors on each chunk
   (`store.write(..., vector=)`). A later memory search with `blend:` can then
   run hybrid retrieval and record the weights on the search result and

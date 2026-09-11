@@ -60,6 +60,7 @@ def run_table_node(node: Any, state: Any, ctx: Any) -> Any:
             declared=declared,
             max_rows=max_rows,
             max_bytes=max_bytes,
+            on_row_error=str(getattr(node, "on_row_error", None) or "fail"),
         )
         _record(node, ctx, part)
         return part.as_ref()
