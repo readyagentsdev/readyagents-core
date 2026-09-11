@@ -2445,6 +2445,160 @@
             ],
             "type": "object"
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "wait"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "default": null,
+                "description": "Wait on_deadline: continue payload. Never grants an approval.",
+                "title": "Default"
+              },
+              "else": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Successor node id when the condition/approval is false.",
+                "title": "Else"
+              },
+              "escalate_to": {
+                "description": "Workflow-declared roles used when on_expire is escalate.",
+                "items": {
+                  "type": "string"
+                },
+                "title": "Escalate To",
+                "type": "array"
+              },
+              "for_event": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Wait for a named signed event: {name, match}.",
+                "title": "For Event"
+              },
+              "for_file": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Wait for a confined path: {path, on: created|changed}.",
+                "title": "For File"
+              },
+              "for_run": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Wait for another run: {run_id, status}.",
+                "title": "For Run"
+              },
+              "next": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Default successor node id.",
+                "title": "Next"
+              },
+              "on_deadline": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Wait deadline action: fail, continue, escalate, or branch.",
+                "title": "On Deadline"
+              },
+              "then": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Successor node id when the condition/approval is true.",
+                "title": "Then"
+              },
+              "until": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Wait deadline: duration (72h) or ISO timestamp. Required on type: wait.",
+                "title": "Until"
+              },
+              "whichever": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Wait combination: first (default) or all.",
+                "title": "Whichever"
+              }
+            },
+            "required": [
+              "until"
+            ],
+            "type": "object"
+          }
         }
       ],
       "description": "One node in the workflow graph.",
@@ -2467,19 +2621,6 @@
           "minLength": 1,
           "title": "Id",
           "type": "string"
-        },
-        "next": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Default successor node id.",
-          "title": "Next"
         },
         "output_key": {
           "anyOf": [
@@ -2561,14 +2702,15 @@
                 "transcribe",
                 "ingest",
                 "table",
-                "classify"
+                "classify",
+                "wait"
               ]
             },
             {
               "type": "string"
             }
           ],
-          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory, code, team, document, transcribe, ingest, table, classify. Packs may add additional types.",
+          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory, code, team, document, transcribe, ingest, table, classify, wait. Packs may add additional types.",
           "title": "Type"
         }
       },

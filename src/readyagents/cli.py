@@ -22,6 +22,7 @@ from readyagents.errors import (
     IdentityError,
     MCPError,
     ReadyAgentsError,
+    WaitingRequired,
 )
 from readyagents.logging import configure_logging
 from readyagents.packs.loader import collect_pack_specs, discover_packs, load_local_packs
@@ -737,13 +738,13 @@ def run(
             if rid:
                 payload["run_id"] = rid
             typer.echo(json.dumps(payload) + "\n", nl=False)
-            if isinstance(extra, ApprovalRequired):
+            if isinstance(extra, (ApprovalRequired, WaitingRequired)):
                 raise typer.Exit(code=2) from extra
             raise typer.Exit(code=1) from extra
         _emit_run_exception(extra, as_json=as_json, persist=persist, command="run")
     if stream_flag and as_json:
         if state.status != "succeeded":
-            raise typer.Exit(code=2 if state.status == "paused" else 1)
+            raise typer.Exit(code=2 if state.status in {"paused", "waiting"} else 1)
         return
     _emit_run(state, as_json=as_json, command="run")
 
@@ -1005,6 +1006,84 @@ def resume_cmd(
     except ReadyAgentsError as extra:
         _emit_run_exception(extra, as_json=as_json, persist=persist, command="resume")
     _emit_run(state, as_json=as_json, command="resume")
+
+
+@app.command("wake")
+def wake_cmd(
+    run_id: str | None = typer.Argument(None, help="Waiting run id, or omit with --all."),
+    all_runs: bool = typer.Option(False, "--all", help="Evaluate every waiting run."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Evaluate wait conditions. Lazy. Core starts no timer or daemon."""
+    from readyagents.config import get_settings
+    from readyagents.wait.wake import wake_all, wake_one
+
+    settings = get_settings()
+    try:
+        if all_runs or run_id is None:
+            report = wake_all(settings=settings)
+        else:
+            report = wake_one(run_id, settings=settings)
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope("wake", ok=False, error=type(extra).__name__, message=str(extra))
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(_json_envelope("wake", ok=True, **report))
+        return
+    console.print(str(report))
+
+
+@app.command("event")
+def event_cmd(
+    name: str = typer.Argument(..., help="Event name."),
+    payload: Path | None = typer.Option(None, "--payload", help="JSON payload file."),
+    signature: str | None = typer.Option(None, "--signature", help="HMAC hex of the event body."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Inject a signed event. Unsigned events are refused and do not wake."""
+    import os
+
+    from readyagents.audit import audit_dir_for, make_auditor
+    from readyagents.config import get_settings
+    from readyagents.wait.events import accept_event
+
+    settings = get_settings()
+    body: dict[str, Any] = {}
+    if payload is not None:
+        raw = payload.read_text(encoding="utf-8")
+        loaded = json.loads(raw)
+        if not isinstance(loaded, dict):
+            raise typer.Exit(code=1)
+        body = loaded
+    secret = (os.environ.get("READYAGENTS_EVENT_SECRET") or "").strip() or None
+    auditor = make_auditor(audit_dir_for(settings.home_path()))
+    try:
+        report = accept_event(
+            settings.home_path(),
+            name=name,
+            payload=body,
+            secret=secret,
+            signature=signature,
+            actor=settings.actor,
+            auditor=auditor,
+        )
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope("event", ok=False, error=type(extra).__name__, message=str(extra))
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(_json_envelope("event", ok=True, **report))
+        return
+    console.print(f"event {name} id={report.get('event_id')} idempotent={report.get('idempotent')}")
 
 
 @app.command("decide")
@@ -1993,6 +2072,9 @@ def runs_list(
     status: str | None = typer.Option(
         None, "--status", help="Filter: running, paused, failed, succeeded."
     ),
+    waiting: bool = typer.Option(
+        False, "--waiting", help="Only waiting runs; show condition and expiry."
+    ),
     workflow: str | None = typer.Option(None, "--workflow", help="Filter by workflow name."),
     limit: int = typer.Option(0, "--limit", help="Max rows (0 = all)."),
 ) -> None:
@@ -2009,10 +2091,13 @@ def runs_list(
         ]
     finally:
         store.close()
+    if waiting:
+        found = [s for s in found if s.status == "waiting"]
     location = settings.runs_dir() if settings.run_store == "json" else settings.run_db_path()
     if as_json:
-        payload = [
-            {
+        payload = []
+        for s in found:
+            row = {
                 "run_id": s.run_id,
                 "workflow": s.workflow_name,
                 "status": s.status,
@@ -2020,8 +2105,11 @@ def runs_list(
                 "pending_node": s.pending_node,
                 "nodes": [r.node_id for r in s.results],
             }
-            for s in found
-        ]
+            if waiting or s.status == "waiting":
+                pending = s.pending if isinstance(s.pending, dict) else {}
+                row["waiting_for"] = pending.get("waiting_for")
+                row["expires_at"] = pending.get("expires_at")
+            payload.append(row)
         _print_json(payload)
         return
     if not found:
@@ -2030,9 +2118,15 @@ def runs_list(
     console.print(f"Runs in {location}")
     for state in found:
         nodes = ",".join(r.node_id for r in state.results) or "-"
+        extra = ""
+        if waiting or state.status == "waiting":
+            pending = state.pending if isinstance(state.pending, dict) else {}
+            extra = (
+                f"  waiting_for: {pending.get('waiting_for')}  expires: {pending.get('expires_at')}"
+            )
         console.print(
             f"run_id: {state.run_id}  workflow: {state.workflow_name}  "
-            f"status: {state.status}  started: {state.started_at}  nodes: {nodes}"
+            f"status: {state.status}  started: {state.started_at}  nodes: {nodes}{extra}"
         )
 
 
@@ -2043,6 +2137,42 @@ def runs_show(
 ) -> None:
     """Show a run record and its node timeline."""
     _show_run(run_id, as_json=as_json)
+
+
+@runs_app.command("timeline")
+def runs_timeline(
+    run_id: str = typer.Argument(..., help="Run id (or unique prefix)."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """What happened, what it is waiting for, spend so far, what it expects next."""
+    from readyagents.config import get_settings
+    from readyagents.run_store import open_run_store
+    from readyagents.wait.timeline import timeline
+
+    settings = get_settings()
+    store = open_run_store(settings)
+    try:
+        state = store.get(run_id, allow_prefix=True).state
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "runs timeline", ok=False, error=type(extra).__name__, message=str(extra)
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    finally:
+        store.close()
+    payload = timeline(state)
+    if as_json:
+        _print_json(_json_envelope("runs timeline", ok=True, **payload))
+        return
+    console.print(f"run {payload['run_id']} status={payload['status']}")
+    console.print(f"waiting_for={payload.get('waiting_for')} expires={payload.get('expires_at')}")
+    console.print(f"expects: {payload.get('expects_next')}")
+    console.print(f"spend: {payload.get('spend')}")
 
 
 @runs_app.command("inspect")
@@ -4034,6 +4164,23 @@ def _emit_run_exception(
     exc: ReadyAgentsError, *, as_json: bool, persist: bool, command: str = "run"
 ) -> NoReturn:
     """Print a paused or failed run (JSON or tables) and exit. Never returns."""
+    if isinstance(exc, WaitingRequired):
+        state = _state_from_exc(exc)
+        if as_json:
+            payload: dict[str, Any] = {
+                "error": type(exc).__name__,
+                "message": str(exc),
+                "run_id": exc.run_id,
+                "node_id": exc.node_id,
+                "status": "waiting",
+            }
+            if state is not None:
+                payload["run"] = state.to_record()
+            _print_json(_json_envelope(command, ok=False, **payload))
+        else:
+            err_console.print(f"[yellow]waiting[/yellow] {escape(str(exc))}")
+        raise typer.Exit(code=2) from exc
+
     if isinstance(exc, ApprovalRequired):
         state = _state_from_exc(exc)
         if as_json:

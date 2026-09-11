@@ -6,6 +6,18 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Long-horizon waits (`type: wait`).** Pause on `until`, `for_event`,
+  `for_file`, and/or `for_run` with `whichever: first|all`. A wait without a
+  deadline is a schema error. Status is `waiting`, distinct from `paused`.
+  Wake is lazy (`readyagents wake` / `wake --all`); core starts no timer or
+  daemon — latency is how often `wake` is called. `on_deadline` is fail,
+  continue (never an approval), escalate (existing approval path), or branch.
+  Signed `readyagents event` is audited, taint-marked, bounded, and
+  idempotent; unsigned events do not wake. File waits use containment.
+  Credentials are re-brokered on wake. `runs gc` never deletes `waiting`.
+  `runs list --waiting` and `runs timeline` tell the truth. Approval/resume
+  without wait nodes are unchanged. See
+  [docs/long-horizon.md](docs/long-horizon.md).
 - **Data pipeline nodes (`type: table`, `type: classify`).** A typed table
   part (columns, row count, content hash) stores rows on disk, never in the
   run record or cassette. Eight deterministic ops (`select`, `filter`, `join`,

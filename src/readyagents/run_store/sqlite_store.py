@@ -239,6 +239,8 @@ class SQLiteRunStore:
         for item in found:
             if item.state.status == "paused" and not include_paused:
                 continue
+            if item.state.status == "waiting":
+                continue
             if item.state.status not in wanted:
                 continue
             if in_retention_window(item.state, min_age_seconds) and not override_retention:

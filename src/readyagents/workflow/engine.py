@@ -18,6 +18,7 @@ from readyagents.errors import (
     RouteBudgetExceeded,
     RoutingError,
     RunawayGuard,
+    WaitingRequired,
     WorkflowError,
 )
 from readyagents.logging import get_logger, log_event
@@ -32,7 +33,7 @@ from readyagents.workflow.state import RunState, utc_now
 log = get_logger("engine")
 
 _MAX_STEPS = 500
-_TERMINAL_STATUSES = frozenset({"cancelled", "succeeded", "failed", "paused"})
+_TERMINAL_STATUSES = frozenset({"cancelled", "succeeded", "failed", "paused", "waiting"})
 
 
 def run_workflow(
@@ -141,6 +142,8 @@ def run_workflow(
                 raise
             except ApprovalRequired:
                 raise
+            except WaitingRequired:
+                raise
             except CassetteMiss:
                 raise
             except PolicyDenied:
@@ -236,6 +239,38 @@ def run_workflow(
             status="paused",
         )
         raise
+    except WaitingRequired as parked:
+        state.pending_node = parked.node_id
+        if parked.state is not None and getattr(parked.state, "pending", None):
+            state.pending = dict(parked.state.pending)
+        else:
+            rec = parked.record if isinstance(parked.record, dict) else {}
+            state.pending = {
+                "node_id": parked.node_id,
+                "type": "wait",
+                "wait": rec,
+                "expires_at": rec.get("deadline_at"),
+                "wake": f"readyagents wake {state.run_id}",
+            }
+        state.finish("waiting")
+        _persist(ctx, state)
+        parked.state = state
+        if ctx.auditor is not None:
+            ctx.auditor(
+                "waiting",
+                run_id=state.run_id,
+                node_id=parked.node_id,
+                actor=ctx.actor,
+            )
+        _observe(
+            ctx,
+            "run.waiting",
+            state,
+            node_id=parked.node_id,
+            node_type="wait",
+            status="waiting",
+        )
+        raise
     except ReadyAgentsError as exc:
         state.take_node_usage()
         state.pending_node = current
@@ -295,7 +330,7 @@ def _resume_cursor(workflow: WorkflowSpec, state: RunState) -> tuple[str | None,
     preserved = None
     if (
         isinstance(state.pending, dict)
-        and state.pending.get("type") == "approval"
+        and state.pending.get("type") in {"approval", "wait"}
         and current
         and state.pending.get("node_id") == current
     ):
@@ -489,7 +524,7 @@ def _uses_explicit_routing(workflow: WorkflowSpec) -> bool:
 
 
 def _next_node(workflow: WorkflowSpec, node: NodeSpec, state: RunState) -> str | None:
-    if str(node.type) in {NodeType.condition.value, NodeType.approval.value}:
+    if str(node.type) in {NodeType.condition.value, NodeType.approval.value, NodeType.wait.value}:
         output = state.node_outputs.get(node.id) or {}
         nxt = output.get("next") if isinstance(output, dict) else None
         return nxt

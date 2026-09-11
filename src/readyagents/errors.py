@@ -184,6 +184,47 @@ class TableRowError(TableError):
         super().__init__(f"Table row error at row {self.row}{where}: {reason}")
 
 
+class WaitError(ReadyAgentsError):
+    """Wait node, wake, event, or dormant-run failure."""
+
+
+class WaitPathDenied(WaitError):
+    """for_file path escaped the workspace or is a symlink."""
+
+
+class WaitEventRefused(WaitError):
+    """Unsigned, unauthorised, or oversized event. Does not wake."""
+
+
+class WaitCapExceeded(WaitError):
+    """Workspace dormant-run cap. Typed, not a silent leak."""
+
+    def __init__(self, used: int, limit: int) -> None:
+        self.used = int(used)
+        self.limit = int(limit)
+        super().__init__(f"Waiting-run cap exceeded: used={self.used} limit={self.limit}")
+
+
+class WaitingRequired(ReadyAgentsError):
+    """A wait node parked the run. Distinct from paused (human) and running."""
+
+    def __init__(
+        self,
+        node_id: str,
+        run_id: str,
+        *,
+        state: object | None = None,
+        record: dict | None = None,
+    ) -> None:
+        self.node_id = node_id
+        self.run_id = run_id
+        self.state = state
+        self.record = dict(record or {})
+        super().__init__(
+            f"Waiting at node '{node_id}' (run {run_id}). Evaluate with: readyagents wake {run_id}"
+        )
+
+
 class ApprovalRequired(ReadyAgentsError):
     """An approval node is waiting for an explicit operator decision."""
 
