@@ -21,6 +21,7 @@ DEFAULT_MAX_ENTRY_BYTES = 1_048_576
 DEFAULT_MAX_CASSETTE_BYTES = 10_485_760
 _LLM = "llm"
 _TOOL = "tool"
+_CODE = "code"
 
 DETERMINISTIC_TOOLS = frozenset({"calc", "json_get", "json_set", "json_merge"})
 SEALABLE_TOOLS = frozenset({"now", "http_get", "read_file", "list_dir"})
@@ -64,6 +65,8 @@ def classify_node_type(node_type: str) -> str:
         return "unsealable"
     if kind == "agent":
         return "unsealable"
+    if kind == "code":
+        return "sealed"
     return "unsealable"
 
 
@@ -245,6 +248,74 @@ class Cassette:
                 self.report.note(node_id, "unsealable")
         self._put(key, entry)
         return key
+
+    def record_code(
+        self,
+        *,
+        node_id: str,
+        source: str,
+        inputs: Mapping[str, Any] | None,
+        stdout: str,
+        stderr: str,
+        exit_status: int,
+        tier: str,
+        output: Any,
+    ) -> str:
+        digest = self.tool_digest("code", {"node": node_id, "source": source, "inputs": inputs})
+        occ = self._record.get(f"{_CODE}:{digest}", 0)
+        self._record[f"{_CODE}:{digest}"] = occ + 1
+        key = entry_storage_key(_CODE, digest, occ)
+        entry = {
+            "kind": _CODE,
+            "node_id": node_id,
+            "occurrence": occ,
+            "digest": digest,
+            "source": source,
+            "inputs": dict(inputs or {}),
+            "stdout": stdout,
+            "stderr": stderr,
+            "exit": int(exit_status),
+            "tier": tier,
+            "output": output,
+            "sealed": True,
+        }
+        self.report.note(node_id, "sealed")
+        self._put(key, entry)
+        return key
+
+    def replay_code(
+        self,
+        *,
+        node_id: str,
+        source: str,
+        inputs: Mapping[str, Any] | None,
+    ) -> Any:
+        digest = self.tool_digest("code", {"node": node_id, "source": source, "inputs": inputs})
+        occ = self._consume.get(f"{_CODE}:{digest}", 0)
+        key = entry_storage_key(_CODE, digest, occ)
+        entry = self.entries.get(key)
+        if entry is None and occ == 0:
+            entry = self.entries.get(f"{_CODE}:{digest}")
+        if entry is None:
+            nearest = self.nearest_key(_CODE, digest)
+            miss = {
+                "node_id": node_id,
+                "reason": "missing",
+                "nearest_key": nearest,
+                "digest": digest,
+            }
+            self.report.note(node_id, "miss", miss=miss)
+            raise CassetteMiss(
+                f"Cassette miss at code node '{node_id}' "
+                f"(digest {digest[:12]}…, nearest {nearest or 'none'}). "
+                "Offline replay never executes code.",
+                node_id=node_id,
+                reason="missing",
+                nearest_key=nearest,
+            )
+        self._consume[f"{_CODE}:{digest}"] = occ + 1
+        self.report.note(node_id, "sealed")
+        return entry.get("output")
 
     def replay_llm(
         self,
@@ -439,7 +510,7 @@ class Cassette:
             if not isinstance(key, str) or not isinstance(row, dict):
                 raise CassetteError(f"Cassette {file} has an invalid entry")
             kind = row.get("kind")
-            if kind not in {_LLM, _TOOL}:
+            if kind not in {_LLM, _TOOL, _CODE}:
                 raise CassetteError(f"Cassette {file} entry {key!r} has invalid kind")
             tape.entries[key] = dict(row)
         det = loaded.get("determinism")

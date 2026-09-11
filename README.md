@@ -11,7 +11,7 @@ This repository is the free core. You keep the provider account and the bill. In
 
 ## 60-second start
 
-Requires **Python 3.11–3.14** on Linux, macOS, or Windows. Tagged **1.9.0** is the connector suite (`pip install readyagentsdev`). This checkout also has **Unreleased** A2A and memory — clone and `pip install -e .` to try those; they are not on the 1.9.0 tag.
+Requires **Python 3.11–3.14** on Linux, macOS, or Windows. Tagged **1.9.0** is the connector suite (`pip install readyagentsdev`). This checkout also has **Unreleased** A2A, memory, and sandboxed `type: code` — clone and `pip install -e .` to try those; they are not on the 1.9.0 tag.
 
 ```bash
 git clone https://github.com/readyagentsdev/readyagents-core.git
@@ -38,7 +38,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 ## What it does
 
 - Define agent workflows as YAML or JSON (nodes + edges)
-- Run **agent**, **tool**, **condition**, **transform**, **approval**, **parallel**, **include**, **foreach**, **a2a**, and **memory** nodes. Agent nodes may declare a `tools:` allowlist for a bounded tool-use loop.
+- Run **agent**, **tool**, **condition**, **transform**, **approval**, **parallel**, **include**, **foreach**, **a2a**, **memory**, and **code** nodes. Agent nodes may declare a `tools:` allowlist for a bounded tool-use loop.
 - Persist after every node and **resume** a paused or failed run from the last successful node
 - Inspect past runs: `readyagents runs list` / `show` / `replay` / `report` (local HTML)
 - Record, replay offline, fork, diff, and freeze a run into an eval fixture ([time machine](docs/time-machine.md))
@@ -49,6 +49,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Optional [MCP](https://modelcontextprotocol.io) client and server (`readyagents mcp serve`, `readyagents mcp probe`) with official tasks and MRTR approvals
 - Optional [A2A](docs/a2a.md) serve/probe and `type: a2a` delegation (**Unreleased** on this checkout; 0.3 JSON-RPC projection; remote content untrusted; not certification)
 - Optional [memory](docs/memory.md) (`type: memory`, local JSON/SQLite, BM25, TTL/forget) — **Unreleased** on this checkout; untrusted; delayed injection and scope escape first; not a quality claim
+- Optional [sandboxed code](docs/code-sandbox.md) (`type: code`, subprocess default) — **Unreleased**; accident-grade isolation, not hostile-code-proof; no bundled container runtime
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -150,6 +151,7 @@ flowchart LR
 | `examples/eval/pass.yaml` | Keyless `readyagents eval` fixture suite |
 | `examples/a2a_delegate.yaml` | `type: a2a` dry-run (no network) |
 | `examples/memory_triage.yaml` | `type: memory` write then search (keyless) |
+| `examples/code_reshape.yaml` | `type: code` JSON in/out (keyless, subprocess) |
 | `examples/batch_echo.yaml` | Keyless `readyagents batch` row echo (`batch_rows.jsonl` / `.csv`) |
 | `examples/connector_rest.yaml` | Keyless `rest` connector against a local fixture |
 | `examples/connector_demo.yaml` | Local `--pack` connector (`examples/packs/connector_pack.py`) |
