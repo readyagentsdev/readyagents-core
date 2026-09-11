@@ -119,7 +119,9 @@ readyagents spend --by label
 `--label KEY=VALUE` is stored on the run metadata and in the ledger. Labels
 are redacted when redaction is on. The ledger is local; share it only after
 review. A `type: team` run also stores `by_member` and `by_role` (tokens,
-cost, tool calls) that sum to the run total.
+cost, tool calls) that sum to the run total. Media parts add `media_parts`
+(per-hash tokens and `cost_micros`) plus `usage.media_tokens` — estimates for
+governance, not a vendor invoice. See [multimodal](multimodal.md).
 
 ## Cache savings
 

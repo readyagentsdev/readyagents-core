@@ -54,6 +54,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Optional [multi-agent teams](docs/teams.md) (`type: team`) — **Unreleased**; closed members, engine-enforced stop, no routing-quality claim
 - Optional [workflow studio](docs/studio.md) (`readyagents studio`) — **Unreleased**; loopback canvas and run inspector; YAML on disk stays the source of truth; not a hosted product
 - Optional [model routing](docs/model-routing.md) (`routing:`, Gemini/Bedrock/Vertex extras, `readyagents models`) — **Unreleased**; declared policy, not quality inference; no-policy selection unchanged
+- Optional [multimodal I/O](docs/multimodal.md) (`MediaPart`, `type: document`, `type: transcribe`, image/pdf/audio extras) — **Unreleased**; plumbing and governance, not extraction accuracy; text-only runs unchanged
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -184,6 +185,7 @@ flowchart LR
 - [Guardrails / output contracts](docs/guardrails.md) (opt-in `contract:`; Unreleased; declared rules, not a safety claim)
 - [Multi-agent teams](docs/teams.md) (opt-in `type: team`; Unreleased; closed members; no quality claim)
 - [Model routing](docs/model-routing.md) (opt-in `routing:`; Unreleased; declared policy, not a quality claim)
+- [Multimodal I/O](docs/multimodal.md) (opt-in `MediaPart` / `type: document` / `type: transcribe`; Unreleased; extras; not an OCR claim)
 - [Packs](docs/packs.md)
 - [Supply-chain trust](docs/supply-chain.md) (signatures prove origin, not safety)
 - [Continuous pack](docs/continuous-pack.md) (optional, separate distribution)
@@ -206,14 +208,18 @@ pip install "readyagentsdev[bedrock]"
 pip install "readyagentsdev[vertex]"
 pip install "readyagentsdev[mcp]"
 pip install "readyagentsdev[all]"
+pip install "readyagentsdev[image]"
+pip install "readyagentsdev[pdf]"
+pip install "readyagentsdev[audio]"
 ```
 
 From a clone, the same extras are `pip install -e ".[openai]"` (and `anthropic` /
 `gemini` / `bedrock` / `vertex` / `mcp` / `all`). The optional `[otel]` extra is
 **not** included in `[all]`; it starts no collector (see
 [observability.md](docs/observability.md)). The optional `[sign]` extra (Ed25519
-artifact signatures), `[jwt]`, `[gemini]`, `[bedrock]`, and `[vertex]` extras
-are also **not** in `[all]`. Unsigned default runs never import them.
+artifact signatures), `[jwt]`, `[gemini]`, `[bedrock]`, `[vertex]`, `[image]`,
+`[pdf]`, and `[audio]` extras are also **not** in `[all]`. Unsigned default runs
+never import them. Codecs are extras; core installs stay text-only.
 
 Then `cp .env.example .env` and paste your own keys. Core workflows that only use builtin tools do **not** need extras, keys, or Node.js.
 

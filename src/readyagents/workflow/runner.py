@@ -612,6 +612,9 @@ def run_workflow_file(
         vote_signature_status=vote_signature_status,
         stream=stream,
     )
+    from readyagents.media.store import MediaStore
+
+    ctx.media_store = MediaStore(settings.home_path() / "media")
     if stream is not None:
         stream._on_persist = _save if persist else None
         if getattr(stream, "_redactor", None) is None:

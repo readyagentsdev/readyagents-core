@@ -1,0 +1,19 @@
+name: document_pages
+version: "1"
+description: >
+  Opt-in document pipeline. Validate without extras or keys.
+  Plumbing and governance, not extraction accuracy.
+  Run: readyagents validate examples/document_pages.yaml
+
+inputs:
+  invoice_pdf: invoice.pdf
+
+nodes:
+  - id: pages
+    type: document
+    source: "{{ invoice_pdf }}"
+    render:
+      dpi: 72
+      max_pages: 5
+      max_bytes_per_page: 500000
+    output_key: pages

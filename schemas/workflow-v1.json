@@ -68,6 +68,20 @@
           "description": "Maximum estimated LLM cost in USD for the run.",
           "title": "Max Cost Usd"
         },
+        "max_media_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Maximum ingested media bytes for the run.",
+          "title": "Max Media Bytes"
+        },
         "max_tokens": {
           "anyOf": [
             {
@@ -422,6 +436,158 @@
       "title": "MCPServerSpec",
       "type": "object"
     },
+    "MediaPolicySpec": {
+      "additionalProperties": false,
+      "description": "Optional per-workflow media caps. Absent: engine defaults. Not a quality claim.",
+      "properties": {
+        "downscale_max_edge": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Downscale Max Edge"
+        },
+        "dpi": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dpi"
+        },
+        "max_bytes_per_page": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Bytes Per Page"
+        },
+        "max_bytes_per_part": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Bytes Per Part"
+        },
+        "max_duration_ms": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Duration Ms"
+        },
+        "max_height": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Height"
+        },
+        "max_pages": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Pages"
+        },
+        "max_pixels": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Pixels"
+        },
+        "max_run_bytes": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Run Bytes"
+        },
+        "max_width": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Width"
+        },
+        "redact": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional declared regions/classes applied before persist/send.",
+          "title": "Redact"
+        }
+      },
+      "title": "MediaPolicySpec",
+      "type": "object"
+    },
     "NodeSpec": {
       "additionalProperties": true,
       "allOf": [
@@ -486,6 +652,26 @@
                 "default": null,
                 "description": "Cap on agent tool-call rounds (default 8, max 20).",
                 "title": "Max Tool Rounds"
+              },
+              "media": {
+                "description": "Agent-only. Declared media parts (templates or hash refs) to attach.",
+                "items": {},
+                "title": "Media",
+                "type": "array"
+              },
+              "media_redact": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Declared regions/classes redacted before persist, record, or send.",
+                "title": "Media Redact"
               },
               "model": {
                 "anyOf": [
@@ -1561,6 +1747,153 @@
             ],
             "type": "object"
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "document"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "contract": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContractSpec"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Opt-in output contract: structural schema, named content rules, and a declared action (fail, repair, fallback, gate, redact_and_continue)."
+              },
+              "media_redact": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Declared regions/classes redacted before persist, record, or send.",
+                "title": "Media Redact"
+              },
+              "render": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "document render caps: dpi, max_pages, max_bytes_per_page.",
+                "title": "Render"
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional input value or template for a transform.",
+                "title": "Source"
+              }
+            },
+            "required": [
+              "source"
+            ],
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "transcribe"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "contract": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContractSpec"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Opt-in output contract: structural schema, named content rules, and a declared action (fail, repair, fallback, gate, redact_and_continue)."
+              },
+              "media_redact": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Declared regions/classes redacted before persist, record, or send.",
+                "title": "Media Redact"
+              },
+              "model": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "LLM ref for this agent (provider:model). Overrides default_model.",
+                "title": "Model"
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional input value or template for a transform.",
+                "title": "Source"
+              }
+            },
+            "required": [
+              "source"
+            ],
+            "type": "object"
+          }
         }
       ],
       "description": "One node in the workflow graph.",
@@ -1672,14 +2005,16 @@
                 "a2a",
                 "memory",
                 "code",
-                "team"
+                "team",
+                "document",
+                "transcribe"
               ]
             },
             {
               "type": "string"
             }
           ],
-          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory, code, team. Packs may add additional types.",
+          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory, code, team, document, transcribe. Packs may add additional types.",
           "title": "Type"
         }
       },
@@ -2179,6 +2514,18 @@
       "description": "Named stdio MCP servers available to this workflow.",
       "title": "Mcp Servers",
       "type": "object"
+    },
+    "media": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaPolicySpec"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional media caps and redaction policy. Absent: engine defaults."
     },
     "memory_scopes": {
       "description": "Declared memory scope patterns this workflow may use.",

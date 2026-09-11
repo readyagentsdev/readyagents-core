@@ -99,4 +99,13 @@ def _message_payload(message: Message) -> dict[str, Any]:
         row["name"] = message.name
     if message.tool_calls:
         row["tool_calls"] = tool_calls_to_json(message.tool_calls)
+    media = getattr(message, "media", None) or None
+    if media:
+        hashes: list[str] = []
+        for item in media:
+            if isinstance(item, dict) and item.get("sha256"):
+                hashes.append(str(item["sha256"]))
+            else:
+                hashes.append(str(item))
+        row["media"] = hashes
     return row

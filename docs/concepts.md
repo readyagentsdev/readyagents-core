@@ -25,8 +25,10 @@ A workflow is a YAML (or JSON) file with:
 | `parallel` | Run independent branch nodes concurrently |
 | `include` | Run another workflow file and take its outputs |
 | `foreach` | Sequential map over a list (`{{item}}` / `{{index}}`; default 32 / max 100; no nest) |
+| `document` | PDF → ordered page parts (text, image ref, citable page). Caps before decode. See [multimodal](multimodal.md). |
+| `transcribe` | Audio → text plus timing. Local never leaves the machine. See [multimodal](multimodal.md). |
 
-Packs may register additional node types.
+Packs may register additional node types. `MediaPart` is a new state shape that only appears where a workflow asks for it; text-only runs are unchanged.
 
 ## State
 

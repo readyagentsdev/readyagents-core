@@ -22,6 +22,7 @@ from readyagents.errors import (
     EgressDenied,
     GateExpired,
     LLMError,
+    MediaError,
     MemoryError,
     NodeError,
     PolicyDenied,
@@ -120,6 +121,9 @@ class ExecutionContext:
         vote_reasons: Mapping[str, str] | None = None,
         vote_signature_status: str = "unsigned",
         stream: Any | None = None,
+        media_store: Any = None,
+        transcribe_provider: Any = None,
+        redact_detector: Any = None,
     ) -> None:
         self.workflow = workflow
         self.tools = tools
@@ -172,6 +176,9 @@ class ExecutionContext:
         self.last_route: dict[str, Any] | None = None
         self.route_budgets: Any = None
         self.capability_matrix: Any = None
+        self.media_store = media_store
+        self.transcribe_provider = transcribe_provider
+        self.redact_detector = redact_detector
         self._persist_lock = threading.RLock()
         self._in_flight = 0
         self._in_flight_lock = threading.Lock()
@@ -210,7 +217,7 @@ class ExecutionContext:
         include_depth: int,
         on_persist: Callable[[RunState], None] | None = None,
     ) -> ExecutionContext:
-        return ExecutionContext(
+        spawned = ExecutionContext(
             workflow,
             self.tools,
             dry_run=self.dry_run,
@@ -255,7 +262,16 @@ class ExecutionContext:
             vote_reasons=self.vote_reasons,
             vote_signature_status=self.vote_signature_status,
             stream=self.stream,
+            media_store=self.media_store,
+            transcribe_provider=self.transcribe_provider,
+            redact_detector=self.redact_detector,
         )
+        spawned.media_store = self.media_store
+        spawned.transcribe_provider = self.transcribe_provider
+        spawned.redact_detector = self.redact_detector
+        spawned.capability_matrix = self.capability_matrix
+        spawned.route_budgets = self.route_budgets
+        return spawned
 
 
 def _maybe_node_gate(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> None:
@@ -337,6 +353,14 @@ def _execute_node_body(node: NodeSpec, state: RunState, ctx: ExecutionContext) -
         from readyagents.team.node import run_team_node
 
         output = run_team_node(node, state, ctx)
+    elif kind == NodeType.document.value:
+        from readyagents.media.document import run_document_node
+
+        output = run_document_node(node, state, ctx)
+    elif kind == NodeType.transcribe.value:
+        from readyagents.media.transcribe import run_transcribe_node
+
+        output = run_transcribe_node(node, state, ctx)
     else:
         known = ", ".join(t.value for t in NodeType)
         raise WorkflowError(
@@ -357,16 +381,19 @@ def _run_agent(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
     ctx.last_tool_rounds = []
     allowlist = list(node.tools or [])
     tool_specs = _resolve_agent_tool_specs(node, ctx, allowlist) if allowlist else None
+    messages: list[Message] = []
+    if system:
+        messages.append(Message(role="system", content=system))
+    messages.append(Message(role="user", content=prompt))
+    from readyagents.media.attach import attach_media
+
+    messages = attach_media(node, state, ctx, messages)
     if ctx.dry_run:
         preview = prompt if not system else f"[system]\n{system}\n[user]\n{prompt}"
         tools_line = f" tools={','.join(allowlist)}" if allowlist else ""
         estimated = _estimate_tokens(prompt, system or "")
         _account_usage(state, ctx, {"estimated_tokens": estimated})
         return f"[dry-run]{tools_line}\n{preview}\n[estimated_tokens={estimated}]"
-    messages: list[Message] = []
-    if system:
-        messages.append(Message(role="system", content=system))
-    messages.append(Message(role="user", content=prompt))
     result = _complete_agent(node, state, ctx, messages, tools=tool_specs)
     if tool_specs:
         result = _agent_tool_loop(node, state, ctx, messages, result, allowlist, tool_specs)
@@ -1356,6 +1383,8 @@ def execute_node_with_policy(
         except (BudgetExceeded, AuthorizationError, CircuitOpen, RunawayGuard):
             raise
         except (RoutingError, CapabilityError, RouteBudgetExceeded):
+            raise
+        except MediaError:
             raise
         except ReadyAgentsError as exc:
             last_error = exc

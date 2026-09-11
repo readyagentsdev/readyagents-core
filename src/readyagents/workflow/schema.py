@@ -43,6 +43,8 @@ class NodeType(StrEnum):
     memory = "memory"
     code = "code"
     team = "team"
+    document = "document"
+    transcribe = "transcribe"
 
 
 class RetrySpec(BaseModel):
@@ -82,6 +84,11 @@ class BudgetSpec(BaseModel):
         default=None,
         ge=0,
         description="Maximum estimated LLM cost in USD for the run.",
+    )
+    max_media_bytes: int | None = Field(
+        default=None,
+        ge=0,
+        description="Maximum ingested media bytes for the run.",
     )
 
 
@@ -333,6 +340,27 @@ class MCPServerSpec(BaseModel):
     )
 
 
+class MediaPolicySpec(BaseModel):
+    """Optional per-workflow media caps. Absent: engine defaults. Not a quality claim."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_bytes_per_part: int | None = Field(default=None, ge=1)
+    max_run_bytes: int | None = Field(default=None, ge=1)
+    max_width: int | None = Field(default=None, ge=1)
+    max_height: int | None = Field(default=None, ge=1)
+    max_pixels: int | None = Field(default=None, ge=1)
+    max_pages: int | None = Field(default=None, ge=1)
+    max_duration_ms: int | None = Field(default=None, ge=1)
+    max_bytes_per_page: int | None = Field(default=None, ge=1)
+    downscale_max_edge: int | None = Field(default=None, ge=1)
+    dpi: int | None = Field(default=None, ge=1)
+    redact: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional declared regions/classes applied before persist/send.",
+    )
+
+
 class NodeSpec(BaseModel):
     """One node in the workflow graph."""
 
@@ -342,7 +370,8 @@ class NodeSpec(BaseModel):
     type: str = Field(
         description=(
             "Node kind. Built-ins: agent, tool, condition, transform, approval, "
-            "parallel, include, foreach, a2a, memory, code, team. Packs may add types."
+            "parallel, include, foreach, a2a, memory, code, team, document, "
+            "transcribe. Packs may add types."
         )
     )
     timeout_seconds: float | None = Field(
@@ -635,6 +664,18 @@ class NodeSpec(BaseModel):
         default=None,
         description="team terminate: max_rounds, max_cost_usd, max_wall_seconds, goal.",
     )
+    media: list[Any] = Field(
+        default_factory=list,
+        description="Agent-only. Declared media parts (templates or hash refs) to attach.",
+    )
+    render: dict[str, Any] | None = Field(
+        default=None,
+        description="document render caps: dpi, max_pages, max_bytes_per_page.",
+    )
+    media_redact: dict[str, Any] | None = Field(
+        default=None,
+        description="Declared regions/classes redacted before persist, record, or send.",
+    )
 
     @field_validator("id")
     @classmethod
@@ -745,6 +786,16 @@ class NodeSpec(BaseModel):
             raise ValueError(
                 f"Node '{self.id}': strategy/members/supervisor are only valid on team nodes"
             )
+        if t == NodeType.document.value:
+            if not (self.source or "").strip():
+                raise ValueError(f"Node '{self.id}': document nodes require 'source'")
+        if t == NodeType.transcribe.value:
+            if not (self.source or "").strip():
+                raise ValueError(f"Node '{self.id}': transcribe nodes require 'source'")
+        if self.media and t != NodeType.agent.value:
+            raise ValueError(f"Node '{self.id}': 'media' is only valid on agent nodes")
+        if self.render is not None and t != NodeType.document.value:
+            raise ValueError(f"Node '{self.id}': 'render' is only valid on document nodes")
         return self
 
     def _hitl_declared(self) -> bool:
@@ -881,6 +932,10 @@ class WorkflowSpec(BaseModel):
     memory_scopes: list[str] = Field(
         default_factory=list,
         description="Declared memory scope patterns this workflow may use.",
+    )
+    media: MediaPolicySpec | None = Field(
+        default=None,
+        description="Optional media caps and redaction policy. Absent: engine defaults.",
     )
 
     @model_validator(mode="after")

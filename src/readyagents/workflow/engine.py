@@ -68,8 +68,10 @@ def run_workflow(
     if ctx.usage_state is None:
         ctx.usage_state = state
     from readyagents.firewall.taint import seed_input_provenance
+    from readyagents.media.ingest import bind_run_ctx, reset_run_ctx
 
     seed_input_provenance(state)
+    media_token = bind_run_ctx(ctx)
     _arm_cancellation_persist(ctx, state)
     _persist(ctx, state)
     log_event(
@@ -262,6 +264,8 @@ def run_workflow(
             )
         _observe(ctx, "run.finished", state, status="failed", node_id=current)
         raise
+    finally:
+        reset_run_ctx(media_token)
     return state
 
 

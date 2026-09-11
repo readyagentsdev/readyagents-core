@@ -497,3 +497,71 @@ class CodeContainerUnavailable(CodeError):
         message: str = "container isolation is required but no runtime pack is available",
     ) -> None:
         super().__init__(node_id, message)
+
+
+class MediaError(ReadyAgentsError):
+    """Media ingest, cap, codec, or redaction failure."""
+
+
+class MediaSizeExceeded(MediaError):
+    """Part bytes exceeded the declared size cap (checked before decode)."""
+
+    def __init__(self, used: int, limit: int, *, what: str = "bytes") -> None:
+        self.used = used
+        self.limit = limit
+        self.what = what
+        super().__init__(f"Media size exceeded: {what} used={used} limit={limit}")
+
+
+class MediaDimensionExceeded(MediaError):
+    """Image width, height, or pixel count exceeded the declared cap."""
+
+    def __init__(self, width: int, height: int, *, limit_width: int, limit_height: int) -> None:
+        self.width = width
+        self.height = height
+        self.limit_width = limit_width
+        self.limit_height = limit_height
+        super().__init__(
+            f"Media dimensions exceeded: {width}x{height} limit={limit_width}x{limit_height}"
+        )
+
+
+class MediaBomb(MediaError):
+    """Decompression bomb refused before decode. Distinct from dimension caps."""
+
+    def __init__(self, message: str = "media decompression bomb refused") -> None:
+        super().__init__(message)
+
+
+class MediaMalformed(MediaError):
+    """Container or codec stream is malformed."""
+
+    def __init__(self, message: str = "malformed media container") -> None:
+        super().__init__(message)
+
+
+class MediaPageLimitExceeded(MediaError):
+    """PDF page count exceeded the declared cap."""
+
+    def __init__(self, used: int, limit: int) -> None:
+        self.used = used
+        self.limit = limit
+        super().__init__(f"Media page limit exceeded: used={used} limit={limit}")
+
+
+class MediaDurationExceeded(MediaError):
+    """Audio/video duration exceeded the declared cap."""
+
+    def __init__(self, used_ms: int, limit_ms: int) -> None:
+        self.used = used_ms
+        self.limit = limit_ms
+        super().__init__(f"Media duration exceeded: used_ms={used_ms} limit_ms={limit_ms}")
+
+
+class MediaBudgetExceeded(MediaError):
+    """Per-run media byte budget exceeded."""
+
+    def __init__(self, used: int, limit: int) -> None:
+        self.used = used
+        self.limit = limit
+        super().__init__(f"Media run budget exceeded: used={used} limit={limit}")

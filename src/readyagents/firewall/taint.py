@@ -192,7 +192,9 @@ def note_node_output(state: RunState, node: Any, output: Any) -> None:
         prompt = str(getattr(node, "prompt", "") or "")
         system = str(getattr(node, "system", "") or "")
         prov = provenance_for_template(state, prompt + " " + system, node_id=node_id)
-        if prov.trust == UNTRUSTED:
+        if getattr(node, "media", None):
+            prov = untrusted(source="media", node_id=node_id)
+        elif prov.trust == UNTRUSTED:
             prov = untrusted(source="model", node_id=node_id)
         else:
             prov = trusted(source="model", node_id=node_id)
@@ -248,6 +250,8 @@ def note_node_output(state: RunState, node: Any, output: Any) -> None:
         prov = untrusted(source="a2a", node_id=node_id)
     elif kind == "memory":
         prov = untrusted(source="memory", node_id=node_id)
+    elif kind in {"document", "transcribe"}:
+        prov = untrusted(source="media", node_id=node_id)
     elif kind == "include":
         flagged = (state.metadata.get("_child_untrusted") or {}).get(node_id)
         if flagged:

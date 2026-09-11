@@ -37,6 +37,8 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
         "max_tool_rounds",
         "rationale_key",
         "contract",
+        "media",
+        "media_redact",
     ),
     NodeType.tool: ("tool", "arguments", "contract"),
     NodeType.condition: ("when", "then", "else"),
@@ -102,6 +104,8 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
         "terminate",
         "model",
     ),
+    NodeType.document: ("source", "render", "media_redact", "contract"),
+    NodeType.transcribe: ("source", "model", "media_redact", "contract"),
 }
 
 NODE_TYPE_REQUIRED: dict[NodeType, tuple[str, ...]] = {
@@ -115,6 +119,8 @@ NODE_TYPE_REQUIRED: dict[NodeType, tuple[str, ...]] = {
     NodeType.a2a: ("agent_url",),
     NodeType.memory: ("op", "scope"),
     NodeType.team: ("strategy", "supervisor", "members"),
+    NodeType.document: ("source",),
+    NodeType.transcribe: ("source",),
 }
 
 _PYTHON_ONLY_ALIASES: Final[tuple[str, ...]] = ("else_", "from_", "call_inputs")

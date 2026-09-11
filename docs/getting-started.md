@@ -33,6 +33,9 @@ pip install "readyagentsdev[openai]"
 pip install "readyagentsdev[anthropic]"
 pip install "readyagentsdev[mcp]"
 pip install "readyagentsdev[all]"
+pip install "readyagentsdev[image]"   # optional codecs; not in [all]
+pip install "readyagentsdev[pdf]"
+pip install "readyagentsdev[audio]"
 ```
 
 Agent nodes need a key in `.env` after you install the matching extra.
