@@ -48,6 +48,7 @@ class NodeType(StrEnum):
     ingest = "ingest"
     table = "table"
     classify = "classify"
+    wait = "wait"
 
 
 class RetrySpec(BaseModel):
@@ -374,7 +375,7 @@ class NodeSpec(BaseModel):
         description=(
             "Node kind. Built-ins: agent, tool, condition, transform, approval, "
             "parallel, include, foreach, a2a, memory, code, team, document, "
-            "transcribe, ingest, table, classify. Packs may add types."
+            "transcribe, ingest, table, classify, wait. Packs may add types."
         )
     )
     timeout_seconds: float | None = Field(
@@ -764,6 +765,48 @@ class NodeSpec(BaseModel):
         default=None,
         description="Row error policy: fail, skip, or quarantine.",
     )
+    until: str | None = Field(
+        default=None,
+        description="Wait deadline: duration (72h) or ISO timestamp. Required on type: wait.",
+    )
+    for_event: dict[str, Any] | None = Field(
+        default=None,
+        description="Wait for a named signed event: {name, match}.",
+    )
+    for_file: dict[str, Any] | None = Field(
+        default=None,
+        description="Wait for a confined path: {path, on: created|changed}.",
+    )
+    for_run: dict[str, Any] | None = Field(
+        default=None,
+        description="Wait for another run: {run_id, status}.",
+    )
+    whichever: str | None = Field(
+        default=None,
+        description="Wait combination: first (default) or all.",
+    )
+    on_deadline: str | None = Field(
+        default=None,
+        description="Wait deadline action: fail, continue, escalate, or branch.",
+    )
+    default: Any = Field(
+        default=None,
+        description="Wait on_deadline: continue payload. Never grants an approval.",
+    )
+
+    @field_validator("for_file", mode="before")
+    @classmethod
+    def _wait_file_yaml_on(cls, value: Any) -> Any:
+        """YAML 1.1 treats unquoted `on` as boolean True; accept it as the key 'on'."""
+        if not isinstance(value, dict):
+            return value
+        remapped: dict[Any, Any] = {}
+        for key, item in value.items():
+            if key is True:
+                remapped["on"] = item
+            else:
+                remapped[key] = item
+        return remapped
 
     @field_validator("id")
     @classmethod
@@ -826,6 +869,21 @@ class NodeSpec(BaseModel):
                     f"Node '{self.id}': approval nodes require 'then', 'else', or 'next'"
                 )
             self._validate_hitl()
+        elif t == NodeType.wait.value:
+            if not (self.until or "").strip():
+                raise ValueError(f"Node '{self.id}': wait nodes require 'until' (a deadline)")
+            which = str(self.whichever or "first").strip().lower()
+            if which not in {"first", "all"}:
+                raise ValueError(f"Node '{self.id}': whichever must be first or all")
+            self.whichever = which
+            action = str(self.on_deadline or "fail").strip().lower()
+            if action not in {"fail", "continue", "escalate", "branch"}:
+                raise ValueError(
+                    f"Node '{self.id}': on_deadline must be fail, continue, escalate, or branch"
+                )
+            self.on_deadline = action
+            if action == "escalate" and not self.escalate_to:
+                raise ValueError(f"Node '{self.id}': on_deadline: escalate requires escalate_to")
         elif self._hitl_declared():
             raise ValueError(
                 f"Node '{self.id}': quorum/expiry/delegation fields "

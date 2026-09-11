@@ -617,6 +617,7 @@ def run_workflow_file(
 
     ctx.media_store = MediaStore(settings.home_path() / "media")
     ctx.table_store = TableStore(settings.home_path() / "tables")
+    ctx.run_store = store
     if stream is not None:
         stream._on_persist = _save if persist else None
         if getattr(stream, "_redactor", None) is None:
@@ -795,7 +796,7 @@ def _load_credentials(explicit: Path | str | None, workflow_dir: Path) -> Any:
     return load_credentials_policy(path)
 
 
-_TERMINAL_LEDGER = frozenset({"succeeded", "failed", "paused", "cancelled"})
+_TERMINAL_LEDGER = frozenset({"succeeded", "failed", "paused", "cancelled", "waiting"})
 
 
 def _refuse_to_start(

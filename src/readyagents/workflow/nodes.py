@@ -35,6 +35,8 @@ from readyagents.errors import (
     TemplateError,
     ToolError,
     TrustError,
+    WaitError,
+    WaitingRequired,
     WorkflowError,
 )
 from readyagents.llm.base import CompletionResult, LLMProvider, Message, ToolCall
@@ -127,6 +129,10 @@ class ExecutionContext:
         table_store: Any = None,
         transcribe_provider: Any = None,
         redact_detector: Any = None,
+        clock: Any = None,
+        wait_world: Any = None,
+        max_waiting: int | None = None,
+        waiting_count: Any = None,
     ) -> None:
         self.workflow = workflow
         self.tools = tools
@@ -183,6 +189,10 @@ class ExecutionContext:
         self.table_store = table_store
         self.transcribe_provider = transcribe_provider
         self.redact_detector = redact_detector
+        self.clock = clock
+        self.wait_world = wait_world
+        self.max_waiting = max_waiting
+        self.waiting_count = waiting_count
         self._persist_lock = threading.RLock()
         self._in_flight = 0
         self._in_flight_lock = threading.Lock()
@@ -270,6 +280,10 @@ class ExecutionContext:
             table_store=self.table_store,
             transcribe_provider=self.transcribe_provider,
             redact_detector=self.redact_detector,
+            clock=self.clock,
+            wait_world=self.wait_world,
+            max_waiting=self.max_waiting,
+            waiting_count=self.waiting_count,
         )
         spawned.media_store = self.media_store
         spawned.table_store = self.table_store
@@ -277,6 +291,7 @@ class ExecutionContext:
         spawned.redact_detector = self.redact_detector
         spawned.capability_matrix = self.capability_matrix
         spawned.route_budgets = self.route_budgets
+        spawned.run_store = getattr(self, "run_store", None)
         return spawned
 
 
@@ -379,6 +394,10 @@ def _execute_node_body(node: NodeSpec, state: RunState, ctx: ExecutionContext) -
         from readyagents.table.classify import run_classify_node
 
         output = run_classify_node(node, state, ctx)
+    elif kind == NodeType.wait.value:
+        from readyagents.wait.node import run_wait_node
+
+        output = run_wait_node(node, state, ctx)
     else:
         known = ", ".join(t.value for t in NodeType)
         raise WorkflowError(
@@ -1408,6 +1427,8 @@ def execute_node_with_policy(
             raise
         except ApprovalRequired:
             raise
+        except WaitingRequired:
+            raise
         except GateExpired:
             raise
         except EgressDenied:
@@ -1429,6 +1450,8 @@ def execute_node_with_policy(
         except MediaError:
             raise
         except TableError:
+            raise
+        except WaitError:
             raise
         except ReadyAgentsError as exc:
             last_error = exc

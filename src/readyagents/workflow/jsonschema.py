@@ -147,6 +147,19 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
         "limits",
         "contract",
     ),
+    NodeType.wait: (
+        "until",
+        "for_event",
+        "for_file",
+        "for_run",
+        "whichever",
+        "on_deadline",
+        "default",
+        "escalate_to",
+        "then",
+        "else",
+        "next",
+    ),
 }
 
 NODE_TYPE_REQUIRED: dict[NodeType, tuple[str, ...]] = {
@@ -165,6 +178,7 @@ NODE_TYPE_REQUIRED: dict[NodeType, tuple[str, ...]] = {
     NodeType.ingest: ("source", "scope"),
     NodeType.table: ("op",),
     NodeType.classify: ("source",),
+    NodeType.wait: ("until",),
 }
 
 _PYTHON_ONLY_ALIASES: Final[tuple[str, ...]] = ("else_", "from_", "call_inputs")
