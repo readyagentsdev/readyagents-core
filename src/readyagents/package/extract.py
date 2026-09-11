@@ -50,6 +50,8 @@ def extract_archive(blob: bytes, dest: Path) -> Path:
     """Write archive members under dest. Never import, chmod +x, or run."""
     dest = Path(dest)
     dest.mkdir(parents=True, exist_ok=True)
+    if len(blob) > MAX_ARCHIVE_BYTES:
+        raise PackageRefused("package archive exceeds size cap", reason="too_large")
     tmp = dest.parent / f".{dest.name}.{uuid4().hex}.zip"
     tmp.write_bytes(blob)
     try:

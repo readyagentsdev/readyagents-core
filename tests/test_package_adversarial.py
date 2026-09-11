@@ -22,8 +22,10 @@ from readyagents.package.layout import (
     KIND_MEMBER,
     LOCK_NAME,
     MANIFEST_NAME,
+    MAX_ARCHIVE_BYTES,
     MAX_DEPTH,
     MAX_FILES,
+    MAX_MEMBER_BYTES,
 )
 from readyagents.trust.digest import DIGEST_ALGORITHM, DIGEST_VERSION, digest_bytes, prefixed
 
@@ -31,6 +33,11 @@ PKG_NAME = "adv-pkg"
 PKG_DESC = "Adversarial packaging fixture for tests only."
 SECRET_TOKEN = "sk-abcdefghijksecret"
 SECRET_ASSIGN = "api_key: sk-planted"
+PLANTED_PEM = (
+    "-----BEGIN PRIVATE KEY-----\n"
+    "MIIBOgIBAAJBAK8planted-not-a-real-key-value-for-tests\n"
+    "-----END PRIVATE KEY-----\n"
+)
 
 
 def _manifest(**extra) -> str:
@@ -210,6 +217,35 @@ def test_too_many_files_refused(tmp_path: Path) -> None:
     assert caught.value.reason == "too_many"
 
 
+def test_oversized_member_extract_and_install_refused(tmp_path: Path, tmp_settings) -> None:
+    blob = _pack_zip({"blob.bin": b"x" * (MAX_MEMBER_BYTES + 1)})
+    dest = tmp_path / "dest"
+    with pytest.raises(PackageRefused) as caught:
+        extract_archive(blob, dest)
+    assert caught.value.reason == "too_large"
+    archive = tmp_path / "member-too-big.rapkg"
+    archive.write_bytes(blob)
+    with pytest.raises(PackageRefused) as inst:
+        install_package(archive, home=tmp_settings.home_path(), confirm=True)
+    assert inst.value.reason == "too_large"
+    assert not (tmp_settings.home_path() / "packages").exists() or not any(
+        (tmp_settings.home_path() / "packages").rglob("blob.bin")
+    )
+
+
+def test_oversized_archive_extract_and_install_refused(tmp_path: Path, tmp_settings) -> None:
+    blob = b"P" * (MAX_ARCHIVE_BYTES + 1)
+    dest = tmp_path / "dest"
+    with pytest.raises(PackageRefused) as caught:
+        extract_archive(blob, dest)
+    assert caught.value.reason == "too_large"
+    archive = tmp_path / "archive-too-big.rapkg"
+    archive.write_bytes(blob)
+    with pytest.raises(PackageRefused) as inst:
+        install_package(archive, home=tmp_settings.home_path(), confirm=True)
+    assert inst.value.reason == "too_large"
+
+
 def test_install_does_not_execute_declared_bomb(tmp_path: Path, tmp_settings) -> None:
     marker = tmp_path / "install-bomb-side-effect"
     bomb_src = (
@@ -288,6 +324,39 @@ def test_build_refuses_secret_smuggling(tmp_path: Path, plant: tuple[str, str]) 
         build_package(src, out=tmp_path / "secret.rapkg")
     assert caught.value.reason == "secret"
     assert not (tmp_path / "secret.rapkg").exists()
+
+
+def test_build_refuses_planted_pem_key(tmp_path: Path) -> None:
+    src = _write_pkg(tmp_path / "src", extra_files=[("key.pem", PLANTED_PEM)])
+    with pytest.raises(PackageRefused) as caught:
+        build_package(src, out=tmp_path / "pem.rapkg")
+    assert caught.value.reason == "secret"
+    assert not (tmp_path / "pem.rapkg").exists()
+
+
+def test_build_refuses_suffixless_private_key(tmp_path: Path) -> None:
+    src = _write_pkg(tmp_path / "src", extra_files=[("id_rsa", PLANTED_PEM)])
+    with pytest.raises(PackageRefused) as caught:
+        build_package(src, out=tmp_path / "rsa.rapkg")
+    assert caught.value.reason == "secret"
+    assert not (tmp_path / "rsa.rapkg").exists()
+
+
+def test_install_handcrafted_zip_with_pem_refused(tmp_path: Path, tmp_settings) -> None:
+    pem = PLANTED_PEM.encode("utf-8")
+    members = {
+        MANIFEST_NAME: _manifest(files=["key.pem"]).encode("utf-8"),
+        "workflow.yaml": _workflow().encode("utf-8"),
+        "key.pem": pem,
+    }
+    blob = _pack_zip({**members, LOCK_NAME: _lock_for(members)})
+    archive = tmp_path / "pem.rapkg"
+    archive.write_bytes(blob)
+    home = tmp_settings.home_path()
+    with pytest.raises(PackageRefused) as caught:
+        install_package(archive, home=home, confirm=True)
+    assert caught.value.reason == "secret"
+    assert not (home / "packages" / PKG_NAME).exists()
 
 
 def test_install_handcrafted_zip_with_secret_refused(tmp_path: Path, tmp_settings) -> None:

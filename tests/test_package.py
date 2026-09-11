@@ -105,6 +105,21 @@ def test_manifest_refuses_unknown_key_bad_semver_missing_entry(tmp_path: Path) -
     assert rec.name == "demo-calc"
     assert rec.entry == "workflow.yaml"
     assert rec.secrets == []
+    slashed = parse_manifest_text(_manifest(fixtures="evals/", docs="README.md"))
+    assert slashed.fixtures == "evals"
+    assert slashed.docs == "README.md"
+
+
+def test_build_walks_fixtures_directory_with_trailing_slash(tmp_path: Path) -> None:
+    src = _write_pkg(tmp_path / "src")
+    (src / "readyagents.pkg.yaml").write_text(
+        _manifest(fixtures="evals/"), encoding="utf-8", newline="\n"
+    )
+    rec = load_manifest(src)
+    assert rec.fixtures == "evals"
+    archive = build_package(src, out=tmp_path / "dir.rapkg")
+    with zipfile.ZipFile(archive) as zf:
+        assert "evals/suite.yaml" in zf.namelist()
 
 
 def test_build_is_byte_identical_and_contains_lock(tmp_path: Path) -> None:

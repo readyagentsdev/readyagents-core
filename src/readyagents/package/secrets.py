@@ -8,7 +8,24 @@ from pathlib import Path
 from readyagents.errors import PackageRefused
 from readyagents.package.layout import MANIFEST_NAME
 
-_TEXT_SUFFIX = {".yaml", ".yml", ".md", ".json", ".txt", ".sh", ".env", ".toml", ".cfg"}
+_TEXT_SUFFIX = {
+    ".yaml",
+    ".yml",
+    ".md",
+    ".json",
+    ".txt",
+    ".sh",
+    ".env",
+    ".toml",
+    ".cfg",
+    ".pem",
+    ".key",
+}
+_KEY_NAMES = frozenset(
+    {"id_rsa", "id_dsa", "id_ecdsa", "id_ed25519", "key", "private_key", "private-key"}
+)
+_PEM_BEGIN = b"-----BEGIN "
+_PEM_PRIVATE = b"PRIVATE KEY-----"
 _SK = re.compile(r"sk-[A-Za-z0-9]{8,}")
 _PEM = re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")
 _ASSIGNED = re.compile(
@@ -24,13 +41,26 @@ def scan_tree_for_secret_values(root: Path) -> None:
     for path in sorted(folder.rglob("*")):
         if not path.is_file():
             continue
-        if path.suffix.lower() not in _TEXT_SUFFIX and path.name not in {MANIFEST_NAME, ".env"}:
-            continue
         try:
-            text = path.read_text(encoding="utf-8", errors="replace")
+            data = path.read_bytes()
         except OSError as extra:
             raise PackageRefused(f"package file unreadable: {path}", reason="unreadable") from extra
-        scan_text_for_secret_values(text, path=path)
+        if _PEM_BEGIN in data and _PEM_PRIVATE in data:
+            raise PackageRefused(f"package contains a private key: {path}", reason="secret")
+        if not _scan_as_text(path):
+            continue
+        scan_text_for_secret_values(data.decode("utf-8", errors="replace"), path=path)
+
+
+def _scan_as_text(path: Path) -> bool:
+    name = path.name.lower()
+    if path.suffix.lower() in _TEXT_SUFFIX:
+        return True
+    if name in {MANIFEST_NAME.lower(), ".env"}:
+        return True
+    if path.suffix == "" and name in _KEY_NAMES:
+        return True
+    return False
 
 
 def scan_text_for_secret_values(text: str, *, path: Path | str) -> None:
