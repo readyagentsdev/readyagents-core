@@ -24,6 +24,7 @@ KIND_WORKFLOW = "workflow"
 KIND_INCLUDE = "include"
 KIND_PACK = "pack"
 KIND_MCP = "mcp_server"
+KIND_SKILL = "skill"
 _MAX_INCLUDE_DEPTH = 8
 
 
