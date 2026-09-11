@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from readyagents.errors import LLMError, missing_extra_message
+from readyagents.errors import LLMError, ReadyAgentsError, missing_extra_message
 from readyagents.llm.base import CompletionResult, Message
 from readyagents.llm.tool_calls import (
     anthropic_tools_payload,
@@ -149,7 +149,7 @@ class AnthropicProvider:
                 usage=usage,
                 tool_calls=tool_calls_from_anthropic_content(getattr(final, "content", [])),
             )
-        except LLMError:
+        except ReadyAgentsError:
             raise
         except Exception:
             return self.complete(messages, model=model, tools=tools, **kwargs)

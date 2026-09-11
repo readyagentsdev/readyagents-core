@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
 from typer.testing import CliRunner
 
 from readyagents.cli import app
@@ -129,6 +131,15 @@ def test_incremental_redaction_split_secret() -> None:
     redactor = Redactor(literals=["SUPERSECRET"])
     inc = IncrementalRedactor(redactor)
     leaked = inc.push("SUPER") + inc.push("SECRET and more") + inc.flush()
+    assert "SUPERSECRET" not in leaked
+    assert "[redacted]" in leaked
+
+
+def test_incremental_redaction_secret_straddles_lookback_split() -> None:
+    """Padding that splits the secret across ready|hold must not emit it."""
+    redactor = Redactor(literals=["SUPERSECRET"])
+    inc = IncrementalRedactor(redactor)
+    leaked = inc.push("SUPER") + inc.push("SECRET" + "x" * 54) + inc.flush()
     assert "SUPERSECRET" not in leaked
     assert "[redacted]" in leaked
 
@@ -309,3 +320,81 @@ def test_scripted_stream_matches_complete() -> None:
     )
     assert a.text == b.text == "abcdef"
     assert "".join(chunks) == "abcdef"
+
+
+def test_openai_stream_on_token_cancel_does_not_complete(monkeypatch) -> None:
+    import openai
+
+    from readyagents.llm.openai_provider import OpenAIProvider
+
+    class FakeCompletions:
+        def create(self, **kwargs):  # noqa: ANN003
+            if kwargs.get("stream"):
+                delta = SimpleNamespace(content="hello", tool_calls=None)
+                chunk = SimpleNamespace(
+                    usage=None,
+                    choices=[SimpleNamespace(delta=delta)],
+                )
+                return iter([chunk])
+            message = SimpleNamespace(content="PHANTOM-OK", tool_calls=None)
+            return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=None)
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):  # noqa: ANN003
+            self.chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
+    provider = OpenAIProvider(api_key="sk-test")
+
+    def boom(_piece: str) -> None:
+        raise CancellationRequested(reason="test")
+
+    with pytest.raises(CancellationRequested):
+        provider.stream(
+            [Message(role="user", content="hi")],
+            model="gpt-4o-mini",
+            on_token=boom,
+        )
+
+
+def test_anthropic_stream_on_token_cancel_does_not_complete(monkeypatch) -> None:
+    import anthropic
+
+    from readyagents.llm.anthropic_provider import AnthropicProvider
+
+    class FakeStream:
+        text_stream = iter(["hello"])
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):  # noqa: ANN002
+            return False
+
+        def get_final_message(self):
+            return SimpleNamespace(usage=None, content=[])
+
+    class FakeMessages:
+        def stream(self, **kwargs):  # noqa: ANN003
+            return FakeStream()
+
+        def create(self, **kwargs):  # noqa: ANN003
+            block = SimpleNamespace(text="PHANTOM-OK")
+            return SimpleNamespace(content=[block], usage=None)
+
+    class FakeAnthropic:
+        def __init__(self, **kwargs):  # noqa: ANN003
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(anthropic, "Anthropic", FakeAnthropic)
+    provider = AnthropicProvider(api_key="sk-test")
+
+    def boom(_piece: str) -> None:
+        raise CancellationRequested(reason="test")
+
+    with pytest.raises(CancellationRequested):
+        provider.stream(
+            [Message(role="user", content="hi")],
+            model="claude-3-haiku",
+            on_token=boom,
+        )

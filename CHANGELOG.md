@@ -40,6 +40,11 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- Incremental streaming redaction uses a common-prefix holdback so a secret
+  that straddles the lookback split is not emitted unredacted.
+- OpenAI and Anthropic `stream()` re-raise `CancellationRequested` (and other
+  `ReadyAgentsError`) from `on_token` instead of falling back to `complete()`,
+  which would record a phantom ok node.
 - MCP `GET /runs/{id}/events` and A2A `GET /tasks/{id}/stream` return a JSON
   event snapshot unless `Accept` prefers `text/event-stream`. SSE is a finite
   snapshot body (no wait loop), so a client cannot hang on the generator.
