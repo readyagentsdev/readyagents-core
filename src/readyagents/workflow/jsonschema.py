@@ -28,6 +28,8 @@ SCHEMA_DESCRIPTION: Final = (
 NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
     NodeType.agent: (
         "prompt",
+        "prompt_id",
+        "prompt_version",
         "system",
         "model",
         "fallback_models",
@@ -52,6 +54,8 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
     ),
     NodeType.approval: (
         "prompt",
+        "prompt_id",
+        "prompt_version",
         "then",
         "else",
         "approvals_required",

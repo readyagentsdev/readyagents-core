@@ -420,10 +420,27 @@ def _execute_node_body(node: NodeSpec, state: RunState, ctx: ExecutionContext) -
     return output
 
 
+def _prompt_text(node: NodeSpec, ctx: ExecutionContext) -> str:
+    """Literal prompt unless a sidecar registry has an active/pinned version."""
+    literal = node.prompt or ""
+    source = getattr(ctx, "source_path", None)
+    if source is not None and ".opt-" in Path(source).name:
+        return literal
+    from readyagents.prompts.registry import resolve_prompt
+
+    return resolve_prompt(
+        node,
+        workflow_dir=ctx.workflow_dir,
+        workflow_name=getattr(ctx.workflow, "name", None),
+        source_path=getattr(ctx, "source_path", None),
+        fallback=literal,
+    )
+
+
 def _run_agent(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
     _preflight_retrieved_citation(node, state)
     ns = state.mapping()
-    prompt = interpolate(node.prompt or "", ns)
+    prompt = interpolate(_prompt_text(node, ctx), ns)
     system = interpolate(node.system, ns) if node.system else None
     ctx.last_tool_rounds = []
     allowlist = list(node.tools or [])
@@ -524,7 +541,7 @@ def _invoke_agent_tool(
         ctx=ctx,
         state=state,
         raw_arguments=args,
-        prompt_tainted=agent_prompt_tainted(state, node.prompt or "", node.system),
+        prompt_tainted=agent_prompt_tainted(state, _prompt_text(node, ctx), node.system),
     )
     return _maybe_quarantine(ctx, name, result)
 
@@ -1016,7 +1033,7 @@ def _run_approval(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dic
     )
 
     ns = state.mapping()
-    prompt = interpolate(node.prompt or f"Approve node '{node.id}'?", ns)
+    prompt = interpolate(_prompt_text(node, ctx) or f"Approve node '{node.id}'?", ns)
     pending = state.pending if isinstance(state.pending, dict) else {}
     use_enterprise = enterprise_fields_set(node) or (
         isinstance(pending, dict)

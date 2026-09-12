@@ -614,6 +614,7 @@ def run_workflow_file(
         vote_signature_status=vote_signature_status,
         stream=stream,
     )
+    ctx.source_path = source_path
     from readyagents.media.store import MediaStore
     from readyagents.table.store import TableStore
 

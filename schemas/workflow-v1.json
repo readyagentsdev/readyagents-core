@@ -758,6 +758,32 @@
                 "description": "Agent or approval prompt. Templates allowed.",
                 "title": "Prompt"
               },
+              "prompt_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional registry id. Literal prompt: still works when omitted.",
+                "title": "Prompt Id"
+              },
+              "prompt_version": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional pinned registry version. Omitted uses the active version.",
+                "title": "Prompt Version"
+              },
               "rationale_key": {
                 "anyOf": [
                   {
@@ -1128,6 +1154,32 @@
                 "default": null,
                 "description": "Agent or approval prompt. Templates allowed.",
                 "title": "Prompt"
+              },
+              "prompt_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional registry id. Literal prompt: still works when omitted.",
+                "title": "Prompt Id"
+              },
+              "prompt_version": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional pinned registry version. Omitted uses the active version.",
+                "title": "Prompt Version"
               },
               "recommendation": {
                 "anyOf": [
