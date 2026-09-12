@@ -1,0 +1,22 @@
+name: browser-statement
+description: Keyless governed browser fixture (stub pack). Not a live bank session.
+nodes:
+  - id: fetch_statement
+    type: browser
+    allow:
+      - "https://bank.example.com/*"
+    session: ephemeral
+    limits:
+      wall_seconds: 120
+      pages: 10
+      download_bytes: 5000000
+    actions:
+      - navigate: "https://bank.example.com/statements"
+      - wait_for: {selector: "table.statements"}
+      - extract:
+          schema:
+            rows:
+              - date: "td:nth-child(1)"
+                amount: "td:nth-child(2)"
+      - click: {selector: "a.download-latest", side_effecting: false}
+    output_key: statement

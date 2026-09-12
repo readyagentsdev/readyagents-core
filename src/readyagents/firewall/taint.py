@@ -258,6 +258,11 @@ def note_node_output(state: RunState, node: Any, output: Any) -> None:
         prov = untrusted(source="event", node_id=node_id)
     elif kind == "skill":
         prov = untrusted(source="skill", node_id=node_id)
+    elif kind == "browser":
+        url = "browser"
+        if isinstance(output, dict):
+            url = str(output.get("url") or output.get("source") or "browser")
+        prov = untrusted(source=url, node_id=node_id)
     elif kind in {"document", "transcribe"}:
         prov = untrusted(source="media", node_id=node_id)
     elif kind == "include":

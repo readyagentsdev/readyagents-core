@@ -294,6 +294,60 @@ class FeedbackRefused(FeedbackError):
         super().__init__(message)
 
 
+class BrowserError(ReadyAgentsError):
+    """Governed browser node failure."""
+
+
+class BrowserRefused(BrowserError):
+    """Allowlist, SSRF, missing driver, synthesised action, or gated click."""
+
+    def __init__(self, message: str, *, reason: str = "refused") -> None:
+        self.reason = reason
+        super().__init__(message)
+
+
+class BrowserAllowlist(BrowserRefused):
+    def __init__(self, url: str) -> None:
+        super().__init__(f"navigation off allowlist: {url}", reason="allowlist")
+        self.url = url
+
+
+class BrowserSSRF(BrowserRefused):
+    def __init__(self, url: str) -> None:
+        super().__init__(f"browser SSRF refused: {url}", reason="ssrf")
+        self.url = url
+
+
+class BrowserBoundWall(BrowserRefused):
+    def __init__(self, message: str = "browser wall-clock exceeded") -> None:
+        super().__init__(message, reason="wall")
+
+
+class BrowserBoundPages(BrowserRefused):
+    def __init__(self, message: str = "browser page count exceeded") -> None:
+        super().__init__(message, reason="pages")
+
+
+class BrowserBoundDownload(BrowserRefused):
+    def __init__(self, message: str = "browser download size exceeded") -> None:
+        super().__init__(message, reason="download")
+
+
+class BrowserBoundScreenshot(BrowserRefused):
+    def __init__(self, message: str = "browser screenshot size exceeded") -> None:
+        super().__init__(message, reason="screenshot")
+
+
+class BrowserBoundMemory(BrowserRefused):
+    def __init__(self, message: str = "browser memory exceeded") -> None:
+        super().__init__(message, reason="memory")
+
+
+class BrowserExtract(BrowserRefused):
+    def __init__(self, message: str = "browser extract selector mismatch") -> None:
+        super().__init__(message, reason="extract")
+
+
 class SimulateError(ReadyAgentsError):
     """Simulation generation, scoring, or freeze failure."""
 
