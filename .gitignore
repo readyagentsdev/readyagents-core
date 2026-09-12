@@ -16,7 +16,10 @@ __pycache__/
 .Python
 .venv/
 venv/
-env/
+/env/
+# Virtualenv dirs named env/ — not the src/readyagents/env package.
+!src/readyagents/env/
+!src/readyagents/env/**
 dist/
 build/
 *.egg-info/
