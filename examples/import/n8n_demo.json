@@ -1,0 +1,14 @@
+{
+  "name": "n8n-demo",
+  "nodes": [
+    {"id": "1", "name": "Start", "type": "n8n-nodes-base.manualTrigger", "parameters": {}},
+    {"id": "2", "name": "Set", "type": "n8n-nodes-base.set", "parameters": {}},
+    {"id": "3", "name": "IF", "type": "n8n-nodes-base.if", "parameters": {}},
+    {"id": "4", "name": "Ok", "type": "n8n-nodes-base.noOp", "parameters": {}}
+  ],
+  "connections": {
+    "Start": {"main": [[{"node": "Set"}]]},
+    "Set": {"main": [[{"node": "IF"}]]},
+    "IF": {"main": [[{"node": "Ok"}]]}
+  }
+}

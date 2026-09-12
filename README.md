@@ -69,6 +69,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Optional [governed browser use](docs/browser-use.md) (`type: browser`) — **Unreleased**; declared actions, allowlist, taint, offline replay; driver in an optional pack; no CAPTCHA solving; not a free-running browser agent
 - Optional [conversational sessions](docs/conversational-sessions.md) (`type: converse`, `readyagents sessions`, `serve chat`) — **Unreleased**; turns are durable runs; loopback chat; no audio in core; not a hosted chat product
 - Optional [environments and rollout](docs/environments.md) (`readyagents.env.yaml`, `run --env`, `promote`, `rollback`, `env status|history|diff`) — **Unreleased**; pinned signed releases, gated promote, canary/shadow, lazy rollback; not a hosted deploy
+- Optional [migration importers](docs/migration.md) (`readyagents import`) — **Unreleased**; n8n / LangGraph / CrewAI / trigger-action; structural translation plus a fidelity report; never exec source Python; not behavioural equivalence
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -104,6 +105,7 @@ flowchart LR
 | --- | --- |
 | `readyagents init` | Write `.env` from `.env.example` if missing |
 | `readyagents new [name] [--template basic\|approval\|research\|pipeline\|review\|foreach\|agent-tools\|gated]` | Scaffold workflow + README + `.env.example` + local JSON Schema |
+| `readyagents import SOURCE PATH [--out DIR] [--explain SOURCE]` | Import n8n / LangGraph / CrewAI / trigger-action exports (**Unreleased**; structural translation only) |
 | `readyagents validate PATH` | Schema-validate a workflow (source-located errors on failure) |
 | `readyagents schema` | Print/write/check the generated workflow JSON Schema |
 | `readyagents eval PATH` | Score a keyless fixture suite (exit 0/1) |
@@ -216,6 +218,7 @@ flowchart LR
 - [Governed browser use](docs/browser-use.md) (opt-in `type: browser`; Unreleased; declared actions; no CAPTCHA; optional pack)
 - [Conversational sessions](docs/conversational-sessions.md) (opt-in `type: converse`; Unreleased; loopback `serve chat`; no audio in core)
 - [Environments and rollout](docs/environments.md) (opt-in `readyagents.env.yaml`; Unreleased; pinned releases; gated promote; not a hosted deploy)
+- [Migration](docs/migration.md) (opt-in `readyagents import`; Unreleased; structural translation only)
 - [Packaging](docs/packaging.md) (opt-in `readyagents package`; Unreleased; review-before-install; not a marketplace)
 - [Simulation](docs/simulation.md) (opt-in `readyagents simulate`; Unreleased; not exhaustive; not a hosted simulator)
 - [Self-healing](docs/self-healing.md) (opt-in `readyagents health` / `recovery:`; Unreleased; not prediction; not a hosted service)

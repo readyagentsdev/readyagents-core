@@ -30,6 +30,21 @@ readyagents run demo/workflow.yaml --approve gate
 
 Templates: `basic`, `approval`, `research` (parallel + approval), `pipeline` (default; calc/json/condition), `review` (read_file + approval), `foreach`, `agent-tools`, `gated`.
 
+## `readyagents import SOURCE PATH`
+
+Parse an operator-exported n8n, LangGraph, CrewAI, or trigger-action workflow
+and write a **new** ReadyAgents YAML plus a fidelity report. Structural
+translation only. See [migration.md](migration.md).
+
+```bash
+readyagents import n8n exported.json --out workflows/migrated --json
+readyagents import --explain n8n
+readyagents import langgraph graph.py --out workflows/lg --force
+```
+
+`--out` is workspace-confined. Overwrite requires `--force`. Python sources
+are AST-parsed, never imported. Secret values are not written.
+
 ## `readyagents validate PATH`
 
 Loads YAML/JSON and validates the Pydantic schema (unique node ids, dangling `next` / edges, cycles over `next` / `then` / `else` / `edges`, required fields per type, unique parallel branch ids). Does not call tools or LLMs. `--json` prints `{ok, command, name, start, nodes}` (or `{ok: false, command, error, message}` on failure). Failure `--json` also adds an additive `problems` array of `{loc, message, file, line, column}` when positions are known. The table shows `then:` / `else:` routing, not only `next`. Human output still starts with `Invalid workflow PATH:` and, when a position is known, a caret excerpt of the offending line.
