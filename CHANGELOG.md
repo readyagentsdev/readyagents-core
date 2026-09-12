@@ -6,6 +6,20 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Conversational sessions.** A session is a durable object whose turns are
+  ordinary runs (`readyagents sessions list|show|close|replay|freeze`).
+  `type: converse` emits a message and parks with the proven pause/resume
+  machinery; a reply resumes with untrusted user input. Turn budget, max turns,
+  per-turn timeout, and session deadline stop with distinct typed reasons.
+  History compaction records what was dropped. Session memory (`session:<id>`)
+  clears on close unless promotion to a subject scope is declared.
+  Human handoff shows history as untrusted, attributed content. `readyagents
+  serve chat` is loopback-by-default, token-bound, with unguessable ids and
+  identical 404s for missing and unauthorised sessions. Barge-in marks partial
+  output superseded. Whole-session replay and multi-turn freeze feed `eval`.
+  Core has no audio/codec/SIP/WebRTC extra; voice is an optional pack contract.
+  Not a hosted chat product, no widget CDN, no unbounded conversations. See
+  [docs/conversational-sessions.md](docs/conversational-sessions.md).
 - **Governed browser use.** `type: browser` runs a **declared** action list
   (`navigate`, `read`, `click`, `type`, `select`, `wait_for`, `screenshot`,
   `download`, `extract`) against a navigation allowlist. The driver lives in

@@ -67,6 +67,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Optional [prompt optimization](docs/prompt-optimization.md) (`readyagents optimize`, `readyagents prompts`) — **Unreleased**; versioned prompts, offline reflective loop, gated promotion; not GEPA/DSPy parity; YAML that never optimizes is unchanged
 - Optional [feedback export](docs/feedback.md) (`readyagents feedback export|stats`) — **Unreleased**; consent-gated corrections as eval/sft/dpo; not fine-tuning; not a hosted dataset
 - Optional [governed browser use](docs/browser-use.md) (`type: browser`) — **Unreleased**; declared actions, allowlist, taint, offline replay; driver in an optional pack; no CAPTCHA solving; not a free-running browser agent
+- Optional [conversational sessions](docs/conversational-sessions.md) (`type: converse`, `readyagents sessions`, `serve chat`) — **Unreleased**; turns are durable runs; loopback chat; no audio in core; not a hosted chat product
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -208,6 +209,7 @@ flowchart LR
 - [Event triggers](docs/event-triggers.md) (opt-in `triggers:`; Unreleased; no listener in core; at-least-once plus idempotency)
 - [Agent Skills](docs/agent-skills.md) (opt-in `type: skill`; Unreleased; open format; not a marketplace)
 - [Governed browser use](docs/browser-use.md) (opt-in `type: browser`; Unreleased; declared actions; no CAPTCHA; optional pack)
+- [Conversational sessions](docs/conversational-sessions.md) (opt-in `type: converse`; Unreleased; loopback `serve chat`; no audio in core)
 - [Packaging](docs/packaging.md) (opt-in `readyagents package`; Unreleased; review-before-install; not a marketplace)
 - [Simulation](docs/simulation.md) (opt-in `readyagents simulate`; Unreleased; not exhaustive; not a hosted simulator)
 - [Self-healing](docs/self-healing.md) (opt-in `readyagents health` / `recovery:`; Unreleased; not prediction; not a hosted service)

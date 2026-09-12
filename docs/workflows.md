@@ -58,7 +58,7 @@ Many rows of one workflow: [scale.md](scale.md) (`readyagents batch`, opt-in, fo
 | Field | Meaning |
 | --- | --- |
 | `id` | Unique id |
-| `type` | `agent` \| `tool` \| `condition` \| `transform` \| `approval` \| `parallel` \| `include` \| `foreach` \| `a2a` \| `memory` \| `code` \| `team` \| `document` \| `transcribe` \| `ingest` \| `table` \| `classify` \| `wait` \| `skill` \| `browser` |
+| `type` | `agent` \| `tool` \| `condition` \| `transform` \| `approval` \| `parallel` \| `include` \| `foreach` \| `a2a` \| `memory` \| `code` \| `team` \| `document` \| `transcribe` \| `ingest` \| `table` \| `classify` \| `wait` \| `skill` \| `browser` \| `converse` |
 | `next` | Default successor if no edges |
 | `output_key` | Alias for templates (`{{brief}}` instead of `{{write}}`) |
 | `timeout_seconds` | Soft timeout |
@@ -344,6 +344,13 @@ edges:
 
 An edge without `when` is the default if no conditioned edge matches.
 
+## Converse
+
+Opt-in `type: converse` plus optional top-level `conversation:` bounds. A
+session is a chain of durable runs. Loopback `readyagents serve chat`. See
+[conversational-sessions.md](conversational-sessions.md). Not a hosted chat
+product; core has no audio.
+
 ## Browser
 
 Opt-in `type: browser` — declared actions, navigation allowlist, taint, and
@@ -397,3 +404,4 @@ readyagents runs replay <run_id>
 | `examples/eval/pass.yaml` | No | Keyless `readyagents eval` fixture suite |
 | `examples/connector_demo.yaml` | No | Local `--pack` connector (`examples/packs/connector_pack.py`) |
 | `examples/browser_statement.yaml` | No | `type: browser` stub pack (`examples/packs/browser_pack.py`) |
+| `examples/converse_order.yaml` | No | `type: converse` session fixture (`sessions start` / `reply`) |
