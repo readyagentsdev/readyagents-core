@@ -15,6 +15,7 @@ from typing import Any
 from readyagents.atomic import atomic_write_text
 from readyagents.errors import TrustError
 from readyagents.trust.digest import (
+    KIND_ADAPTER,
     KIND_INDEX,
     KIND_PACK,
     KIND_PACKAGE,
@@ -30,7 +31,15 @@ from readyagents.trust.digest import (
 SIG_VERSION = 1
 SIG_ALGORITHM = "ed25519"
 KIND_CHOICES = frozenset(
-    {KIND_WORKFLOW, KIND_PACK, KIND_SKILL, KIND_PACKAGE, KIND_INDEX, KIND_RELEASE}
+    {
+        KIND_WORKFLOW,
+        KIND_PACK,
+        KIND_SKILL,
+        KIND_PACKAGE,
+        KIND_INDEX,
+        KIND_RELEASE,
+        KIND_ADAPTER,
+    }
 )
 
 
@@ -41,6 +50,8 @@ def signature_path(path: Path | str) -> Path:
 
 def infer_kind(path: Path | str) -> str:
     file = Path(path)
+    if file.name == "adapter.json" or file.name.endswith(".adapter.json"):
+        return KIND_ADAPTER
     if file.suffix.lower() == ".py":
         return KIND_PACK
     if file.suffix.lower() == ".rapkg" or file.name.endswith(".rapkg"):
@@ -61,7 +72,7 @@ def digest_artifact(
     data: bytes | None = None,
     source: str | None = None,
 ) -> str:
-    if kind in {KIND_PACK, KIND_PACKAGE, KIND_INDEX, KIND_RELEASE}:
+    if kind in {KIND_PACK, KIND_PACKAGE, KIND_INDEX, KIND_RELEASE, KIND_ADAPTER}:
         payload = data if data is not None else Path(path).read_bytes()
         return digest_pack_bytes(payload)
     if kind == KIND_SKILL:

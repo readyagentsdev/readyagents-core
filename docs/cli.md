@@ -224,6 +224,23 @@ readyagents registry export agt_… --format annex-viii --out annex-viii-draft.j
 Export paths are workspace-confined; the filename must contain `draft`. Scan
 never executes a workflow or imports a pack.
 
+## `readyagents distill plan|dataset|train|evaluate|promote`
+
+Local one-node adapters from consented corrections. Core never trains. Not a
+quality claim beyond your fixtures. See [distillation.md](distillation.md).
+
+```bash
+readyagents distill plan --node classify --json
+readyagents distill dataset --node classify --out datasets/classify --yes --json
+readyagents distill train --dataset datasets/classify --base qwen-2.5-7b --json
+readyagents distill evaluate --adapter adp_… --against evals/classify.yaml --dataset datasets/classify --json
+readyagents distill promote --adapter adp_… --node classify --json
+readyagents models adapters list --json
+```
+
+Holdout is mandatory. Unsigned adapters refuse to load. Sovereign mode refuses
+hosted tune.
+
 ## `readyagents promote PATH --from SRC --to DST`
 
 Copy the source environment's current pin onto the target after declared

@@ -28,6 +28,7 @@ KIND_SKILL = "skill"
 KIND_PACKAGE = "package"
 KIND_INDEX = "package_index"
 KIND_RELEASE = "release"
+KIND_ADAPTER = "adapter"
 _MAX_INCLUDE_DEPTH = 8
 
 
