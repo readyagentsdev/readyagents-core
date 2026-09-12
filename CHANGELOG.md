@@ -6,6 +6,22 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Feedback loops.** An approver may `--edit` an output on a gate that
+  declares `feedback:` (optional rating scale and label taxonomy; undeclared
+  labels are refused). Original, structured diff, actor **role**, and reason
+  are linked to the decision on the run record; the audit event keeps the
+  normal approval shape. Guardrail rejections, contract repairs, refusals,
+  retries, and fallbacks are weak **implicit** signals, distinct from human
+  labels. `readyagents feedback export --format eval|sft|dpo` (eval default)
+  emits a dataset only from runs whose **recorded** data policy permits the
+  scope — consent is never a CLI flag; unconsented runs are excluded from
+  every format and counted. Redaction re-runs at export; a residual secret
+  excludes the whole record. Rows carry provenance and role, never reviewer
+  identity. Paths are confined, warned, and audited. Eval export round-trips
+  through `readyagents eval` offline. `feedback stats --by node|model|label|week`
+  reports rates with sample sizes and `significance: null`. Not fine-tuning,
+  not a hosted dataset, not a quality claim. Repos that never declare
+  `feedback:` are unchanged. See [docs/feedback.md](docs/feedback.md).
 - **Prompt optimization.** `readyagents optimize WORKFLOW --eval SUITE`
   runs a reflective loop: score with the existing eval harness (determinism,
   trajectory, usage ceilings — no LLM-as-judge in core), redact failing

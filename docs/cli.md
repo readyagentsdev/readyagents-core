@@ -174,6 +174,19 @@ readyagents prompts rollback flow.yaml --id draft
 
 Not a hosted optimizer and not a claim of GEPA/DSPy parity.
 
+## `readyagents feedback export|stats`
+
+Consent-gated correction export. Eval is the default format and round-trips
+through `readyagents eval`. Consent is recorded policy, not a flag. See
+[feedback.md](feedback.md).
+
+```bash
+readyagents feedback export --format eval --out datasets/out.yaml --yes --json
+readyagents feedback stats --by node --json
+```
+
+An export is production data in a portable file. Not a hosted dataset service.
+
 ## `readyagents health`
 
 Cluster failures by fingerprint over the existing run store. Rank by impact
