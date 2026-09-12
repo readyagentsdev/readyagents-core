@@ -106,6 +106,7 @@ def run_workflow_spec(
     merged = dict(workflow.input_defaults())
     if inputs:
         merged.update(inputs)
+    replies = ctx_kwargs.pop("converse_replies", None)
     ctx = ExecutionContext(
         workflow,
         tools or ToolRegistry(),
@@ -114,6 +115,8 @@ def run_workflow_spec(
         decisions=decisions,
         **ctx_kwargs,
     )
+    if replies:
+        ctx.converse_replies = {str(k): str(v) for k, v in dict(replies).items()}
     return run_workflow(workflow, merged, ctx)
 
 

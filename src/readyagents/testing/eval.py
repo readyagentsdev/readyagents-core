@@ -26,6 +26,7 @@ class EvalCase:
     workflow: Mapping[str, Any] | WorkflowSpec | Path | str
     inputs: dict[str, Any] = field(default_factory=dict)
     decisions: dict[str, str] = field(default_factory=dict)
+    converse_replies: dict[str, str] = field(default_factory=dict)
     expect_status: str = "succeeded"
     expect_outputs: dict[str, Any] | None = None
     expect_contains: dict[str, str] | None = None
@@ -122,6 +123,7 @@ def _case_from_mapping(raw: object, *, index: int, suite: Path) -> EvalCase:
         workflow=workflow,
         inputs=_mapping_field(raw, "inputs", name, default={}),
         decisions=_str_mapping_field(raw, "decisions", name, default={}),
+        converse_replies=_str_mapping_field(raw, "converse_replies", name, default={}),
         expect_status=expect_status.strip(),
         expect_outputs=_optional_mapping_field(raw, "expect_outputs", name),
         expect_contains=_optional_str_mapping_field(raw, "expect_contains", name),
@@ -423,6 +425,7 @@ def run_eval(
                     settings=settings,
                     persist=False,
                     decisions=case.decisions,
+                    converse_replies=case.converse_replies or None,
                     extra_tools=tools,
                     **extra,
                 )
@@ -433,6 +436,7 @@ def run_eval(
                     llm=llm,
                     tools=tools,
                     decisions=case.decisions,
+                    converse_replies=case.converse_replies or None,
                     dry_run=dry_run,
                 )
         except Exception as exc:  # noqa: BLE001

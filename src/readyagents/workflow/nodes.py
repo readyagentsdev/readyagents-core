@@ -202,6 +202,7 @@ class ExecutionContext:
         self.recovery_repairs = 0
         self.recovery_max_tokens: int | None = None
         self.browser_driver = None
+        self.converse_replies: dict[str, str] = {}
         self._persist_lock = threading.RLock()
         self._in_flight = 0
         self._in_flight_lock = threading.Lock()
@@ -302,6 +303,7 @@ class ExecutionContext:
         spawned.route_budgets = self.route_budgets
         spawned.run_store = getattr(self, "run_store", None)
         spawned.browser_driver = getattr(self, "browser_driver", None)
+        spawned.converse_replies = dict(getattr(self, "converse_replies", None) or {})
         return spawned
 
 
@@ -2099,6 +2101,7 @@ def _run_include(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
             state=state,
             pause=exc.pause,
             mode=exc.mode,
+            session_id=exc.session_id,
         ) from exc
     if nested.status == "paused":
         raise ApprovalRequired(

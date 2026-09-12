@@ -343,6 +343,7 @@ class ConverseRequired(ReadyAgentsError):
         state: object | None = None,
         pause: dict | None = None,
         mode: str = "user",
+        session_id: str | None = None,
     ) -> None:
         self.node_id = node_id
         self.run_id = run_id
@@ -351,9 +352,11 @@ class ConverseRequired(ReadyAgentsError):
         self.state = state
         self.pause = dict(pause or {})
         self.mode = mode
+        self.session_id = session_id
+        hint = session_id or run_id
         super().__init__(
             f"Converse at node '{node_id}' (run {run_id}). {say} "
-            f"Reply with: readyagents sessions reply {run_id}"
+            f"Reply with: readyagents sessions reply {hint}"
         )
 
 

@@ -130,7 +130,7 @@ def reply_session(
             session.pending_run_id,
             settings=settings,
             persist=persist,
-            decisions={session.pending_node: text},
+            converse_replies={session.pending_node: text},
             actor=actor,
             vote_signature_status=signature_status,
             **run_kwargs,
@@ -259,15 +259,15 @@ def freeze_session(
         target = dest / rel
         if not target.exists():
             target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
-        decisions: dict[str, str] = {}
+        replies: dict[str, str] = {}
         for turn in session.turns:
             if turn.role in {"user", "human_agent"} and turn.node_id:
-                decisions[turn.node_id] = turn.text
+                replies[turn.node_id] = turn.text
         cases.append(
             {
                 "name": f"session-{session.session_id[:8]}",
                 "workflow": rel,
-                "decisions": decisions,
+                "converse_replies": replies,
                 "expect_status": "paused" if session.status.startswith("awaiting") else "succeeded",
             }
         )

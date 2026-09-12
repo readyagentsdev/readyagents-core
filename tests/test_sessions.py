@@ -21,6 +21,7 @@ from readyagents.errors import (
 )
 from readyagents.memory.protocol import open_memory_store
 from readyagents.policy import Redactor
+from readyagents.run_store import open_run_store
 from readyagents.sessions.chat import make_chat_server
 from readyagents.sessions.model import hash_token
 from readyagents.sessions.redact import redact_chunks
@@ -78,10 +79,19 @@ def test_start_reply_resume_and_restart(tmp_path: Path, tmp_settings) -> None:
     store = SessionStore(settings=tmp_settings)
     loaded = store.get(first.session_id)
     assert loaded.pending_node == "greet"
+    paused = open_run_store(tmp_settings).get(first.pending_run_id).state
+    resume = str((paused.pending or {}).get("resume") or "")
+    assert first.session_id in resume
+    assert first.pending_run_id not in resume
     done = reply_session(first.session_id, "ORD-9", settings=tmp_settings)
     assert done.status == "closed"
     assert any(t.role == "user" and t.text == "ORD-9" for t in done.turns)
     assert any(t.run_id == first.pending_run_id for t in done.turns)
+    assert done.working["reply"]["text"] == "ORD-9"
+    assert done.working["summary"] == "got ORD-9"
+    stored = open_run_store(tmp_settings).get(first.pending_run_id).state
+    assert stored.output_keys["reply"]["text"] == "ORD-9"
+    assert stored.output_keys["summary"] == "got ORD-9"
 
 
 def test_lifecycle_expiry_close(tmp_path: Path, tmp_settings) -> None:
