@@ -15,8 +15,11 @@ All notable changes to ReadyAgents Core.
   and has no GPU extra. Evaluation is like-for-like with a **mandatory holdout**;
   unsigned adapters refuse to load; promotion is threshold-gated (parity,
   regression, latency, cost, canary) and optional approval, scoped to one node
-  with incumbent fallback and auto-demote on fixture-suite regression. Sovereign
-  mode refuses hosted tune. Ledger `distill_delta` records spend before/after.
+  with incumbent fallback and auto-demote on fixture-suite regression. A promoted
+  `adapter:` ref is served through the pack tuner (`Tuner.complete`); capability
+  checks do not abort fallback to the incumbent. Evaluate binds the candidate to
+  that provider. Sovereign mode refuses hosted tune. Ledger `distill_delta`
+  records spend before/after.
   No quality claim beyond the operator's fixtures; no benchmark/leaderboard.
   Byte-identical without a promoted adapter. See
   [docs/distillation.md](docs/distillation.md).

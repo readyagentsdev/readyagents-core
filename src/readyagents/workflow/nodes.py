@@ -795,7 +795,13 @@ def _complete_agent(
         )
         meter = getattr(ctx, "spend_meter", None)
         hint = _prompt_token_hint(messages)
-        if decision.policy and not ctx.offline:
+        adapter_ref = str(ref).startswith("adapter:")
+        if (
+            decision.policy
+            and not ctx.offline
+            and not adapter_ref
+            and decision.reason != "distill_adapter"
+        ):
             from readyagents.llm.capabilities import assert_capable
 
             assert_capable(
@@ -821,6 +827,12 @@ def _complete_agent(
                     get_provider(ref, offline=True)
                 provider = CassetteProvider(ctx.cassette, node_id=node.id)
                 model_id = model_id_for(ref)
+            elif adapter_ref:
+                provider, model_id = get_provider(
+                    ref,
+                    implicit=False,
+                    secrets=ctx.secrets,
+                )
             elif ctx.llm is not None:
                 provider = ctx.llm
                 model_id = model_id_for(ref)
