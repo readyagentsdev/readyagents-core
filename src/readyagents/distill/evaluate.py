@@ -9,6 +9,7 @@ from typing import Any
 from readyagents.distill.canary import CANARY_PROMPT, CANARY_TOKEN, canary_pass
 from readyagents.distill.dataset import load_manifest
 from readyagents.distill.schema import EvalComparison, SideScore
+from readyagents.distill.store import bypass_promoted_pins
 from readyagents.errors import DistillHoldoutMissing, DistillRefused
 from readyagents.testing.eval import EvalCase, EvalReport, load_eval_suite, run_eval
 from readyagents.trust.digest import digest_bytes
@@ -31,10 +32,11 @@ def evaluate(
         raise DistillHoldoutMissing()
     fixture_digest = digest_bytes(Path(suite).read_bytes())
     cand_llm = _candidate_llm(candidate_llm, adapter=adapter, tuner=tuner, settings=settings)
-    inc = run_eval(cases, llm=incumbent_llm, settings=settings)
-    cand = run_eval(cases, llm=cand_llm, settings=settings)
-    inc_h = run_eval(holdout, llm=incumbent_llm, settings=settings)
-    cand_h = run_eval(holdout, llm=cand_llm, settings=settings)
+    with bypass_promoted_pins():
+        inc = run_eval(cases, llm=incumbent_llm, settings=settings)
+        cand = run_eval(cases, llm=cand_llm, settings=settings)
+        inc_h = run_eval(holdout, llm=incumbent_llm, settings=settings)
+        cand_h = run_eval(holdout, llm=cand_llm, settings=settings)
     regressions = [
         row.name
         for row, other in zip(inc.results, cand.results, strict=False)
