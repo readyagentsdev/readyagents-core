@@ -53,6 +53,11 @@ collect time. Old packs without `register_tool_seals` still load.
 
 `register_nodes()` values should expose `type_name` and `execute(node, state, context)`.
 
+`type: browser` is a core node. The **driver** (Playwright/Chromium/Selenium or
+the in-process stub) is an optional pack so core stays free of a browser
+engine. See [browser-use.md](browser-use.md). The example stub is
+`examples/packs/browser_pack.py`.
+
 ## Discovery
 
 Packs are loaded from the `readyagents.packs` [entry point](https://packaging.python.org/en/latest/specifications/entry-points/) group.

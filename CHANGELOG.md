@@ -6,6 +6,22 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Governed browser use.** `type: browser` runs a **declared** action list
+  (`navigate`, `read`, `click`, `type`, `select`, `wait_for`, `screenshot`,
+  `download`, `extract`) against a navigation allowlist. The driver lives in
+  an optional pack; core has no Playwright/Chromium/Selenium extra. Off-allowlist
+  navigations, followed links, redirects, and sub-resources are typed errors.
+  Redirects to private, loopback, or metadata addresses are refused. Page
+  content is taint-marked with its source URL so existing firewall rules apply.
+  Credentials are host-scoped, brokered per step, scrubbed, and absent from
+  records. Sessions are ephemeral by default; `persist` warns. Side-effecting
+  clicks (submit/purchase/delete/send) require a declared allowance or a human
+  approval that shows target and context as untrusted. Downloads are confined,
+  size-capped, and never executed. Action traces replay offline without launching
+  a browser. Distinct bound errors for wall-clock, pages, download size,
+  screenshot size, and memory. No CAPTCHA solving, no undetectability claim, no
+  scraping-at-scale, no personal-profile headful. See
+  [docs/browser-use.md](docs/browser-use.md).
 - **Feedback loops.** An approver may `--edit` an output on a gate that
   declares `feedback:` (optional rating scale and label taxonomy; undeclared
   labels are refused). Original, structured diff, actor **role**, and reason
