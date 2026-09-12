@@ -6,6 +6,17 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Migration importers.** `readyagents import SOURCE PATH` parses operator-exported
+  n8n JSON, LangGraph declarative Python (AST only), CrewAI YAML/Python (AST
+  only), or Zapier-shaped trigger-action JSON into a new ReadyAgents workflow
+  plus a fidelity report (`translated` / `approximated` / `unsupported`).
+  Mapping tables are data. Untranslatable nodes become failing `UNSUPPORTED`
+  stubs, never silent drops. Credentials are names only; secret values are
+  refused from output and redacted in the report. Parser bounds refuse
+  oversized, deep, and node-bomb inputs. `--explain` prints a table and writes
+  nothing. Post-import validate, dry-run, and graph. Structural translation
+  only — not behavioural equivalence, not round-trip export, not a source UI
+  scrape. See [docs/migration.md](docs/migration.md).
 - **Environments, pinned releases, and gated rollout.** Declared environments
   (`readyagents.env.yaml`) are configuration bundles — routing, budget, policy,
   secret *scope*, isolated run store — not servers. `env deploy` pins a

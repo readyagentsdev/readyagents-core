@@ -344,6 +344,12 @@ edges:
 
 An edge without `when` is the default if no conditioned edge matches.
 
+## Import
+
+Opt-in `readyagents import SOURCE PATH`. Structural translation of n8n,
+LangGraph, CrewAI, or trigger-action exports plus a fidelity report. Python is
+AST-only. Not behavioural equivalence. See [migration.md](migration.md).
+
 ## Environments
 
 Opt-in `readyagents.env.yaml`. `run --env NAME` executes a pinned release, not

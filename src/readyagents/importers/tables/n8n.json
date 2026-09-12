@@ -1,0 +1,117 @@
+{
+  "source": "n8n",
+  "schema_versions": ["1", "n8n"],
+  "entries": [
+    {
+      "kind": "n8n-nodes-base.set",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "Set/Assign becomes a transform; n8n item JSON is not the same as output_key",
+      "params": { "template": "set", "output_key": "set" }
+    },
+    {
+      "kind": "n8n-nodes-base.if",
+      "target": "condition",
+      "fidelity": "approximated",
+      "reason": "n8n IF combinators are not a ReadyAgents when: expression",
+      "structural": "branch",
+      "params": { "when": "true" }
+    },
+    {
+      "kind": "n8n-nodes-base.switch",
+      "target": "condition",
+      "fidelity": "approximated",
+      "reason": "Switch is a multi-way branch; ReadyAgents condition is binary then/else",
+      "structural": "branch",
+      "params": { "when": "true" }
+    },
+    {
+      "kind": "n8n-nodes-base.splitInBatches",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "Batch loops are not graph cycles; use foreach with a declared items list",
+      "structural": "loop",
+      "params": { "template": "batch-loop", "output_key": "batch" }
+    },
+    {
+      "kind": "n8n-nodes-base.merge",
+      "target": "parallel",
+      "fidelity": "approximated",
+      "reason": "n8n Merge join is not ReadyAgents parallel fan-out",
+      "structural": "parallel"
+    },
+    {
+      "kind": "n8n-nodes-base.executeWorkflow",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "Sub-workflow include needs a workspace path; not an n8n workflow id",
+      "structural": "subworkflow",
+      "params": { "template": "subworkflow", "output_key": "sub" }
+    },
+    {
+      "kind": "n8n-nodes-base.errorTrigger",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "n8n error workflows are not per-node error handlers",
+      "structural": "error",
+      "params": { "template": "error-handler", "output_key": "error" }
+    },
+    {
+      "kind": "n8n-nodes-base.manualTrigger",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "Manual trigger is implicit start, not a runtime node",
+      "params": { "template": "start", "output_key": "trigger" }
+    },
+    {
+      "kind": "n8n-nodes-base.webhook",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "Hosted webhook runtime is unsupported; emit a structural start",
+      "params": { "template": "webhook", "output_key": "trigger" }
+    },
+    {
+      "kind": "n8n-nodes-base.noOp",
+      "target": "transform",
+      "fidelity": "translated",
+      "reason": "NoOp is a passthrough transform",
+      "params": { "template": "ok", "output_key": "noop" }
+    },
+    {
+      "kind": "n8n-nodes-base.httpRequest",
+      "target": "tool",
+      "fidelity": "approximated",
+      "reason": "HTTP Request maps to http_get; method/body/auth differ",
+      "nearest": "tool http_get or the rest connector",
+      "params": { "tool": "http_get", "arguments": { "url": "https://example.invalid" } }
+    },
+    {
+      "kind": "n8n-nodes-base.function",
+      "target": null,
+      "fidelity": "unsupported",
+      "reason": "arbitrary JS is not executed",
+      "nearest": "type: code with a declared script, or a transform"
+    },
+    {
+      "kind": "n8n-nodes-base.slack",
+      "target": null,
+      "fidelity": "unsupported",
+      "reason": "no Slack runtime in core",
+      "nearest": "a message connector or webhook"
+    },
+    {
+      "kind": "n8n-nodes-base.formTrigger",
+      "target": "approval",
+      "fidelity": "approximated",
+      "reason": "Human form wait is not a ReadyAgents approval gate",
+      "structural": "human",
+      "params": { "prompt": "Imported human step" }
+    }
+  ],
+  "default": {
+    "target": null,
+    "fidelity": "unsupported",
+    "reason": "no mapping for this n8n node kind",
+    "nearest": "a connector, webhook, or type: code"
+  }
+}

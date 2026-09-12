@@ -331,6 +331,33 @@ class EnvGateApproval(EnvRefused):
         super().__init__(message, reason="approval")
 
 
+class ImporterError(ReadyAgentsError):
+    """Import / migration failure."""
+
+
+class ImportRefused(ImporterError):
+    """Typed refuse: bounds, secrets, overwrite, AST, unknown version."""
+
+    def __init__(self, message: str, *, reason: str = "refused") -> None:
+        self.reason = reason
+        super().__init__(message)
+
+
+class ImportBoundOversized(ImportRefused):
+    def __init__(self, message: str = "import source exceeds size bound") -> None:
+        super().__init__(message, reason="oversized")
+
+
+class ImportBoundDepth(ImportRefused):
+    def __init__(self, message: str = "import source exceeds nesting depth bound") -> None:
+        super().__init__(message, reason="depth")
+
+
+class ImportBoundNodes(ImportRefused):
+    def __init__(self, message: str = "import source exceeds node-count bound") -> None:
+        super().__init__(message, reason="nodes")
+
+
 class SessionError(ReadyAgentsError):
     """Conversational session failure."""
 

@@ -22,6 +22,7 @@ from readyagents.errors import (
     ConverseRequired,
     EnvRefused,
     IdentityError,
+    ImportRefused,
     MCPError,
     ReadyAgentsError,
     WaitingRequired,
@@ -276,6 +277,89 @@ def new_cmd(
         console.print(f"Run: [cyan]readyagents run {wf} --approve publish[/cyan]")
     else:
         console.print(f"Run: [cyan]readyagents run {wf} --approve gate[/cyan]")
+
+
+@app.command("import")
+def import_cmd(
+    source: str | None = typer.Argument(
+        None, help="n8n, langgraph, crewai, or trigger (Zapier-shaped JSON)."
+    ),
+    path: Path | None = typer.Argument(None, help="Operator-exported workflow file."),
+    explain: str | None = typer.Option(
+        None,
+        "--explain",
+        help="Print the mapping table for SOURCE and write nothing.",
+    ),
+    out: Path | None = typer.Option(None, "--out", help="Directory for workflow.yaml and report."),
+    report: Path | None = typer.Option(None, "--report", help="Fidelity report path."),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing workflow.yaml."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Import an exported workflow. Structural translation only — not equivalence."""
+    from readyagents.importers import explain_source, import_workflow
+
+    try:
+        if explain:
+            table = explain_source(explain)
+            rows = [
+                {
+                    "kind": item.kind,
+                    "target": item.target,
+                    "fidelity": item.fidelity,
+                    "reason": item.reason,
+                    "nearest": item.nearest,
+                }
+                for item in (*table.entries, table.default)
+            ]
+            if as_json:
+                _print_json(
+                    _json_envelope(
+                        "import explain",
+                        ok=True,
+                        source=table.source,
+                        schema_versions=list(table.schema_versions),
+                        entries=rows,
+                    )
+                )
+                return
+            console.print(f"{table.source} mapping table (structural translation only)")
+            for row in rows:
+                console.print(f"  {row['kind']} -> {row['target'] or 'stub'} ({row['fidelity']})")
+            return
+        if not source or not path:
+            raise ImportRefused(
+                "usage: readyagents import SOURCE PATH --out DIR",
+                reason="usage",
+            )
+        if out is None:
+            out = Path("imported") / source
+        result = import_workflow(source, path, out=out, report_path=report, force=force)
+    except ImportRefused as extra:
+        _emit_import_error("import", extra, as_json=as_json)
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope("import", ok=False, error=type(extra).__name__, message=str(extra))
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+    body = result.report.as_dict()
+    if as_json:
+        _print_json(
+            _json_envelope(
+                "import",
+                ok=True,
+                **body,
+                workflow=str(result.workflow_path),
+                report=str(result.report_path),
+                graph=str(result.graph_path),
+                dry_run_ok=result.dry_run_ok,
+            )
+        )
+        return
+    console.print(f"wrote {result.workflow_path}")
+    console.print(f"report {result.report_path} coverage={result.report.coverage}%")
+    console.print("structural translation only — test before use")
 
 
 @app.command()
@@ -6432,6 +6516,21 @@ def bench_compare_cmd(
                 console.print(f"[red]{line}[/red]")
     if not report.ok:
         raise typer.Exit(code=1)
+
+
+def _emit_import_error(command: str, extra: ImportRefused, *, as_json: bool) -> NoReturn:
+    if as_json:
+        _print_json(
+            _json_envelope(
+                command,
+                ok=False,
+                error=type(extra).__name__,
+                message=str(extra),
+                reason=extra.reason,
+            )
+        )
+        raise typer.Exit(code=1) from extra
+    _fail(extra)
 
 
 def _emit_env_error(command: str, extra: EnvRefused, *, as_json: bool) -> NoReturn:

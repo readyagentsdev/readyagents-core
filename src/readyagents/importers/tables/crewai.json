@@ -1,0 +1,72 @@
+{
+  "source": "crewai",
+  "schema_versions": ["1"],
+  "entries": [
+    {
+      "kind": "agent",
+      "target": "agent",
+      "fidelity": "approximated",
+      "reason": "CrewAI Agent role/goal become an agent prompt; tools/memory/llm are not ported",
+      "params": { "prompt": "Imported agent", "output_key": "agent" }
+    },
+    {
+      "kind": "task",
+      "target": "agent",
+      "fidelity": "approximated",
+      "reason": "A CrewAI Task is not a ReadyAgents node type; mapped to agent with the task description",
+      "params": { "prompt": "Imported task", "output_key": "task" }
+    },
+    {
+      "kind": "crew.sequential",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "Sequential process is node next-links, not a Crew runtime",
+      "params": { "template": "sequential", "output_key": "crew" }
+    },
+    {
+      "kind": "crew.hierarchical",
+      "target": "parallel",
+      "fidelity": "approximated",
+      "reason": "Hierarchical/async crews are not ReadyAgents parallel",
+      "structural": "parallel"
+    },
+    {
+      "kind": "loop",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "Crew kickoff loops are not foreach",
+      "structural": "loop",
+      "params": { "template": "loop", "output_key": "loop" }
+    },
+    {
+      "kind": "delegate",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "Task delegation is not include/sub-workflow",
+      "structural": "subworkflow",
+      "params": { "template": "delegate", "output_key": "sub" }
+    },
+    {
+      "kind": "guardrail",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "Crew guardrails are not error handlers",
+      "structural": "error",
+      "params": { "template": "guardrail", "output_key": "error" }
+    },
+    {
+      "kind": "human",
+      "target": "approval",
+      "fidelity": "approximated",
+      "reason": "human_input is not a ReadyAgents approval gate",
+      "structural": "human",
+      "params": { "prompt": "Imported human input" }
+    }
+  ],
+  "default": {
+    "target": null,
+    "fidelity": "unsupported",
+    "reason": "no mapping for this CrewAI construct",
+    "nearest": "type: agent or a transform"
+  }
+}
