@@ -325,6 +325,100 @@
       "title": "ContractSpec",
       "type": "object"
     },
+    "ConversationSpec": {
+      "additionalProperties": false,
+      "description": "Optional session bounds for workflows that use type: converse.",
+      "properties": {
+        "budget": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BudgetSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Conversation-wide token/cost budget."
+        },
+        "compaction": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "History compaction: {max_turns} records dropped turns.",
+          "title": "Compaction"
+        },
+        "deadline": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Session deadline duration (24h).",
+          "title": "Deadline"
+        },
+        "max_turns": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Hard cap on session turns.",
+          "title": "Max Turns"
+        },
+        "memory": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Session memory. promote: subject:… is the only way to keep it.",
+          "title": "Memory"
+        },
+        "on_expire": {
+          "default": "close",
+          "description": "close, fail, or handoff.",
+          "title": "On Expire",
+          "type": "string"
+        },
+        "turn_timeout": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Per-turn pause timeout (30s, 5m).",
+          "title": "Turn Timeout"
+        }
+      },
+      "title": "ConversationSpec",
+      "type": "object"
+    },
     "EdgeSpec": {
       "additionalProperties": false,
       "description": "Optional explicit edge between two nodes.",
@@ -2913,6 +3007,114 @@
             ],
             "type": "object"
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "converse"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "expect": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional JSON Schema for a converse reply payload.",
+                "title": "Expect"
+              },
+              "history": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "converse handoff history: full_history (default for human_agent).",
+                "title": "History"
+              },
+              "mode": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "converse mode: user (default) or human_agent.",
+                "title": "Mode"
+              },
+              "next": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Default successor node id.",
+                "title": "Next"
+              },
+              "roles": {
+                "description": "human_agent converse: roles that may take the conversation.",
+                "items": {
+                  "type": "string"
+                },
+                "title": "Roles",
+                "type": "array"
+              },
+              "say": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Message emitted by type: converse before parking for a reply.",
+                "title": "Say"
+              },
+              "then": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Successor node id when the condition/approval is true.",
+                "title": "Then"
+              }
+            },
+            "required": [
+              "say"
+            ],
+            "type": "object"
+          }
         }
       ],
       "description": "One node in the workflow graph.",
@@ -3031,14 +3233,15 @@
                 "classify",
                 "wait",
                 "skill",
-                "browser"
+                "browser",
+                "converse"
               ]
             },
             {
               "type": "string"
             }
           ],
-          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory, code, team, document, transcribe, ingest, table, classify, wait, skill, browser. Packs may add additional types.",
+          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory, code, team, document, transcribe, ingest, table, classify, wait, skill, browser, converse. Packs may add additional types.",
           "title": "Type"
         }
       },
@@ -3705,6 +3908,18 @@
       ],
       "default": null,
       "description": "Process-local LLM circuit breaker."
+    },
+    "conversation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ConversationSpec"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional session bounds for type: converse. Omitted: one-shot unchanged."
     },
     "default_model": {
       "anyOf": [

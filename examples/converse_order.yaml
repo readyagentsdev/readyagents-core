@@ -1,0 +1,21 @@
+name: converse-order
+description: Keyless converse fixture. Not a live chat product.
+conversation:
+  max_turns: 8
+  deadline: 24h
+  on_expire: close
+  compaction: {max_turns: 6}
+nodes:
+  - id: greet
+    type: converse
+    say: "Hi — what's the order number?"
+    expect:
+      type: object
+      properties:
+        order_id: {type: string}
+    output_key: reply
+    next: confirm
+  - id: confirm
+    type: transform
+    template: "got {{reply.text}}"
+    output_key: summary

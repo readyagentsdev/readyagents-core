@@ -294,6 +294,69 @@ class FeedbackRefused(FeedbackError):
         super().__init__(message)
 
 
+class SessionError(ReadyAgentsError):
+    """Conversational session failure."""
+
+
+class SessionRefused(SessionError):
+    """Bounds, expiry, auth, or undeclared promotion."""
+
+    def __init__(self, message: str, *, reason: str = "refused") -> None:
+        self.reason = reason
+        super().__init__(message)
+
+
+class SessionBoundTurns(SessionRefused):
+    def __init__(self, message: str = "session max turns exceeded") -> None:
+        super().__init__(message, reason="max_turns")
+
+
+class SessionBoundBudget(SessionRefused):
+    def __init__(self, message: str = "session budget exceeded") -> None:
+        super().__init__(message, reason="budget")
+
+
+class SessionBoundTimeout(SessionRefused):
+    def __init__(self, message: str = "session turn timeout exceeded") -> None:
+        super().__init__(message, reason="timeout")
+
+
+class SessionBoundDeadline(SessionRefused):
+    def __init__(self, message: str = "session deadline exceeded") -> None:
+        super().__init__(message, reason="deadline")
+
+
+class SessionExpired(SessionRefused):
+    def __init__(self, message: str = "session expired") -> None:
+        super().__init__(message, reason="expired")
+
+
+class ConverseRequired(ReadyAgentsError):
+    """A converse node is waiting for a user or human-agent reply."""
+
+    def __init__(
+        self,
+        node_id: str,
+        run_id: str,
+        say: str,
+        *,
+        state: object | None = None,
+        pause: dict | None = None,
+        mode: str = "user",
+    ) -> None:
+        self.node_id = node_id
+        self.run_id = run_id
+        self.say = say
+        self.prompt = say
+        self.state = state
+        self.pause = dict(pause or {})
+        self.mode = mode
+        super().__init__(
+            f"Converse at node '{node_id}' (run {run_id}). {say} "
+            f"Reply with: readyagents sessions reply {run_id}"
+        )
+
+
 class BrowserError(ReadyAgentsError):
     """Governed browser node failure."""
 

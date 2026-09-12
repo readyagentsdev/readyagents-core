@@ -67,6 +67,8 @@ def classify_node_type(node_type: str) -> str:
         return "recomputed"
     if kind == "approval":
         return "recomputed"
+    if kind == "converse":
+        return "recomputed"
     if kind == "tool":
         return "unsealable"
     if kind == "agent":

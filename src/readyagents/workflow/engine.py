@@ -13,6 +13,7 @@ from readyagents.errors import (
     CapabilityError,
     CassetteMiss,
     CircuitOpen,
+    ConverseRequired,
     PolicyDenied,
     ReadyAgentsError,
     RouteBudgetExceeded,
@@ -142,6 +143,8 @@ def run_workflow(
                 raise
             except ApprovalRequired:
                 raise
+            except ConverseRequired:
+                raise
             except WaitingRequired:
                 raise
             except CassetteMiss:
@@ -239,6 +242,44 @@ def run_workflow(
             status="paused",
         )
         raise
+    except ConverseRequired as exc:
+        state.pending_node = current
+        paused = nodes.get(current) if current else None
+        state.pending = {
+            "node_id": exc.node_id,
+            "type": "converse",
+            "say": exc.say,
+            "mode": exc.mode,
+            "prompt": exc.prompt,
+            "then": getattr(paused, "then", None),
+            "next": getattr(paused, "next", None),
+            "resume": f"readyagents sessions reply {exc.run_id}",
+        }
+        extra = getattr(exc, "pause", None)
+        if isinstance(extra, dict):
+            for key, value in extra.items():
+                if key in {"node_id", "type"}:
+                    continue
+                state.pending[key] = value
+        state.finish("paused")
+        _persist(ctx, state)
+        exc.state = state
+        if ctx.auditor is not None:
+            ctx.auditor(
+                "paused",
+                run_id=state.run_id,
+                node_id=exc.node_id,
+                actor=ctx.actor,
+            )
+        _observe(
+            ctx,
+            "run.paused",
+            state,
+            node_id=exc.node_id,
+            node_type="converse",
+            status="paused",
+        )
+        raise
     except WaitingRequired as parked:
         state.pending_node = parked.node_id
         if parked.state is not None and getattr(parked.state, "pending", None):
@@ -330,7 +371,7 @@ def _resume_cursor(workflow: WorkflowSpec, state: RunState) -> tuple[str | None,
     preserved = None
     if (
         isinstance(state.pending, dict)
-        and state.pending.get("type") in {"approval", "wait"}
+        and state.pending.get("type") in {"approval", "wait", "converse"}
         and current
         and state.pending.get("node_id") == current
     ):

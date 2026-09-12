@@ -65,6 +65,7 @@ def test_m4_outbound_copies_exist() -> None:
 # The approval UI is the same class of door: explicit `approvals serve`, stdlib
 # HTTP, loopback only, stops when the foreground command stops.
 # A2A serve is the same class: explicit `a2a serve`, stops when the process stops.
+# Chat serve is the same class: explicit `serve chat`, loopback default, foreground.
 _ALLOWED_RUNTIME = {
     ("src/readyagents/mcp/http.py", "uvicorn"),
     ("src/readyagents/a2a/server.py", "uvicorn"),
@@ -74,6 +75,9 @@ _ALLOWED_RUNTIME = {
     ("src/readyagents/studio/server.py", "HTTPServer"),
     ("src/readyagents/studio/server.py", "BaseHTTPRequestHandler"),
     ("src/readyagents/studio/server.py", "ThreadingHTTPServer"),
+    ("src/readyagents/sessions/chat.py", "HTTPServer"),
+    ("src/readyagents/sessions/chat.py", "BaseHTTPRequestHandler"),
+    ("src/readyagents/sessions/chat.py", "ThreadingHTTPServer"),
 }
 
 

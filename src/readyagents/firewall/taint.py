@@ -258,6 +258,11 @@ def note_node_output(state: RunState, node: Any, output: Any) -> None:
         prov = untrusted(source="event", node_id=node_id)
     elif kind == "skill":
         prov = untrusted(source="skill", node_id=node_id)
+    elif kind == "converse":
+        source = "user"
+        if isinstance(output, dict) and output.get("role") == "human_agent":
+            source = "human_agent"
+        prov = untrusted(source=source, node_id=node_id)
     elif kind == "browser":
         url = "browser"
         if isinstance(output, dict):

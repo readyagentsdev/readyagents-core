@@ -8,7 +8,7 @@ from fnmatch import fnmatch
 
 from readyagents.errors import MemoryScopeError
 
-SCOPE_KINDS = ("workflow", "ns", "subject")
+SCOPE_KINDS = ("workflow", "ns", "subject", "session")
 _VALUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
@@ -32,7 +32,9 @@ def parse_scope(raw: str) -> tuple[str, str]:
     kind = kind.strip().lower()
     value = value.strip()
     if kind not in SCOPE_KINDS:
-        raise MemoryScopeError(f"memory scope kind must be workflow, ns, or subject, not {kind!r}")
+        raise MemoryScopeError(
+            f"memory scope kind must be workflow, ns, subject, or session, not {kind!r}"
+        )
     if not _VALUE.fullmatch(value):
         raise MemoryScopeError("memory scope value is not a safe token")
     return kind, value
@@ -76,7 +78,7 @@ def _assert_declared_pattern(pattern: str) -> None:
         raise MemoryScopeError("memory scope_pattern must be kind:value")
     kind, _rest = text.split(":", 1)
     if kind.strip().lower() not in SCOPE_KINDS:
-        raise MemoryScopeError("memory scope_pattern kind is not workflow, ns, or subject")
+        raise MemoryScopeError("memory scope_pattern kind is not workflow, ns, subject, or session")
 
 
 def subject_scope(subject: str) -> str:
