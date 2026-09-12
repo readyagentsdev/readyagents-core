@@ -344,6 +344,13 @@ edges:
 
 An edge without `when` is the default if no conditioned edge matches.
 
+## Environments
+
+Opt-in `readyagents.env.yaml`. `run --env NAME` executes a pinned release, not
+the working copy. Promote, canary, shadow, and rollback are local pointer
+moves gated on eval/fixtures/bench/health/approval. See
+[environments.md](environments.md). Not a hosted deploy.
+
 ## Converse
 
 Opt-in `type: converse` plus optional top-level `conversation:` bounds. A

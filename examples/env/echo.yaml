@@ -1,0 +1,11 @@
+name: env_echo
+description: >
+  Keyless transform used with examples/env/readyagents.env.yaml.
+  Copy the env file to the workspace root as readyagents.env.yaml, then:
+  readyagents env deploy examples/env/echo.yaml --env dev --json
+  readyagents run examples/env/echo.yaml --env dev --json --no-persist
+nodes:
+  - id: t
+    type: transform
+    template: "env-echo ok"
+    output_key: out

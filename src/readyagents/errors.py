@@ -294,6 +294,43 @@ class FeedbackRefused(FeedbackError):
         super().__init__(message)
 
 
+class EnvError(ReadyAgentsError):
+    """Environment, release, promotion, or rollback failure."""
+
+
+class EnvRefused(EnvError):
+    """Typed refuse: secrets in config, undeployed env, tamper, or gate."""
+
+    def __init__(self, message: str, *, reason: str = "refused") -> None:
+        self.reason = reason
+        super().__init__(message)
+
+
+class EnvGateEval(EnvRefused):
+    def __init__(self, message: str = "promotion eval gate failed") -> None:
+        super().__init__(message, reason="eval")
+
+
+class EnvGateFixtures(EnvRefused):
+    def __init__(self, message: str = "promotion fixture regression") -> None:
+        super().__init__(message, reason="fixtures")
+
+
+class EnvGateBenchmark(EnvRefused):
+    def __init__(self, message: str = "promotion benchmark gate failed") -> None:
+        super().__init__(message, reason="benchmark")
+
+
+class EnvGateHealth(EnvRefused):
+    def __init__(self, message: str = "promotion health gate failed") -> None:
+        super().__init__(message, reason="health")
+
+
+class EnvGateApproval(EnvRefused):
+    def __init__(self, message: str = "promotion requires approval") -> None:
+        super().__init__(message, reason="approval")
+
+
 class SessionError(ReadyAgentsError):
     """Conversational session failure."""
 

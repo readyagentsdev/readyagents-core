@@ -109,6 +109,23 @@ def confine_under(raw: str | Path, root: Path, *, what: str) -> Path:
         raise ConfigError(str(extra)) from extra
 
 
+def _load_routing_overlay(path: Path) -> Any:
+    """Load an env routing YAML and return a RoutingSpec. Relative files only."""
+    from readyagents.workflow.schema import RoutingSpec
+
+    if not path.is_file():
+        raise ConfigError(f"Routing file not found: {path}")
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(raw, dict):
+        raise ConfigError("Routing overlay must be a mapping")
+    if "rules" not in raw and "pool" not in raw and isinstance(raw.get("routing"), dict):
+        raw = raw["routing"]
+    try:
+        return RoutingSpec.model_validate(raw)
+    except ValidationError as extra:
+        raise ConfigError(f"Invalid routing overlay {path}: {extra}") from extra
+
+
 def merge_inputs(workflow: WorkflowSpec, overrides: Mapping[str, Any] | None) -> dict[str, Any]:
     merged = dict(workflow.input_defaults())
     if overrides:
@@ -143,6 +160,7 @@ def run_workflow_file(
     offline: bool = False,
     cassette_path: Path | str | None = None,
     policy: Path | str | None = None,
+    routing: Path | str | None = None,
     max_spend: float | None = None,
     max_tokens_cap: int | None = None,
     labels: Mapping[str, str] | None = None,
@@ -175,6 +193,8 @@ def run_workflow_file(
     if workflow_text.startswith("\ufeff"):
         workflow_text = workflow_text[1:]
     workflow = load_workflow(source_file, source=workflow_text)
+    if routing is not None:
+        workflow.routing = _load_routing_overlay(Path(routing))
     if initial_state is not None and resume_state is not None:
         raise WorkflowError("initial_state and resume_state are mutually exclusive")
     merged_decisions: dict[str, str] = {}

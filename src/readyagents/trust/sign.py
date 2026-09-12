@@ -18,6 +18,7 @@ from readyagents.trust.digest import (
     KIND_INDEX,
     KIND_PACK,
     KIND_PACKAGE,
+    KIND_RELEASE,
     KIND_SKILL,
     KIND_WORKFLOW,
     canonical_dumps,
@@ -28,7 +29,9 @@ from readyagents.trust.digest import (
 
 SIG_VERSION = 1
 SIG_ALGORITHM = "ed25519"
-KIND_CHOICES = frozenset({KIND_WORKFLOW, KIND_PACK, KIND_SKILL, KIND_PACKAGE, KIND_INDEX})
+KIND_CHOICES = frozenset(
+    {KIND_WORKFLOW, KIND_PACK, KIND_SKILL, KIND_PACKAGE, KIND_INDEX, KIND_RELEASE}
+)
 
 
 def signature_path(path: Path | str) -> Path:
@@ -58,7 +61,7 @@ def digest_artifact(
     data: bytes | None = None,
     source: str | None = None,
 ) -> str:
-    if kind in {KIND_PACK, KIND_PACKAGE, KIND_INDEX}:
+    if kind in {KIND_PACK, KIND_PACKAGE, KIND_INDEX, KIND_RELEASE}:
         payload = data if data is not None else Path(path).read_bytes()
         return digest_pack_bytes(payload)
     if kind == KIND_SKILL:

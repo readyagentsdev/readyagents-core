@@ -68,6 +68,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Optional [feedback export](docs/feedback.md) (`readyagents feedback export|stats`) — **Unreleased**; consent-gated corrections as eval/sft/dpo; not fine-tuning; not a hosted dataset
 - Optional [governed browser use](docs/browser-use.md) (`type: browser`) — **Unreleased**; declared actions, allowlist, taint, offline replay; driver in an optional pack; no CAPTCHA solving; not a free-running browser agent
 - Optional [conversational sessions](docs/conversational-sessions.md) (`type: converse`, `readyagents sessions`, `serve chat`) — **Unreleased**; turns are durable runs; loopback chat; no audio in core; not a hosted chat product
+- Optional [environments and rollout](docs/environments.md) (`readyagents.env.yaml`, `run --env`, `promote`, `rollback`, `env status|history|diff`) — **Unreleased**; pinned signed releases, gated promote, canary/shadow, lazy rollback; not a hosted deploy
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -108,8 +109,11 @@ flowchart LR
 | `readyagents eval PATH` | Score a keyless fixture suite (exit 0/1) |
 | `readyagents optimize PATH --eval SUITE` | Reflective prompt optimization against your eval suite (**Unreleased**; not a hosted optimizer) |
 | `readyagents prompts list` / `show` / `history` / `diff` / `rollback` | Versioned prompts beside the workflow; rollback restores exactly |
+| `readyagents env status` / `history` / `diff` / `deploy` | Declared environments and pinned releases (**Unreleased**; not a hosted deploy) |
+| `readyagents promote PATH --from SRC --to DST` | Copy a source pin onto a target after eval/fixture/bench/health/approval gates |
+| `readyagents rollback --env NAME` | Restore the previous release atomically; never auto-forwards |
 | `readyagents feedback export` / `stats` | Consent-gated correction datasets (**Unreleased**; production data; not a hosted service) |
-| `readyagents run PATH [--input KEY=VALUE] [--dry-run] [--approve NODE] [--reject NODE] [--decision-file FILE] [--actor NAME] [--pack PATH] [--policy PATH] [--estimate] [--max-spend USD] [--max-tokens N] [--label KEY=VALUE] [--sovereign] [--stream]` | Execute (or `--estimate` without running). `--stream` is opt-in Unreleased |
+| `readyagents run PATH [--input KEY=VALUE] [--dry-run] [--approve NODE] [--reject NODE] [--decision-file FILE] [--actor NAME] [--pack PATH] [--policy PATH] [--estimate] [--max-spend USD] [--max-tokens N] [--label KEY=VALUE] [--sovereign] [--stream] [--env NAME]` | Execute (or `--estimate` without running). `--env` runs a pinned release. `--stream` is opt-in Unreleased |
 | `readyagents batch PATH --input-file FILE [--concurrency N] [--max-spend USD] [--out FILE]` | Foreground: one workflow, many JSONL/CSV rows (opt-in; Unreleased) |
 | `readyagents attest RUN_ID` | Data-residency attestation (technical evidence, not legal compliance) |
 | `readyagents bundle --out DIR` | Offline wheel set for `pip install --no-index --find-links` |
@@ -180,6 +184,7 @@ flowchart LR
 | `examples/connector_rest.yaml` | Keyless `rest` connector against a local fixture |
 | `examples/connector_demo.yaml` | Local `--pack` connector (`examples/packs/connector_pack.py`) |
 | `examples/gated_write.yaml` | Approval then `write_file` (no keys) |
+| `examples/env/echo.yaml` | Keyless env deploy + `run --env` (`examples/env/readyagents.env.yaml`) |
 
 ## Docs
 
@@ -210,6 +215,7 @@ flowchart LR
 - [Agent Skills](docs/agent-skills.md) (opt-in `type: skill`; Unreleased; open format; not a marketplace)
 - [Governed browser use](docs/browser-use.md) (opt-in `type: browser`; Unreleased; declared actions; no CAPTCHA; optional pack)
 - [Conversational sessions](docs/conversational-sessions.md) (opt-in `type: converse`; Unreleased; loopback `serve chat`; no audio in core)
+- [Environments and rollout](docs/environments.md) (opt-in `readyagents.env.yaml`; Unreleased; pinned releases; gated promote; not a hosted deploy)
 - [Packaging](docs/packaging.md) (opt-in `readyagents package`; Unreleased; review-before-install; not a marketplace)
 - [Simulation](docs/simulation.md) (opt-in `readyagents simulate`; Unreleased; not exhaustive; not a hosted simulator)
 - [Self-healing](docs/self-healing.md) (opt-in `readyagents health` / `recovery:`; Unreleased; not prediction; not a hosted service)

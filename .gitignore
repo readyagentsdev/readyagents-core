@@ -16,7 +16,7 @@ __pycache__/
 .Python
 .venv/
 venv/
-env/
+/env/
 dist/
 build/
 *.egg-info/

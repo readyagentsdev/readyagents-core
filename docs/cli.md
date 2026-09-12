@@ -174,6 +174,41 @@ readyagents prompts rollback flow.yaml --id draft
 
 Not a hosted optimizer and not a claim of GEPA/DSPy parity.
 
+## `readyagents env status|history|diff|deploy`
+
+Declared environments and pinned releases. Not a hosted deployment service.
+See [environments.md](environments.md).
+
+```bash
+readyagents env deploy flow.yaml --env staging --json
+readyagents env deploy flow.yaml --env prod --candidate
+readyagents env status --json
+readyagents env history --env prod --json
+readyagents env diff --env prod --from previous --to current --json
+readyagents run flow.yaml --env prod --json --no-persist
+```
+
+## `readyagents promote PATH --from SRC --to DST`
+
+Copy the source environment's current pin onto the target after declared
+gates (eval, fixtures, benchmark, health, complete-diff approval). Never
+re-pins the working copy. Never auto-promotes.
+
+```bash
+readyagents promote flow.yaml --from staging --to prod --approve promote --json
+```
+
+## `readyagents rollback --env NAME`
+
+Restore the previous release atomically. Clears the candidate. Never rolls
+forward. When the env declares approval roles, `--approve rollback` is
+required (same class as promote). Guards also fire on the next run — there is
+no watcher daemon.
+
+```bash
+readyagents rollback --env prod --approve rollback --reason manual --json
+```
+
 ## `readyagents feedback export|stats`
 
 Consent-gated correction export. Eval is the default format and round-trips
@@ -308,6 +343,7 @@ readyagents run examples/calc_pipeline.yaml --stream --json
 | `--max-wall-seconds N` | Runaway guard: maximum wall-clock seconds |
 | `--require-signed` | Refuse unsigned or untrusted workflow and pack artifacts. Opt-in. |
 | `--frozen` | Refuse to run when `readyagents.lock` digests do not match. |
+| `--env NAME` | Run the **pinned** release for a declared environment, not the working copy. Absent: today's working-copy path. See [environments.md](environments.md). |
 
 Signing proves origin, not safety. See [supply-chain.md](supply-chain.md).
 
