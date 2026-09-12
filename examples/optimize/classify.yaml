@@ -1,0 +1,11 @@
+name: classify
+description: "Keyless optimize fixture. Literal prompt; cassette or scripted LLM."
+required_inputs: [text]
+inputs:
+  text: "production is down"
+start: draft
+nodes:
+  - id: draft
+    type: agent
+    prompt: "Label the ticket: {{text}}"
+    output_key: label
