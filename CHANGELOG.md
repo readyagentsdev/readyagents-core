@@ -6,6 +6,20 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Local distillation.** `readyagents distill plan|dataset|train|evaluate|promote`
+  turns consented corrections into a one-node adapter. Plan verdicts include
+  `not_enough_data` and `task_too_broad`; cost/saving figures come from the
+  ledger or stay unnamed. Dataset build reuses recorded-policy consent, re-verifies
+  redaction, writes deterministic train/validation/**holdout** splits and a
+  reproducible hash. Core never trains (`DistillTrainMissing` without the pack)
+  and has no GPU extra. Evaluation is like-for-like with a **mandatory holdout**;
+  unsigned adapters refuse to load; promotion is threshold-gated (parity,
+  regression, latency, cost, canary) and optional approval, scoped to one node
+  with incumbent fallback and auto-demote on fixture-suite regression. Sovereign
+  mode refuses hosted tune. Ledger `distill_delta` records spend before/after.
+  No quality claim beyond the operator's fixtures; no benchmark/leaderboard.
+  Byte-identical without a promoted adapter. See
+  [docs/distillation.md](docs/distillation.md).
 - **Agent registry and fleet governance.** `readyagents registry scan` inventories
   workflows, packages, pinned releases, and pack files under **declared roots**
   only (workspace-confined; never uninvited). Stable `agt_` ids survive rename,
