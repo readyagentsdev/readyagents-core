@@ -295,6 +295,16 @@ def _finish(
     if rule_name:
         report["rule"] = rule_name
     _store_report(state, ctx, node.id, report)
+    _record_feedback_signal(
+        state,
+        ctx,
+        node,
+        action=action,
+        reason=shown_reason or reason,
+        refused=refused,
+        exhausted=exhausted,
+        report=report,
+    )
 
     if action == "redact_and_continue":
         redactor = getattr(ctx, "redactor", None) or Redactor()
@@ -406,3 +416,37 @@ def _record_cassette(ctx: Any, node_id: str, output: Any, report: dict[str, Any]
     if cassette is None or not getattr(ctx, "recording", False):
         return
     cassette.record_contract(node_id=node_id, output=output, report=report)
+
+
+def _record_feedback_signal(
+    state: Any,
+    ctx: Any,
+    node: Any,
+    *,
+    action: str,
+    reason: str,
+    refused: bool,
+    exhausted: bool,
+    report: dict[str, Any],
+) -> None:
+    from readyagents.feedback.capture import record_implicit
+
+    signal = None
+    if refused:
+        signal = "refusal"
+    elif report.get("repairs"):
+        signal = "contract_repair"
+    elif action == "fallback":
+        signal = "fallback"
+    elif action in {"fail", "gate"}:
+        signal = "guardrail_rejection"
+    if signal is None:
+        return
+    record_implicit(
+        state,
+        node=node,
+        signal=signal,
+        reason=str(reason or action),
+        original=report.get("rejected"),
+        model=str(getattr(ctx, "default_model", None) or ""),
+    )

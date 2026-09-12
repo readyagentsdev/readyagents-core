@@ -70,6 +70,7 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
         "reject_short_circuit",
         "recommendation",
         "notify",
+        "feedback",
     ),
     NodeType.parallel: ("branches",),
     NodeType.include: ("path", "inputs"),

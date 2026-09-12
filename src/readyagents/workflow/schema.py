@@ -147,6 +147,26 @@ class ContextSpec(BaseModel):
         return cleaned
 
 
+class FeedbackSpec(BaseModel):
+    """Optional correction capture on an approval gate. Omitted is byte-identical."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    allow_edit: bool = Field(default=False, description="Approver may edit the gated output.")
+    rating: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional rating scale, e.g. {scale: '1-5'}.",
+    )
+    labels: list[str] = Field(
+        default_factory=list,
+        description="Declared label taxonomy. Undeclared labels are refused.",
+    )
+    consent: str | None = Field(
+        default=None,
+        description="Recorded data-policy scope required to export this correction.",
+    )
+
+
 class RecoveryActionSpec(BaseModel):
     """One declared recovery response. Nothing is inferred."""
 
@@ -655,6 +675,10 @@ class NodeSpec(BaseModel):
     notify: list[ApprovalNotifySpec] = Field(
         default_factory=list,
         description="Opt-in file/command/webhook pause notifications.",
+    )
+    feedback: FeedbackSpec | None = Field(
+        default=None,
+        description="Optional correction capture. Omitted keeps approvals unchanged.",
     )
 
     # a2a (remote agent delegation)
