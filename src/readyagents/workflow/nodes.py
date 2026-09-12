@@ -14,6 +14,7 @@ from readyagents.errors import (
     A2AError,
     ApprovalRequired,
     AuthorizationError,
+    BrowserError,
     BudgetExceeded,
     CancellationRequested,
     CapabilityError,
@@ -198,6 +199,7 @@ class ExecutionContext:
         self.recovery_repair = False
         self.recovery_repairs = 0
         self.recovery_max_tokens: int | None = None
+        self.browser_driver = None
         self._persist_lock = threading.RLock()
         self._in_flight = 0
         self._in_flight_lock = threading.Lock()
@@ -297,6 +299,7 @@ class ExecutionContext:
         spawned.capability_matrix = self.capability_matrix
         spawned.route_budgets = self.route_budgets
         spawned.run_store = getattr(self, "run_store", None)
+        spawned.browser_driver = getattr(self, "browser_driver", None)
         return spawned
 
 
@@ -407,6 +410,10 @@ def _execute_node_body(node: NodeSpec, state: RunState, ctx: ExecutionContext) -
         from readyagents.skills.node import run_skill_node
 
         output = run_skill_node(node, state, ctx)
+    elif kind == NodeType.browser.value:
+        from readyagents.browser.node import run_browser_node
+
+        output = run_browser_node(node, state, ctx)
     else:
         known = ", ".join(t.value for t in NodeType)
         raise WorkflowError(
@@ -1600,6 +1607,8 @@ def execute_node_with_policy(
         except WaitError:
             raise
         except SkillError:
+            raise
+        except BrowserError:
             raise
         except ReadyAgentsError as exc:
             last_error = exc

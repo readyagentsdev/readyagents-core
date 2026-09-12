@@ -58,7 +58,7 @@ Many rows of one workflow: [scale.md](scale.md) (`readyagents batch`, opt-in, fo
 | Field | Meaning |
 | --- | --- |
 | `id` | Unique id |
-| `type` | `agent` \| `tool` \| `condition` \| `transform` \| `approval` \| `parallel` \| `include` \| `foreach` \| `a2a` \| `memory` \| `code` \| `team` \| `document` \| `transcribe` \| `ingest` |
+| `type` | `agent` \| `tool` \| `condition` \| `transform` \| `approval` \| `parallel` \| `include` \| `foreach` \| `a2a` \| `memory` \| `code` \| `team` \| `document` \| `transcribe` \| `ingest` \| `table` \| `classify` \| `wait` \| `skill` \| `browser` |
 | `next` | Default successor if no edges |
 | `output_key` | Alias for templates (`{{brief}}` instead of `{{write}}`) |
 | `timeout_seconds` | Soft timeout |
@@ -344,6 +344,23 @@ edges:
 
 An edge without `when` is the default if no conditioned edge matches.
 
+## Browser
+
+Opt-in `type: browser` — declared actions, navigation allowlist, taint, and
+offline replay. The driver is an optional pack; core has no browser engine.
+See [browser-use.md](browser-use.md). No CAPTCHA solving.
+
+```yaml
+- id: fetch_statement
+  type: browser
+  allow: ["https://bank.example.com/*"]
+  session: ephemeral
+  actions:
+    - navigate: "https://bank.example.com/statements"
+    - extract: {selector: "table.statements"}
+  output_key: statement
+```
+
 ## Run records
 
 Runs persist to `.readyagents/runs/<run_id>.json` **after each node** unless you pass `--no-persist`. Paused and failed runs store `pending_node` so `readyagents resume` continues from the last successful node.
@@ -379,3 +396,4 @@ readyagents runs replay <run_id>
 | `examples/list_dir.yaml` | No | Builtin `list_dir` (no MCP / no Node) |
 | `examples/eval/pass.yaml` | No | Keyless `readyagents eval` fixture suite |
 | `examples/connector_demo.yaml` | No | Local `--pack` connector (`examples/packs/connector_pack.py`) |
+| `examples/browser_statement.yaml` | No | `type: browser` stub pack (`examples/packs/browser_pack.py`) |

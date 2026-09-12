@@ -8,7 +8,7 @@ system prompt, decides whether a tool runs.
 ## What the firewall stops
 
 - A denied tool, even if the model emits a call for it.
-- Tainted data (tool/HTTP/file/MCP/A2A/memory/model-from-untrusted) reaching a tool that
+- Tainted data (tool/HTTP/file/MCP/A2A/memory/browser-page/model-from-untrusted) reaching a tool that
   policy marks `on_tainted: deny` or `gate`.
 - Hosts outside an egress allowlist (`http_get` and policy `allow_hosts`),
   layered on the existing public-IP SSRF pin.

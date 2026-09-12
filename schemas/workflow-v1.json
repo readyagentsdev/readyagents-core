@@ -2836,6 +2836,83 @@
             ],
             "type": "object"
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "browser"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "actions": {
+                "description": "Declared browser actions only: navigate, read, click, type, select, wait_for, screenshot, download, extract. Never model-synthesised.",
+                "items": {},
+                "title": "Actions",
+                "type": "array"
+              },
+              "allow": {
+                "description": "Browser navigation allowlist (hosts and path prefixes).",
+                "items": {
+                  "type": "string"
+                },
+                "title": "Allow",
+                "type": "array"
+              },
+              "credentials": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Browser credentials: {host, secrets}. Host-scoped, scrubbed after.",
+                "title": "Credentials"
+              },
+              "limits": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "code limits: cpu_seconds, memory_mb, wall_seconds, output_bytes, nproc.",
+                "title": "Limits"
+              },
+              "session": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Browser session: ephemeral (default) or persist (warns).",
+                "title": "Session"
+              }
+            },
+            "required": [
+              "allow",
+              "actions"
+            ],
+            "type": "object"
+          }
         }
       ],
       "description": "One node in the workflow graph.",
@@ -2953,14 +3030,15 @@
                 "table",
                 "classify",
                 "wait",
-                "skill"
+                "skill",
+                "browser"
               ]
             },
             {
               "type": "string"
             }
           ],
-          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory, code, team, document, transcribe, ingest, table, classify, wait, skill. Packs may add additional types.",
+          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory, code, team, document, transcribe, ingest, table, classify, wait, skill, browser. Packs may add additional types.",
           "title": "Type"
         }
       },

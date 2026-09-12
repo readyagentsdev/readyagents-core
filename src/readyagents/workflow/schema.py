@@ -50,6 +50,7 @@ class NodeType(StrEnum):
     classify = "classify"
     wait = "wait"
     skill = "skill"
+    browser = "browser"
 
 
 class RetrySpec(BaseModel):
@@ -474,7 +475,8 @@ class NodeSpec(BaseModel):
         description=(
             "Node kind. Built-ins: agent, tool, condition, transform, approval, "
             "parallel, include, foreach, a2a, memory, code, team, document, "
-            "transcribe, ingest, table, classify, wait. Packs may add types."
+            "transcribe, ingest, table, classify, wait, skill, browser. "
+            "Packs may add types."
         )
     )
     timeout_seconds: float | None = Field(
@@ -916,6 +918,25 @@ class NodeSpec(BaseModel):
         default=None,
         description="Optional skill-relative script path under scripts/.",
     )
+    allow: list[str] = Field(
+        default_factory=list,
+        description="Browser navigation allowlist (hosts and path prefixes).",
+    )
+    credentials: dict[str, Any] | None = Field(
+        default=None,
+        description="Browser credentials: {host, secrets}. Host-scoped, scrubbed after.",
+    )
+    session: str | None = Field(
+        default=None,
+        description="Browser session: ephemeral (default) or persist (warns).",
+    )
+    actions: list[Any] = Field(
+        default_factory=list,
+        description=(
+            "Declared browser actions only: navigate, read, click, type, select, "
+            "wait_for, screenshot, download, extract. Never model-synthesised."
+        ),
+    )
 
     @field_validator("for_file", mode="before")
     @classmethod
@@ -1012,6 +1033,15 @@ class NodeSpec(BaseModel):
             if not name:
                 raise ValueError(f"Node '{self.id}': skill nodes require 'skill'")
             self.skill = name
+        elif t == NodeType.browser.value:
+            if not self.actions:
+                raise ValueError(f"Node '{self.id}': browser nodes require 'actions'")
+            if not self.allow:
+                raise ValueError(f"Node '{self.id}': browser nodes require 'allow'")
+            sess = str(self.session or "ephemeral").strip().lower()
+            if sess not in {"ephemeral", "persist"}:
+                raise ValueError(f"Node '{self.id}': session must be ephemeral or persist")
+            self.session = sess
         elif self._hitl_declared():
             raise ValueError(
                 f"Node '{self.id}': quorum/expiry/delegation fields "

@@ -27,6 +27,7 @@ _DOCUMENT = "document"
 _TRANSCRIBE = "transcribe"
 _TABLE = "table"
 _MEDIA = "media"
+_BROWSER = "browser"
 
 DETERMINISTIC_TOOLS = frozenset({"calc", "json_get", "json_set", "json_merge"})
 SEALABLE_TOOLS = frozenset({"now", "http_get", "read_file", "list_dir"})
@@ -73,6 +74,8 @@ def classify_node_type(node_type: str) -> str:
     if kind == "code":
         return "sealed"
     if kind in {"document", "transcribe", "table"}:
+        return "sealed"
+    if kind == "browser":
         return "sealed"
     if kind == "classify":
         return "unsealable"
@@ -423,6 +426,63 @@ class Cassette:
         self.report.note(node_id, "sealed")
         return entry.get("output")
 
+    def record_browser(
+        self,
+        *,
+        node_id: str,
+        actions: list[Any] | None,
+        output: Any,
+    ) -> str:
+        digest = self.tool_digest("browser", {"node": node_id})
+        occ = self._record.get(f"{_BROWSER}:{digest}", 0)
+        self._record[f"{_BROWSER}:{digest}"] = occ + 1
+        key = entry_storage_key(_BROWSER, digest, occ)
+        entry = {
+            "kind": _BROWSER,
+            "node_id": node_id,
+            "occurrence": occ,
+            "digest": digest,
+            "actions": list(actions or []),
+            "output": output,
+            "sealed": True,
+        }
+        self.report.note(node_id, "sealed")
+        self._put(key, entry)
+        return key
+
+    def replay_browser(
+        self,
+        *,
+        node_id: str,
+        actions: list[Any] | None = None,
+    ) -> Any:
+        digest = self.tool_digest("browser", {"node": node_id})
+        occ = self._consume.get(f"{_BROWSER}:{digest}", 0)
+        key = entry_storage_key(_BROWSER, digest, occ)
+        entry = self.entries.get(key)
+        if entry is None and occ == 0:
+            entry = self.entries.get(f"{_BROWSER}:{digest}")
+        if entry is None:
+            nearest = self.nearest_key(_BROWSER, digest)
+            miss = {
+                "node_id": node_id,
+                "reason": "missing",
+                "nearest_key": nearest,
+                "digest": digest,
+            }
+            self.report.note(node_id, "miss", miss=miss)
+            raise CassetteMiss(
+                f"Cassette miss at browser node '{node_id}' "
+                f"(digest {digest[:12]}…, nearest {nearest or 'none'}). "
+                "Offline replay never launches a browser.",
+                node_id=node_id,
+                reason="missing",
+                nearest_key=nearest,
+            )
+        self._consume[f"{_BROWSER}:{digest}"] = occ + 1
+        self.report.note(node_id, "sealed")
+        return entry.get("output")
+
     def replay_code(
         self,
         *,
@@ -718,6 +778,7 @@ class Cassette:
                 _TRANSCRIBE,
                 _TABLE,
                 _MEDIA,
+                _BROWSER,
             }:
                 raise CassetteError(f"Cassette {file} entry {key!r} has invalid kind")
             tape.entries[key] = dict(row)
