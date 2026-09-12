@@ -32,8 +32,9 @@ def test_secret_not_written_and_redacted(tmp_path: Path, tmp_settings) -> None:
     result = import_workflow("n8n", src, out=tmp_path / "out", settings=tmp_settings)
     yaml_text = result.workflow_path.read_text(encoding="utf-8")
     report = result.report_path.read_text(encoding="utf-8")
-    assert secret not in yaml_text
-    assert secret not in report
+    blob = yaml_text + report + json.dumps(result.workflow)
+    for token in (secret, secret.replace("-", "_"), secret.replace("_", "-")):
+        assert token not in blob
     assert "***REDACTED***" in report or "secret" in " ".join(result.report.warnings).lower()
     assert result.report.warnings
     assert "export file itself is a secret" in " ".join(result.report.warnings)
@@ -110,3 +111,44 @@ def test_out_path_confined(tmp_path: Path, tmp_settings) -> None:
     outside = tmp_path.parent / "escape-import"
     with pytest.raises(ConfigError):
         import_workflow("n8n", src, out=outside, settings=tmp_settings)
+
+
+def test_crewai_yaml_with_agent_substring_stays_yaml(tmp_path: Path, tmp_settings) -> None:
+    text = (
+        "name: research\n"
+        "version: 1\n"
+        "agents:\n"
+        "  writer:\n"
+        "    role: Writer\n"
+        "tasks:\n"
+        "  draft:\n"
+        "    description: Write Agent(s) summary\n"
+        "    agent: writer\n"
+    )
+    graph = parse_crewai(text, filename="crew.yaml")
+    assert any(n.kind == "task" for n in graph.nodes)
+    src = tmp_path / "crew.yaml"
+    src.write_text(text, encoding="utf-8")
+    result = import_workflow("crewai", src, out=tmp_path / "out", settings=tmp_settings)
+    assert result.dry_run_ok is True
+    assert "Write Agent(s) summary" in result.workflow_path.read_text(encoding="utf-8")
+
+
+def test_secret_shaped_node_id_is_redacted(tmp_path: Path, tmp_settings) -> None:
+    secret = "sk-abcdefghijklmnop"
+    src = (
+        "from langgraph.graph import StateGraph, START, END\n"
+        "g = StateGraph(dict)\n"
+        "g.add_node('greet', lambda s: s)\n"
+        f"g.add_node('{secret}', lambda s: s)\n"
+        "g.add_edge(START, 'greet')\n"
+    )
+    path = tmp_path / "g.py"
+    path.write_text(src, encoding="utf-8")
+    result = import_workflow("langgraph", path, out=tmp_path / "out", settings=tmp_settings)
+    yaml_text = result.workflow_path.read_text(encoding="utf-8")
+    report = result.report_path.read_text(encoding="utf-8")
+    blob = yaml_text + report + json.dumps(result.workflow) + json.dumps(result.report.as_dict())
+    for token in (secret, secret.replace("-", "_"), secret.replace("_", "-")):
+        assert token not in blob
+        assert token.lower() not in blob.lower() or token not in blob

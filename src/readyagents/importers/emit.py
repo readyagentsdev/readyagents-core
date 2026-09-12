@@ -7,6 +7,7 @@ from typing import Any
 from readyagents.importers.ir import IntermediateGraph, IntermediateNode
 from readyagents.importers.report import FidelityReport, NodeReport
 from readyagents.importers.secrets import redact_text, strip_secrets
+from readyagents.importers.slug import secret_shaped, slug
 from readyagents.importers.table import MappingEntry, MappingTable
 
 _STUB = (
@@ -20,6 +21,7 @@ def emit(graph: IntermediateGraph, table: MappingTable) -> tuple[dict[str, Any],
     """Build a workflow mapping and a report. Never silent-drops a source node."""
     name = redact_text(graph.name or "imported")
     report = FidelityReport(source=graph.source, name=name, warnings=list(graph.warnings))
+    _redact_ids(graph)
     outgoing: dict[str, list[tuple[str, str]]] = {}
     for edge in graph.edges:
         outgoing.setdefault(edge.source, []).append((edge.kind, edge.target))
@@ -108,17 +110,22 @@ def _emit_node(
     else_ = _first(edges, "else")
     nxt = _first(edges, "next") or _first(edges, "error")
     if status == "unsupported" or not entry.target:
+        title = redact_text(item.title)
+        message = _STUB.format(
+            source=source,
+            title=title,
+            kind=item.kind,
+            reason=entry.reason,
+            nearest=entry.nearest or "a connector, webhook, or type: code",
+        )
+        # calc rejects this text, so run/dry-run fail at the stub instead of succeeding.
+        fail_expr = f"UNSUPPORTED {title} ({item.kind})"[:200]
         node: dict[str, Any] = {
             "id": item.id,
-            "type": "transform",
-            "template": _STUB.format(
-                source=source,
-                title=redact_text(item.title),
-                kind=item.kind,
-                reason=entry.reason,
-                nearest=entry.nearest or "a connector, webhook, or type: code",
-            ),
-            "output_key": f"{item.id}_unsupported",
+            "type": "tool",
+            "tool": "calc",
+            "arguments": {"expression": fail_expr},
+            "description": message,
         }
         if nxt:
             node["next"] = nxt
@@ -191,6 +198,30 @@ def _emit_node(
     if then and entry.target != "condition":
         node.setdefault("next", then)
     return node
+
+
+def _redact_ids(graph: IntermediateGraph) -> None:
+    mapping: dict[str, str] = {}
+    used: set[str] = set()
+    for item in graph.nodes:
+        new_id = item.id
+        if secret_shaped(item.id) or secret_shaped(item.title):
+            new_id = slug(item.title or item.id, prefix="n")
+        if secret_shaped(new_id):
+            new_id = "n_redacted"
+        base = new_id
+        index = 2
+        while new_id in used:
+            new_id = f"{base}_{index}"
+            index += 1
+        used.add(new_id)
+        mapping[item.id] = new_id
+        item.id = new_id
+    for edge in graph.edges:
+        edge.source = mapping.get(edge.source, edge.source)
+        edge.target = mapping.get(edge.target, edge.target)
+    if graph.start:
+        graph.start = mapping.get(graph.start, graph.start)
 
 
 def _first(edges: list[tuple[str, str]], kind: str) -> str | None:

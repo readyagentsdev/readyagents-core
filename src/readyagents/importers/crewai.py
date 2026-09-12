@@ -18,16 +18,21 @@ from readyagents.importers.slug import slug
 
 def parse_crewai(text: str, *, filename: str = "crew.yaml") -> IntermediateGraph:
     check_size(text)
+    name = str(filename or "").lower()
     stripped = text.lstrip()
-    if stripped.startswith("{") or "<" in filename and filename.endswith(".json"):
+    if name.endswith(".json") or stripped.startswith("{"):
         raise ImportRefused("CrewAI importer expects YAML or Python, not JSON", reason="malformed")
-    if filename.endswith(".py") or _looks_python(stripped):
+    # Honor the file suffix. Do not sniff Agent( — that string appears in YAML copy.
+    if name.endswith((".yaml", ".yml")):
+        return _parse_yaml(text)
+    if name.endswith(".py") or _looks_python(stripped):
         return _parse_python(text, filename=filename)
     return _parse_yaml(text)
 
 
 def _looks_python(text: str) -> bool:
-    return text.startswith("from ") or text.startswith("import ") or "Agent(" in text
+    first = text.lstrip()
+    return first.startswith("from ") or first.startswith("import ")
 
 
 def _parse_yaml(text: str) -> IntermediateGraph:

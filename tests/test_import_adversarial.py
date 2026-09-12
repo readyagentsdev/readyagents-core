@@ -284,10 +284,9 @@ def test_langgraph_string_constant_secret_not_copied(tmp_path: Path, tmp_setting
     result = import_workflow("langgraph", path, out=tmp_path / "out", settings=tmp_settings)
     yaml_text = result.workflow_path.read_text(encoding="utf-8")
     report = result.report_path.read_text(encoding="utf-8")
-    assert _SECRET not in yaml_text
-    assert _SECRET not in report
-    assert _SECRET not in json.dumps(result.workflow)
-    assert _SECRET not in json.dumps(result.report.as_dict())
+    blob = yaml_text + report + json.dumps(result.workflow) + json.dumps(result.report.as_dict())
+    for token in (_SECRET, _SECRET.replace("-", "_"), _SECRET.replace("_", "-")):
+        assert token not in blob
     assert "export file itself is a secret" in " ".join(result.report.warnings)
 
 
