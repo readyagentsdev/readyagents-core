@@ -282,6 +282,18 @@ class OptimizeStopWall(OptimizeStopped):
         super().__init__(message, reason="wall", report=report)
 
 
+class FeedbackError(ReadyAgentsError):
+    """Feedback capture, export, or stats failure."""
+
+
+class FeedbackRefused(FeedbackError):
+    """Undeclared label, missing consent, residual secret, or path escape."""
+
+    def __init__(self, message: str, *, reason: str = "refused") -> None:
+        self.reason = reason
+        super().__init__(message)
+
+
 class SimulateError(ReadyAgentsError):
     """Simulation generation, scoring, or freeze failure."""
 

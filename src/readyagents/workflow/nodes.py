@@ -1235,6 +1235,18 @@ def _run_approval(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dic
         )
         pause.approvals_received.append(vote)
         _persist_pause(state, ctx, pause)
+        extra_audit: dict[str, Any] = {}
+        if getattr(node, "feedback", None) is not None:
+            extra_audit.update(
+                _capture_feedback(
+                    state,
+                    ctx,
+                    node,
+                    vote=vote,
+                    action=action,
+                    reason=vote.reason or "",
+                )
+            )
         if ctx.auditor is not None:
             ctx.auditor(
                 "decision",
@@ -1246,6 +1258,7 @@ def _run_approval(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dic
                 override=override,
                 signature_status=vote.signature_status,
                 reason=vote.reason,
+                **extra_audit,
             )
 
     outcome = evaluate_gate(pause, now, ignore_expiry=just_escalated)
@@ -1287,6 +1300,24 @@ def _run_approval_classic(
     action = "approve" if approved else "reject"
     if ctx.authorizer is not None:
         ctx.authorizer.check(ctx.actor, action, node.id)
+    extra_audit: dict[str, Any] = {}
+    if getattr(node, "feedback", None) is not None:
+
+        class _Stub:
+            role = None
+            at = ""
+            actor = getattr(ctx, "actor", None)
+
+        extra_audit.update(
+            _capture_feedback(
+                state,
+                ctx,
+                node,
+                vote=_Stub(),
+                action=action,
+                reason="",
+            )
+        )
     if ctx.auditor is not None:
         verified = getattr(ctx, "verified_actor", None)
         extra: dict[str, Any] = {}
@@ -1303,8 +1334,59 @@ def _run_approval_classic(
             decision=action,
             actor=ctx.actor,
             **extra,
+            **extra_audit,
         )
     return _approval_output(node, state, ctx, prompt, approved=approved, pause=None)
+
+
+def _capture_feedback(
+    state: RunState,
+    ctx: ExecutionContext,
+    node: NodeSpec,
+    *,
+    vote: Any,
+    action: str,
+    reason: str,
+) -> dict[str, Any]:
+    payload = getattr(ctx, "feedback", None) or {}
+    row = payload.get(node.id) if isinstance(payload, dict) else None
+    if not isinstance(row, dict):
+        row = {}
+    if not row.get("edit") and row.get("rating") is None and not row.get("label"):
+        return {}
+    from readyagents.feedback.capture import record_human_correction
+
+    original = ""
+    if state.results:
+        original = state.results[-1].output
+    model = ""
+    meta = state.metadata if isinstance(state.metadata, dict) else {}
+    raw_model = meta.get("model")
+    if isinstance(raw_model, dict):
+        model = str(raw_model.get("model") or "")
+    elif isinstance(raw_model, str):
+        model = raw_model
+    decision_id = f"{state.run_id}:{node.id}:{getattr(vote, 'at', '') or action}"
+    role = str(getattr(vote, "role", None) or row.get("role") or "")
+    actor = str(getattr(vote, "actor", None) or getattr(ctx, "actor", None) or "")
+    if not role:
+        for item in list(getattr(node, "approver_roles", None) or []):
+            if str(item).lower() == actor.lower():
+                role = str(item)
+                break
+    corr = record_human_correction(
+        state,
+        node=node,
+        actor_role=role,
+        reason=reason,
+        original=original,
+        edited=row.get("edit"),
+        rating=row.get("rating"),
+        label=row.get("label"),
+        decision_id=decision_id,
+        model=model,
+    )
+    return {"correction_id": corr.id}
 
 
 def _persist_pause(state: RunState, ctx: ExecutionContext, pause: Any) -> None:
@@ -1497,6 +1579,15 @@ def execute_node_with_policy(
             extra = _apply_declared_recovery(node, state, ctx, exc)
             if extra is None:
                 raise
+            from readyagents.feedback.capture import record_implicit
+
+            record_implicit(
+                state,
+                node=node,
+                signal="retry",
+                reason=str(exc),
+                model=str(getattr(ctx, "default_model", None) or ""),
+            )
             if recovery_bonus == 0:
                 recovery_bonus = 1
                 max_tries = attempts + 1
@@ -1533,6 +1624,15 @@ def execute_node_with_policy(
         )
         if attempt >= max_tries:
             break
+        from readyagents.feedback.capture import record_implicit
+
+        record_implicit(
+            state,
+            node=node,
+            signal="retry",
+            reason=str(last_error or "retry"),
+            model=str(getattr(ctx, "default_model", None) or ""),
+        )
         # Retry backoff is a cooperative safe point, not an in-flight node body.
         cancellable_sleep(backoff * (multiplier ** (attempt - 1)), ctx.cancellation)
 

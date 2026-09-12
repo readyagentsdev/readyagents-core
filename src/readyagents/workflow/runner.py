@@ -164,6 +164,7 @@ def run_workflow_file(
     priority: Any | None = None,
     stream: Any | None = None,
     started_by: Mapping[str, Any] | None = None,
+    feedback: Mapping[str, Any] | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     source_file = Path(path)
@@ -615,6 +616,7 @@ def run_workflow_file(
         stream=stream,
     )
     ctx.source_path = source_path
+    ctx.feedback = dict(feedback or {})
     from readyagents.media.store import MediaStore
     from readyagents.table.store import TableStore
 
@@ -973,6 +975,7 @@ def resume_run(
     sovereign: bool | None = None,
     sovereign_allow: Sequence[str] | None = None,
     stream: Any | None = None,
+    feedback: Mapping[str, Any] | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     owned_store = False
@@ -1025,6 +1028,7 @@ def resume_run(
             sovereign=sovereign,
             sovereign_allow=sovereign_allow,
             stream=stream,
+            feedback=feedback,
         )
     finally:
         if owned_store:

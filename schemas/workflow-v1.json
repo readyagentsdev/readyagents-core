@@ -360,6 +360,55 @@
       "title": "EdgeSpec",
       "type": "object"
     },
+    "FeedbackSpec": {
+      "additionalProperties": false,
+      "description": "Optional correction capture on an approval gate. Omitted is byte-identical.",
+      "properties": {
+        "allow_edit": {
+          "default": false,
+          "description": "Approver may edit the gated output.",
+          "title": "Allow Edit",
+          "type": "boolean"
+        },
+        "consent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Recorded data-policy scope required to export this correction.",
+          "title": "Consent"
+        },
+        "labels": {
+          "description": "Declared label taxonomy. Undeclared labels are refused.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "array"
+        },
+        "rating": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional rating scale, e.g. {scale: '1-5'}.",
+          "title": "Rating"
+        }
+      },
+      "title": "FeedbackSpec",
+      "type": "object"
+    },
     "HealthGateSpec": {
       "additionalProperties": false,
       "description": "Declared health threshold. below=gate only; skip is refused.",
@@ -1120,6 +1169,18 @@
                 "default": null,
                 "description": "Lazy deadline (30m, 4h, 1d). Evaluated on resume/decide/status.",
                 "title": "Expires In"
+              },
+              "feedback": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/FeedbackSpec"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Optional correction capture. Omitted keeps approvals unchanged."
               },
               "notify": {
                 "description": "Opt-in file/command/webhook pause notifications.",

@@ -1,0 +1,32 @@
+name: feedback_gate
+description: >
+  Optional feedback capture on an approval gate. A workflow without feedback:
+  is unchanged. Keyless.
+start: add
+nodes:
+  - id: add
+    type: tool
+    tool: calc
+    arguments:
+      expression: "19 + 23"
+    output_key: total
+    next: gate
+  - id: gate
+    type: approval
+    prompt: "Release payment of {{total}}?"
+    then: receipt
+    else: denied
+    approver_roles: [editor]
+    feedback:
+      allow_edit: true
+      rating: {scale: "1-5"}
+      labels: [wrong_fact, wrong_tone, unsafe, incomplete]
+      consent: internal_training
+  - id: receipt
+    type: transform
+    template: "feedback_gate ok: paid {{total}}"
+    output_key: summary
+  - id: denied
+    type: transform
+    template: "feedback_gate denied: {{total}}"
+    output_key: summary

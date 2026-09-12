@@ -136,6 +136,11 @@ prompts_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(prompts_app, name="prompts")
+feedback_app = typer.Typer(
+    help="Export consented corrections. Production data in a portable file. No hosted dataset.",
+    no_args_is_help=True,
+)
+app.add_typer(feedback_app, name="feedback")
 
 console = Console()
 err_console = Console(stderr=True)
@@ -846,6 +851,128 @@ def prompts_rollback_cmd(
     console.print(f"rolled back {prompt_id} to v{row.version} hash={row.content_hash}")
 
 
+@feedback_app.command("export")
+def feedback_export_cmd(
+    fmt: str = typer.Option("eval", "--format", help="eval (default), sft, or dpo."),
+    out: Path = typer.Option(..., "--out", help="Destination file under the workspace."),
+    scope: str | None = typer.Option(None, "--scope", help="Recorded consent scope to include."),
+    node: str | None = typer.Option(None, "--node"),
+    since: str | None = typer.Option(None, "--since"),
+    min_rating: int | None = typer.Option(None, "--min-rating"),
+    yes: bool = typer.Option(False, "--yes", help="Acknowledge the production-data warning."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Export consented corrections. Unconsented runs are excluded from every format."""
+    from readyagents.audit import audit_dir_for, make_auditor
+    from readyagents.config import get_settings
+    from readyagents.errors import FeedbackRefused
+    from readyagents.feedback.export import export_feedback
+    from readyagents.policy import Redactor
+    from readyagents.replay.record import known_secret_values
+
+    settings = get_settings()
+    console.print("Warning: an export is production data in a portable file.")
+    if not yes:
+        typer.confirm("Write the export?", abort=True)
+    try:
+        report = export_feedback(
+            settings=settings,
+            dest=out,
+            fmt=fmt,
+            scope=scope,
+            node=node,
+            since=since,
+            min_rating=min_rating,
+            yes=yes,
+            secrets=known_secret_values(settings),
+            redactor=Redactor(literals=known_secret_values(settings)),
+            auditor=make_auditor(audit_dir_for(settings.home_path())),
+        )
+    except FeedbackRefused as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "feedback export",
+                    ok=False,
+                    error="FeedbackRefused",
+                    message=str(extra),
+                    reason=extra.reason,
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "feedback export",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    body = report.as_dict()
+    ok = bool(body.pop("ok", True))
+    if as_json:
+        _print_json(_json_envelope("feedback export", ok=ok, **body))
+        return
+    console.print(
+        f"export format={report.format} written={report.written} excluded={report.excluded}"
+    )
+
+
+@feedback_app.command("stats")
+def feedback_stats_cmd(
+    by: str = typer.Option("node", "--by", help="node, model, label, or week."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Correction rates with sample sizes. Does not imply statistical significance."""
+    from readyagents.config import get_settings
+    from readyagents.errors import FeedbackRefused
+    from readyagents.feedback.stats import feedback_stats
+
+    try:
+        report = feedback_stats(settings=get_settings(), by=by)
+    except FeedbackRefused as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "feedback stats",
+                    ok=False,
+                    error="FeedbackRefused",
+                    message=str(extra),
+                    reason=extra.reason,
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "feedback stats", ok=False, error=type(extra).__name__, message=str(extra)
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    body = report.as_dict()
+    ok = bool(body.pop("ok", True))
+    if as_json:
+        _print_json(_json_envelope("feedback stats", ok=ok, **body))
+        return
+    console.print(f"stats by={report.by} n={report.sample_size} (no significance claim)")
+    for row in report.rows:
+        console.print(
+            f"{row.get(report.by)} n={row['n']} rate={row['correction_rate']} significance=None"
+        )
+
+
 @app.command("simulate")
 def simulate_cmd(
     path: Path = _WORKFLOW_ARG,
@@ -1092,6 +1219,11 @@ def run(
         "--stream",
         help="Emit incremental run events (tokens, partials, node start/finish).",
     ),
+    edit: str | None = typer.Option(None, "--edit", help="Edited output for a feedback gate."),
+    rating: int | None = typer.Option(None, "--rating", help="Declared rating on a feedback gate."),
+    feedback_label: str | None = typer.Option(
+        None, "--feedback-label", help="Declared taxonomy label on a feedback gate."
+    ),
 ) -> None:
     """Execute a workflow."""
     if log_level or log_format:
@@ -1104,6 +1236,7 @@ def run(
         from readyagents.cost.ledger import parse_labels
 
         labels = parse_labels(label) if label else None
+        feedback = _feedback_payload(list(decisions), edit, rating, feedback_label)
         if estimate:
             _emit_estimate(path, inputs=parsed, as_json=as_json)
             return
@@ -1143,6 +1276,7 @@ def run(
                 sovereign=sovereign,
                 sovereign_allow=sovereign_allow,
                 stream=session,
+                feedback=feedback,
             )
         else:
             state = run_workflow_file(
@@ -1169,6 +1303,7 @@ def run(
                 sovereign=sovereign,
                 sovereign_allow=sovereign_allow,
                 stream=session,
+                feedback=feedback,
             )
     except KeyboardInterrupt:
         if stream_flag and as_json:
@@ -1417,6 +1552,11 @@ def resume_cmd(
         help="Refuse to run when readyagents.lock digests do not match.",
     ),
     reason: str | None = typer.Option(None, "--reason", help="Reason captured with the vote."),
+    edit: str | None = typer.Option(None, "--edit", help="Edited output for a feedback gate."),
+    rating: int | None = typer.Option(None, "--rating", help="Declared rating on a feedback gate."),
+    feedback_label: str | None = typer.Option(
+        None, "--feedback-label", help="Declared taxonomy label on a feedback gate."
+    ),
 ) -> None:
     """Resume a paused or failed run from the last successful node."""
     persist = not no_persist
@@ -1451,6 +1591,7 @@ def resume_cmd(
             require_signed=require_signed,
             frozen=frozen,
             vote_reasons={key: reason for key in reason_nodes} if reason and reason_nodes else None,
+            feedback=_feedback_payload(list(decisions), edit, rating, feedback_label),
         )
     except KeyboardInterrupt:
         if as_json:
@@ -2150,6 +2291,11 @@ def decide_cmd(
     no_persist: bool = typer.Option(False, "--no-persist"),
     pack: list[str] = typer.Option([], "--pack", help=_PACK_HELP),
     reason: str | None = typer.Option(None, "--reason", help="Reason captured with the vote."),
+    edit: str | None = typer.Option(None, "--edit", help="Edited output for a feedback gate."),
+    rating: int | None = typer.Option(None, "--rating", help="Declared rating on a feedback gate."),
+    feedback_label: str | None = typer.Option(
+        None, "--feedback-label", help="Declared taxonomy label on a feedback gate."
+    ),
 ) -> None:
     """Inject an external approval decision into a paused run, then resume.
 
@@ -2206,6 +2352,7 @@ def decide_cmd(
             verified_actor=verified,
             vote_reasons={key: reason for key in decisions} if reason else None,
             vote_signature_status="identified" if verified is not None else "unsigned",
+            feedback=_feedback_payload(list(decisions), edit, rating, feedback_label),
         )
     except ReadyAgentsError as exc:
         _emit_run_exception(exc, as_json=as_json, persist=persist, command="decide")
@@ -5100,6 +5247,27 @@ def _load_extra_packs(pack_flags: list[str]) -> list[Any]:
 def _print_json(payload: object) -> None:
     """Write JSON to stdout without Rich markup (values may contain `[...]`)."""
     typer.echo(json.dumps(payload, indent=2, ensure_ascii=False))
+
+
+def _feedback_payload(
+    nodes: list[str],
+    edit: str | None,
+    rating: int | None,
+    label: str | None,
+) -> dict[str, Any]:
+    if not edit and rating is None and not label:
+        return {}
+    payload: dict[str, Any] = {}
+    for node in nodes:
+        row: dict[str, Any] = {}
+        if edit is not None:
+            row["edit"] = edit
+        if rating is not None:
+            row["rating"] = rating
+        if label:
+            row["label"] = label
+        payload[node] = row
+    return payload
 
 
 def _json_envelope(command: str, *, ok: bool, **fields: Any) -> dict[str, Any]:
