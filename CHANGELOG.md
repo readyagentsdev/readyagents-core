@@ -6,6 +6,20 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Environments, pinned releases, and gated rollout.** Declared environments
+  (`readyagents.env.yaml`) are configuration bundles — routing, budget, policy,
+  secret *scope*, isolated run store — not servers. `env deploy` pins a
+  content-addressed signed release (workflow + includes + prompts + policy +
+  lockfile). `run --env NAME` executes that pin, not the working copy.
+  `promote --from --to` copies the source pointer after eval, fixture,
+  benchmark, health, and complete-diff approval gates, each with a distinct
+  typed reason. Canary assignment is deterministic per run id; shadow runs the
+  candidate with unused output, a separate budget, and distinct
+  `shadow_cost_micros`. Rollback is atomic, audited, as strongly authorised as
+  promote when roles are declared, and **never auto-forwards**. Guards evaluate
+  on run (no watcher). Secret values in env YAML are refused. No `--env` is
+  byte-identical. Not a hosted deploy, cluster, or orchestrator. See
+  [docs/environments.md](docs/environments.md).
 - **Conversational sessions.** A session is a durable object whose turns are
   ordinary runs (`readyagents sessions list|show|close|replay|freeze`).
   `type: converse` emits a message and parks with the proven pause/resume
