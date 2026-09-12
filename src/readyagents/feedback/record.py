@@ -16,7 +16,7 @@ class Correction:
     decision_id: str
     kind: str = HUMAN
     original: str = ""
-    diff: list[dict[str, str]] = field(default_factory=list)
+    diff: list[dict[str, Any]] = field(default_factory=list)
     role: str = ""
     reason: str = ""
     rating: int | None = None

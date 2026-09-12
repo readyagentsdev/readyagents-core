@@ -47,6 +47,24 @@ def _key(corr: Any, dim: str) -> str:
     if dim == "label":
         return corr.label or corr.signal or "unlabelled"
     if dim == "week":
-        stamp = str(corr.ts or "")
-        return stamp[:10] if len(stamp) >= 10 else "unknown"
+        return _iso_week(str(corr.ts or ""))
     return "unknown"
+
+
+def _iso_week(stamp: str) -> str:
+    """ISO year-week (2026-W37), never a calendar day."""
+    from datetime import datetime
+
+    text = str(stamp or "").strip()
+    if not text:
+        return "unknown"
+    parsed = None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            parsed = datetime.strptime(text[:10], "%Y-%m-%d")
+        except ValueError:
+            return "unknown"
+    iso = parsed.isocalendar()
+    return f"{iso[0]}-W{int(iso[1]):02d}"
