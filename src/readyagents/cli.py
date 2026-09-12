@@ -25,10 +25,12 @@ from readyagents.errors import (
     ImportRefused,
     MCPError,
     ReadyAgentsError,
+    RegistryRefused,
     WaitingRequired,
 )
 from readyagents.logging import configure_logging
 from readyagents.packs.loader import collect_pack_specs, discover_packs, load_local_packs
+from readyagents.registry.cli import registry_app
 from readyagents.scaffold import TEMPLATES, create_project
 from readyagents.testing.eval import load_eval_suite, run_eval
 from readyagents.workflow.runner import (
@@ -154,6 +156,7 @@ env_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(env_app, name="env")
+app.add_typer(registry_app, name="registry")
 serve_app = typer.Typer(
     help="Foreground loopback surfaces. Not a hosted product.",
     no_args_is_help=True,
@@ -1442,6 +1445,8 @@ def promote_cmd(
         )
     except ApprovalRequired as extra:
         _emit_run_exception(extra, as_json=as_json, persist=False, command="promote")
+    except RegistryRefused as extra:
+        _emit_registry_error("promote", extra, as_json=as_json)
     except EnvRefused as extra:
         _emit_env_error("promote", extra, as_json=as_json)
     except ReadyAgentsError as extra:
@@ -6534,6 +6539,21 @@ def _emit_import_error(command: str, extra: ImportRefused, *, as_json: bool) -> 
 
 
 def _emit_env_error(command: str, extra: EnvRefused, *, as_json: bool) -> NoReturn:
+    if as_json:
+        _print_json(
+            _json_envelope(
+                command,
+                ok=False,
+                error=type(extra).__name__,
+                message=str(extra),
+                reason=extra.reason,
+            )
+        )
+        raise typer.Exit(code=1) from extra
+    _fail(extra)
+
+
+def _emit_registry_error(command: str, extra: RegistryRefused, *, as_json: bool) -> NoReturn:
     if as_json:
         _print_json(
             _json_envelope(
