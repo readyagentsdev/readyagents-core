@@ -40,9 +40,11 @@ whenever semantics differ.
 
 ## Failing stubs
 
-An untranslatable node becomes a `transform` whose template starts with
-`UNSUPPORTED:` and names the original node. It is never silently dropped.
-Remove the stub to proceed.
+An untranslatable node becomes a `calc` tool whose expression starts with
+`UNSUPPORTED:` and names the original node. Run and dry-run **fail** at that
+stub instead of succeeding with a string. It is never silently dropped.
+Remove the stub to proceed. Representative examples keep stubs off the
+executed path so a fully mapped import can still dry-run.
 
 ## Security
 

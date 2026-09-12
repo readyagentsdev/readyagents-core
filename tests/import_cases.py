@@ -107,7 +107,6 @@ def trigger_export() -> str:
                 {"id": "fork", "type": "fork"},
                 {"id": "sub", "type": "subzap"},
                 {"id": "err", "type": "error"},
-                {"id": "mail", "type": "email", "event": "send"},
             ],
         }
     )

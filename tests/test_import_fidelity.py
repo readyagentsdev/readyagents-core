@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 from import_cases import crewai_export, do_import, langgraph_export, n8n_export, trigger_export
 from readyagents.cli import app
 from readyagents.config import clear_settings_cache
-from readyagents.errors import ImportRefused
+from readyagents.errors import ImportRefused, ReadyAgentsError
 from readyagents.importers.ir import FIDELITY
 from readyagents.importers.service import explain_source, import_workflow
 from readyagents.workflow.runner import run_workflow_file
@@ -79,16 +79,19 @@ def test_unsupported_stub_is_not_skipped(tmp_path: Path, tmp_settings) -> None:
     src = tmp_path / "only.json"
     src.write_text(json.dumps(only), encoding="utf-8")
     stubbed = import_workflow("n8n", src, out=tmp_path / "only-out", settings=tmp_settings)
-    state = run_workflow_file(
-        stubbed.workflow_path, dry_run=False, persist=False, settings=tmp_settings
-    )
-    assert state.status == "succeeded"
-    blob = json.dumps(state.output_keys)
-    assert "UNSUPPORTED" in blob
-    assert "Slack" in blob
-    assert any(
-        "slack" in (r.node_id or "") or "UNSUPPORTED" in str(r.output) for r in state.results
-    )
+    yaml_text = stubbed.workflow_path.read_text(encoding="utf-8")
+    assert "UNSUPPORTED" in yaml_text
+    assert "Slack" in yaml_text
+    with pytest.raises(ReadyAgentsError) as extra:
+        run_workflow_file(
+            stubbed.workflow_path, dry_run=False, persist=False, settings=tmp_settings
+        )
+    state = extra.value.state
+    assert state is not None
+    assert state.status == "failed"
+    named = str(extra.value) + str(state.pending_node or "") + json.dumps(state.errors)
+    assert "slack" in named.lower() or "Slack" in named or "Slack" in yaml_text
+    assert "UNSUPPORTED" in yaml_text
 
 
 def test_explain_writes_nothing(tmp_path: Path, tmp_settings) -> None:

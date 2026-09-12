@@ -11,7 +11,7 @@ All notable changes to ReadyAgents Core.
   only), or Zapier-shaped trigger-action JSON into a new ReadyAgents workflow
   plus a fidelity report (`translated` / `approximated` / `unsupported`).
   Mapping tables are data. Untranslatable nodes become failing `UNSUPPORTED`
-  stubs, never silent drops. Credentials are names only; secret values are
+  stubs (`calc` rejects the text so run fails at the stub), never silent drops. Credentials are names only; secret values are
   refused from output and redacted in the report. Parser bounds refuse
   oversized, deep, and node-bomb inputs. `--explain` prints a table and writes
   nothing. Post-import validate, dry-run, and graph. Structural translation
