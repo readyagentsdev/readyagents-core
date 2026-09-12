@@ -155,6 +155,7 @@ readyagents bench run --offline --json
 readyagents bench run --offline --out results.json
 readyagents bench compare results.json --baseline baselines/bench_offline.json
 readyagents bench compare --models mock:a,mock:b --scenario classify --json
+readyagents bench compare --workflows a.yaml,b.yaml --input text=hello --json
 ```
 
 ## `readyagents health`

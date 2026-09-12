@@ -135,3 +135,112 @@ def _delta(left: Any, right: Any) -> Any:
         return type(right)(left - right)  # type: ignore[operator]
     except (TypeError, ValueError):
         return None
+
+
+def compare_models(
+    refs: list[str],
+    *,
+    suite: Path | str | None = None,
+    scenario: str | None = None,
+    settings: Any = None,
+) -> dict[str, Any]:
+    """Run the same suite/scenario once per model ref on identical inputs."""
+    from readyagents.bench.run import run_bench
+    from readyagents.bench.suite import load_suite
+
+    if len(refs) < 2:
+        raise BenchRefused("--models needs at least two refs", reason="models")
+    rows = load_suite(suite)
+    names = [scenario] if scenario else None
+    if names:
+        rows = [row for row in rows if row.name in set(names)]
+        if not rows:
+            raise BenchRefused(f"no matching scenario {scenario!r}", reason="scenarios")
+    snapshot = {row.name: dict(row.inputs) for row in rows}
+    reports = [
+        run_bench(suite, settings=settings, scenarios=[row.name for row in rows], model=ref)
+        for ref in refs
+    ]
+    for report, ref in zip(reports, refs, strict=True):
+        for sc in report.scenarios:
+            if sc.model != ref:
+                raise BenchRefused(
+                    f"model {ref!r} was not applied (run used {sc.model!r})",
+                    reason="model",
+                )
+    ok = all(sc.success for report in reports for sc in report.scenarios)
+    return {
+        "kind": "models",
+        "models": list(refs),
+        "inputs": snapshot,
+        "reports": [row.as_dict() for row in reports],
+        "ok": ok,
+    }
+
+
+def compare_workflows(
+    paths: list[str],
+    *,
+    inputs: dict[str, Any] | None = None,
+    settings: Any = None,
+) -> dict[str, Any]:
+    """Run each workflow through eval with the SAME inputs; emit side-by-side metrics."""
+    import time
+
+    from readyagents.bench.layout import MODE_OFFLINE
+    from readyagents.bench.metrics import collect
+    from readyagents.testing.eval import EvalCase, run_eval
+    from readyagents.workflow.state import RunState
+
+    if len(paths) < 2:
+        raise BenchRefused("--workflows needs at least two paths", reason="workflows")
+    shared = dict(inputs or {})
+    reports: list[dict[str, Any]] = []
+    for raw in paths:
+        wf = Path(raw)
+        case = EvalCase(
+            name=wf.stem,
+            workflow=wf,
+            inputs=dict(shared),
+            expect_status="succeeded",
+        )
+        started = time.perf_counter()
+        scored = run_eval([case], settings=settings)
+        wall_ms = (time.perf_counter() - started) * 1000.0
+        result = scored.results[0]
+        state = result.state
+        if state is None:
+            state = RunState.start(wf.stem, dict(shared))
+            state.status = "failed"
+            state.errors = [result.reason]
+        metrics = collect(
+            state,
+            name=wf.stem,
+            shape=wf.stem,
+            wall_ms=wall_ms,
+            mode=MODE_OFFLINE,
+        )
+        reports.append(
+            {
+                "workflow": str(wf),
+                "inputs": dict(state.inputs),
+                "ok": scored.ok,
+                "metrics": metrics.as_dict(),
+            }
+        )
+    first = reports[0]["inputs"]
+    if any(row["inputs"] != first for row in reports):
+        raise BenchRefused("workflow compare used different inputs", reason="inputs")
+    for key, value in shared.items():
+        if first.get(key) != value:
+            raise BenchRefused(
+                "workflow compare did not apply the shared inputs to the run",
+                reason="inputs",
+            )
+    return {
+        "kind": "workflows",
+        "workflows": [str(Path(p)) for p in paths],
+        "inputs": first,
+        "reports": reports,
+        "ok": all(bool(row["ok"]) for row in reports),
+    }

@@ -141,6 +141,7 @@ def _run_one(
     settings: Any,
     model: str | None,
 ) -> ScenarioMetrics:
+    bound = bind_model(settings, model)
     case = EvalCase(
         name=row.name,
         workflow=row.workflow,
@@ -152,9 +153,9 @@ def _run_one(
     started = time.perf_counter()
     if mode == MODE_OFFLINE:
         with no_network():
-            report = run_eval([case], settings=settings, dry_run=False)
+            report = run_eval([case], settings=bound, dry_run=False)
     else:
-        report = run_eval([case], settings=settings, dry_run=False)
+        report = run_eval([case], settings=bound, dry_run=False)
     wall_ms = (time.perf_counter() - started) * 1000.0
     result = report.results[0]
     state = result.state
@@ -171,10 +172,22 @@ def _run_one(
         wall_ms=wall_ms,
         mode=mode,
     )
-    if model:
-        metrics.determinism = dict(metrics.determinism)
-        metrics.determinism["model"] = model
     return metrics
+
+
+def bind_model(settings: Any, model: str | None) -> Any:
+    """Copy settings with ``default_model`` bound to ``model``. Never a label-only write."""
+    if not model:
+        return settings
+    if settings is None:
+        from readyagents.config import get_settings
+
+        settings = get_settings()
+    copier = getattr(settings, "model_copy", None)
+    if callable(copier):
+        return copier(update={"default_model": model})
+    settings.default_model = model
+    return settings
 
 
 def _refuse_live_in_ci(allow_ci_live: bool) -> None:

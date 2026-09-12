@@ -5308,62 +5308,53 @@ def bench_compare_cmd(
     ),
     scenario: str | None = typer.Option(None, "--scenario", help="Scenario name for --models."),
     suite: Path | None = typer.Option(None, "--suite"),
+    inputs: list[str] = typer.Option(
+        [],
+        "--input",
+        "-i",
+        help="Shared KEY=VALUE for --workflows (repeatable).",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Compare a result document to a baseline, or models/workflows like-for-like."""
-    from readyagents.bench.compare import compare_results, load_baseline
-    from readyagents.bench.run import run_bench
+    from readyagents.bench.compare import (
+        compare_models,
+        compare_results,
+        compare_workflows,
+        load_baseline,
+    )
     from readyagents.config import get_settings
     from readyagents.errors import BenchRefused
 
     try:
         if models:
             names = [part.strip() for part in models.split(",") if part.strip()]
-            if len(names) < 2:
-                raise BenchRefused("--models needs at least two refs", reason="models")
-            wanted = [scenario] if scenario else None
-            reports = [
-                run_bench(
-                    suite,
-                    settings=get_settings(),
-                    scenarios=wanted,
-                    model=ref,
-                )
-                for ref in names
-            ]
-            payload = {
-                "kind": "models",
-                "models": names,
-                "inputs": "identical",
-                "reports": [row.as_dict() for row in reports],
-            }
+            payload = compare_models(
+                names,
+                suite=suite,
+                scenario=scenario,
+                settings=get_settings(),
+            )
+            ok = bool(payload.pop("ok"))
             if as_json:
-                _print_json(_json_envelope("bench compare", ok=True, **payload))
-                return
-            console.print(f"models {', '.join(names)} on identical inputs")
+                _print_json(_json_envelope("bench compare", ok=ok, **payload))
+            else:
+                console.print(f"models {', '.join(names)} on identical inputs ok={ok}")
+            if not ok:
+                raise typer.Exit(code=1)
             return
         if workflows:
             paths = [part.strip() for part in workflows.split(",") if part.strip()]
-            if len(paths) < 2:
-                raise BenchRefused("--workflows needs at least two paths", reason="workflows")
-            from readyagents.testing.eval import EvalCase, run_eval
-
-            cases = [
-                EvalCase(name=Path(path).stem, workflow=Path(path), expect_status="succeeded")
-                for path in paths
-            ]
-            reports = [run_eval([case], settings=get_settings()) for case in cases]
-            ok = all(row.ok for row in reports)
-            payload = {
-                "kind": "workflows",
-                "workflows": paths,
-                "inputs": "identical",
-                "ok": ok,
-            }
+            payload = compare_workflows(
+                paths,
+                inputs=parse_input_pairs(inputs),
+                settings=get_settings(),
+            )
+            ok = bool(payload.pop("ok"))
             if as_json:
                 _print_json(_json_envelope("bench compare", ok=ok, **payload))
-                return
-            console.print(f"workflows {', '.join(paths)} on identical inputs ok={ok}")
+            else:
+                console.print(f"workflows {', '.join(paths)} on identical inputs ok={ok}")
             if not ok:
                 raise typer.Exit(code=1)
             return
