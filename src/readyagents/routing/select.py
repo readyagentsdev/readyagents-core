@@ -117,6 +117,11 @@ def select_route(
                 legacy.append(ref)
     policy: RoutingSpec | None = getattr(workflow, "routing", None)
     taint = resolve_routing_taint(state, node)
+    adapter_decision = _distill_pin(
+        node, legacy=legacy, default_model=default_model, taint=taint, ctx=ctx
+    )
+    if adapter_decision is not None:
+        return adapter_decision
     if policy is None or not policy.rules:
         model = legacy[0] if legacy else (default_model or "mock")
         return RouteDecision(
@@ -360,3 +365,41 @@ def _price_rank(ref: str, prices: PriceTable) -> float:
     if not quote.priced or quote.rate is None:
         return 1e18
     return float(quote.rate.input) + float(quote.rate.output)
+
+
+def _distill_pin(
+    node: NodeSpec,
+    *,
+    legacy: list[str],
+    default_model: str | None,
+    taint: str,
+    ctx: Any,
+) -> RouteDecision | None:
+    """Opt-in adapter pin. Missing distill dir is a no-op so routing stays identical."""
+    try:
+        from readyagents.distill.store import pin_for
+
+        settings = getattr(ctx, "settings", None) if ctx is not None else None
+        pin = pin_for(node.id, settings=settings)
+    except Exception:  # noqa: BLE001
+        return None
+    if not pin:
+        return None
+    adapter_id = str(pin.get("adapter_id") or "").strip()
+    if not adapter_id:
+        return None
+    adapter_ref = f"adapter:{adapter_id}"
+    incumbent = str(pin.get("incumbent") or "").strip()
+    if not incumbent:
+        incumbent = legacy[0] if legacy else (default_model or "mock")
+    candidates = [adapter_ref]
+    if pin.get("fallback", True) and incumbent and incumbent != adapter_ref:
+        candidates.append(incumbent)
+    return RouteDecision(
+        model=adapter_ref,
+        policy=True,
+        reason="distill_adapter",
+        candidates=candidates,
+        fallback=bool(pin.get("fallback", True)),
+        taint=taint,
+    )

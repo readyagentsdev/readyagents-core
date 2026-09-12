@@ -61,3 +61,7 @@ class BasePack:
     def register_observers(self) -> Sequence[Any]:
         """Optional run observers. Default empty so old packs stay valid."""
         return []
+
+    def register_tuner(self) -> Any:
+        """Optional local trainer. Core never trains; None means the pack owns no GPU."""
+        return None

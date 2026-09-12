@@ -390,6 +390,73 @@ class RegistryTierCadence(RegistryRefused):
         super().__init__(message, reason="review_cadence")
 
 
+class DistillError(ReadyAgentsError):
+    """Distillation plan, dataset, train, eval, or adapter failure."""
+
+
+class DistillRefused(DistillError):
+    """Typed refuse: consent, holdout, unsigned adapter, pack, sovereign, gates."""
+
+    def __init__(self, message: str, *, reason: str = "refused") -> None:
+        self.reason = reason
+        super().__init__(message)
+
+
+class DistillTrainMissing(DistillRefused):
+    def __init__(self, message: str = "training pack is not installed; core never trains") -> None:
+        super().__init__(message, reason="pack_missing")
+
+
+class DistillSovereignHosted(DistillRefused):
+    def __init__(self, message: str = "sovereign mode refuses provider-hosted tuning") -> None:
+        super().__init__(message, reason="sovereign_hosted")
+
+
+class DistillHoldoutMissing(DistillRefused):
+    def __init__(self, message: str = "evaluation and promotion require a holdout score") -> None:
+        super().__init__(message, reason="holdout")
+
+
+class DistillUnsigned(DistillRefused):
+    def __init__(self, message: str = "unsigned adapters refuse to load") -> None:
+        super().__init__(message, reason="unsigned")
+
+
+class DistillParity(DistillRefused):
+    def __init__(self, message: str = "candidate holdout score is below parity") -> None:
+        super().__init__(message, reason="parity")
+
+
+class DistillRegression(DistillRefused):
+    def __init__(self, message: str = "candidate regresses a frozen fixture") -> None:
+        super().__init__(message, reason="regression")
+
+
+class DistillLatency(DistillRefused):
+    def __init__(self, message: str = "candidate latency exceeds the target") -> None:
+        super().__init__(message, reason="latency")
+
+
+class DistillCost(DistillRefused):
+    def __init__(self, message: str = "candidate cost exceeds the target") -> None:
+        super().__init__(message, reason="cost")
+
+
+class DistillCanary(DistillRefused):
+    def __init__(
+        self, message: str = "planted training secret was reproduced from the adapter"
+    ) -> None:
+        super().__init__(message, reason="canary")
+
+
+class DistillApproval(DistillRefused):
+    def __init__(
+        self, message: str = "promotion requires approval", *, comparison: Any = None
+    ) -> None:
+        self.comparison = comparison
+        super().__init__(message, reason="approval")
+
+
 class SessionError(ReadyAgentsError):
     """Conversational session failure."""
 

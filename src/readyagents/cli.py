@@ -15,6 +15,7 @@ from rich.table import Table
 
 from readyagents import __version__
 from readyagents.config import DEFAULT_MCP_TOKEN_ENV
+from readyagents.distill.cli import adapters_app, distill_app
 from readyagents.errors import (
     ApprovalRequired,
     CassetteMiss,
@@ -126,6 +127,8 @@ models_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(models_app, name="models")
+models_app.add_typer(adapters_app, name="adapters")
+app.add_typer(distill_app, name="distill")
 health_app = typer.Typer(
     help="Cluster failures by fingerprint over the run store. No daemon, no telemetry.",
     no_args_is_help=False,
