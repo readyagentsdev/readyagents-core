@@ -1,0 +1,102 @@
+{
+  "source": "trigger",
+  "schema_versions": ["1"],
+  "entries": [
+    {
+      "kind": "webhook",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "Zapier-style catch hook is not a hosted trigger runtime",
+      "params": { "template": "webhook", "output_key": "trigger" }
+    },
+    {
+      "kind": "schedule",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "Cron/schedule is a declared trigger contract, not a node",
+      "params": { "template": "schedule", "output_key": "trigger" }
+    },
+    {
+      "kind": "filter",
+      "target": "condition",
+      "fidelity": "approximated",
+      "reason": "only_continue_if is not a ReadyAgents when: expression",
+      "structural": "branch",
+      "params": { "when": "true" }
+    },
+    {
+      "kind": "paths",
+      "target": "condition",
+      "fidelity": "approximated",
+      "reason": "Zapier Paths are a multi-way branch",
+      "structural": "branch",
+      "params": { "when": "true" }
+    },
+    {
+      "kind": "loop",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "Line items looping is not foreach until items are declared",
+      "structural": "loop",
+      "params": { "template": "loop", "output_key": "loop" }
+    },
+    {
+      "kind": "fork",
+      "target": "parallel",
+      "fidelity": "approximated",
+      "reason": "Multi-step fork is not ReadyAgents parallel",
+      "structural": "parallel"
+    },
+    {
+      "kind": "subzap",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "Sub-Zap is not an include path",
+      "structural": "subworkflow",
+      "params": { "template": "subzap", "output_key": "sub" }
+    },
+    {
+      "kind": "error",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "Error handler zaps are not per-node handlers",
+      "structural": "error",
+      "params": { "template": "error", "output_key": "error" }
+    },
+    {
+      "kind": "delay_until_approved",
+      "target": "approval",
+      "fidelity": "approximated",
+      "reason": "Delay until approved is not a ReadyAgents approval gate",
+      "structural": "human",
+      "params": { "prompt": "Imported approval delay" }
+    },
+    {
+      "kind": "email",
+      "target": null,
+      "fidelity": "unsupported",
+      "reason": "no email send runtime in core",
+      "nearest": "a message connector or webhook"
+    },
+    {
+      "kind": "gmail",
+      "target": null,
+      "fidelity": "unsupported",
+      "reason": "no Gmail runtime in core",
+      "nearest": "a message connector"
+    },
+    {
+      "kind": "slack",
+      "target": null,
+      "fidelity": "unsupported",
+      "reason": "no Slack runtime in core",
+      "nearest": "a message connector or webhook"
+    }
+  ],
+  "default": {
+    "target": null,
+    "fidelity": "unsupported",
+    "reason": "no mapping for this trigger-action step",
+    "nearest": "a connector, webhook, or transform"
+  }
+}

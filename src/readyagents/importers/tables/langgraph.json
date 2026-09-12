@@ -1,0 +1,66 @@
+{
+  "source": "langgraph",
+  "schema_versions": ["1"],
+  "entries": [
+    {
+      "kind": "node",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "LangGraph node functions are not executed; emit a transform named after the node",
+      "params": { "template": "node", "output_key": "node" }
+    },
+    {
+      "kind": "condition",
+      "target": "condition",
+      "fidelity": "approximated",
+      "reason": "add_conditional_edges routers are not ReadyAgents when: expressions",
+      "structural": "branch",
+      "params": { "when": "true" }
+    },
+    {
+      "kind": "loop",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "ReadyAgents graphs are acyclic; a back-edge is not emitted",
+      "structural": "loop",
+      "params": { "template": "loop-broken", "output_key": "loop" }
+    },
+    {
+      "kind": "parallel",
+      "target": "parallel",
+      "fidelity": "approximated",
+      "reason": "Send/fan-out is not ReadyAgents parallel branches",
+      "structural": "parallel"
+    },
+    {
+      "kind": "subgraph",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "compiled subgraphs are not include files",
+      "structural": "subworkflow",
+      "params": { "template": "subgraph", "output_key": "sub" }
+    },
+    {
+      "kind": "error",
+      "target": "transform",
+      "fidelity": "approximated",
+      "reason": "LangGraph retry/error policies are not node error handlers",
+      "structural": "error",
+      "params": { "template": "error", "output_key": "error" }
+    },
+    {
+      "kind": "interrupt",
+      "target": "approval",
+      "fidelity": "approximated",
+      "reason": "interrupt() is not a ReadyAgents approval gate",
+      "structural": "human",
+      "params": { "prompt": "Imported interrupt" }
+    }
+  ],
+  "default": {
+    "target": "transform",
+    "fidelity": "approximated",
+    "reason": "LangGraph node recorded as a transform; function body is not run",
+    "params": { "template": "node", "output_key": "node" }
+  }
+}
