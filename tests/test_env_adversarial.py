@@ -428,8 +428,8 @@ def test_guard_error_rate_rollback_is_not_the_forced_rollback_attack(
     assert spec.gates and spec.gates.approval
     v1 = _flow(tmp_path, "SAFE", "safe.yaml")
     v2 = _flow(tmp_path, "BAD", "bad.yaml")
-    deploy(v1, "prod", spec=spec, settings=tmp_settings)
-    deploy(v2, "prod", spec=spec, settings=tmp_settings)
+    safe = deploy(v1, "prod", spec=spec, settings=tmp_settings)
+    bad = deploy(v2, "prod", spec=spec, settings=tmp_settings)
     store = EnvStore(tmp_settings)
     env_store = JsonRunStore(store.runs_dir("prod"))
     for i in range(8):
@@ -439,8 +439,16 @@ def test_guard_error_rate_rollback_is_not_the_forced_rollback_attack(
     state = run_in_environment(v2, "prod", settings=tmp_settings, persist=True)
     assert state.output_keys["out"] == "BAD"
     assert state.metadata.get("rollback")
+    assert store.current("prod")["digest"] == safe["digest"]
     nxt = run_in_environment(v2, "prod", settings=tmp_settings, persist=True)
     assert nxt.output_keys["out"] == "SAFE"
+    assert store.current("prod")["digest"] == safe["digest"]
+    third = run_in_environment(v2, "prod", settings=tmp_settings, persist=True)
+    assert third.output_keys["out"] == "SAFE"
+    assert store.current("prod")["digest"] == safe["digest"]
+    assert store.current("prod")["digest"] != bad["digest"]
+    prev = store.previous("prod")
+    assert prev is None or prev.get("digest") != bad["digest"]
 
 
 def test_secret_literals_in_env_yaml_are_typed_refuse(tmp_path: Path, tmp_settings) -> None:

@@ -16,9 +16,11 @@ All notable changes to ReadyAgents Core.
   typed reason. Canary assignment is deterministic per run id; shadow runs the
   candidate with unused output, a separate budget, and distinct
   `shadow_cost_micros`. Rollback is atomic, audited, as strongly authorised as
-  promote when roles are declared, and **never auto-forwards**. Guards evaluate
-  on run (no watcher). Secret values in env YAML are refused. No `--env` is
-  byte-identical. Not a hosted deploy, cluster, or orchestrator. See
+  promote when roles are declared, and **never auto-forwards**. A guard revert
+  does not install the failed pin as previous, so leftover windowed failures
+  cannot restore it; manual rollback still retains the abandoned pin.
+  Guards evaluate on run (no watcher). Secret values in env YAML are refused.
+  No `--env` is byte-identical. Not a hosted deploy, cluster, or orchestrator. See
   [docs/environments.md](docs/environments.md).
 - **Conversational sessions.** A session is a durable object whose turns are
   ordinary runs (`readyagents sessions list|show|close|replay|freeze`).
