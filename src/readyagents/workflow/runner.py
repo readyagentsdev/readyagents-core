@@ -165,6 +165,7 @@ def run_workflow_file(
     stream: Any | None = None,
     started_by: Mapping[str, Any] | None = None,
     feedback: Mapping[str, Any] | None = None,
+    converse_replies: Mapping[str, str] | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     source_file = Path(path)
@@ -617,6 +618,9 @@ def run_workflow_file(
     )
     ctx.source_path = source_path
     ctx.feedback = dict(feedback or {})
+    ctx.converse_replies = {
+        str(k): str(v) for k, v in dict(converse_replies or {}).items() if str(v).strip()
+    }
     from readyagents.media.store import MediaStore
     from readyagents.table.store import TableStore
 
@@ -976,6 +980,7 @@ def resume_run(
     sovereign_allow: Sequence[str] | None = None,
     stream: Any | None = None,
     feedback: Mapping[str, Any] | None = None,
+    converse_replies: Mapping[str, str] | None = None,
 ) -> RunState:
     settings = settings or get_settings()
     owned_store = False
@@ -1029,6 +1034,7 @@ def resume_run(
             sovereign_allow=sovereign_allow,
             stream=stream,
             feedback=feedback,
+            converse_replies=converse_replies,
         )
     finally:
         if owned_store:

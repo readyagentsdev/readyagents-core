@@ -245,6 +245,11 @@ def run_workflow(
     except ConverseRequired as exc:
         state.pending_node = current
         paused = nodes.get(current) if current else None
+        sid = exc.session_id
+        if not sid and isinstance(state.metadata, dict):
+            raw_sid = state.metadata.get("session_id")
+            if raw_sid:
+                sid = str(raw_sid)
         state.pending = {
             "node_id": exc.node_id,
             "type": "converse",
@@ -253,7 +258,8 @@ def run_workflow(
             "prompt": exc.prompt,
             "then": getattr(paused, "then", None),
             "next": getattr(paused, "next", None),
-            "resume": f"readyagents sessions reply {exc.run_id}",
+            "session_id": sid,
+            "resume": f"readyagents sessions reply {sid or exc.run_id}",
         }
         extra = getattr(exc, "pause", None)
         if isinstance(extra, dict):

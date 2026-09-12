@@ -40,6 +40,11 @@ def run_converse_node(node: Any, state: Any, ctx: Any) -> Any:
                 if isinstance(item, dict):
                     item["trust"] = "untrusted"
                     item["attributed"] = True
+        session_id = None
+        if isinstance(getattr(state, "metadata", None), dict):
+            raw_sid = state.metadata.get("session_id")
+            if raw_sid:
+                session_id = str(raw_sid)
         raise ConverseRequired(
             node.id,
             state.run_id,
@@ -47,6 +52,7 @@ def run_converse_node(node: Any, state: Any, ctx: Any) -> Any:
             state=state,
             pause=pause,
             mode=mode,
+            session_id=session_id,
         )
     if str(reply).strip().lower() == "handback" and mode == "human_agent":
         payload = {"text": "", "handback": True, "say": say, "role": "human_agent"}
@@ -70,13 +76,15 @@ def run_converse_node(node: Any, state: Any, ctx: Any) -> Any:
 
 
 def _reply_for(node: Any, ctx: Any) -> str | None:
+    replies = getattr(ctx, "converse_replies", None) or {}
+    if node.id in replies:
+        raw = replies[node.id]
+        if raw is not None and str(raw).strip():
+            return str(raw)
     if hasattr(ctx, "decision_for"):
         raw = ctx.decision_for(node.id)
         if raw is not None and str(raw).strip():
             return str(raw)
-    replies = getattr(ctx, "converse_replies", None) or {}
-    if node.id in replies:
-        return str(replies[node.id])
     return None
 
 
