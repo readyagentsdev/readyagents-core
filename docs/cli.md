@@ -158,6 +158,22 @@ readyagents bench compare --models mock:a,mock:b --scenario classify --json
 readyagents bench compare --workflows a.yaml,b.yaml --input text=hello --json
 ```
 
+## `readyagents optimize PATH --eval SUITE`
+
+Reflective prompt optimization against your eval suite. Cassette scoring is
+zero cost; only candidate generation spends. A held-out set is mandatory.
+Does not rewrite workflow YAML. See
+[prompt-optimization.md](prompt-optimization.md).
+
+```bash
+readyagents optimize flow.yaml --eval suite.yaml --max-iterations 8 --json
+readyagents prompts history flow.yaml --id draft --json
+readyagents prompts diff flow.yaml --id draft
+readyagents prompts rollback flow.yaml --id draft
+```
+
+Not a hosted optimizer and not a claim of GEPA/DSPy parity.
+
 ## `readyagents health`
 
 Cluster failures by fingerprint over the existing run store. Rank by impact

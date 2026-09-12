@@ -6,6 +6,29 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Prompt optimization.** `readyagents optimize WORKFLOW --eval SUITE`
+  runs a reflective loop: score with the existing eval harness (determinism,
+  trajectory, usage ceilings — no LLM-as-judge in core), redact failing
+  cases, propose candidates, re-score, keep only a measured improvement that
+  regresses nothing. Cassette-backed scoring is zero cost and does not
+  construct a provider; a case without a cassette is refused rather than
+  calling `get_provider`. Only candidate generation spends, capped by
+  `--max-spend` from priced token usage. Spend is persisted so resume does
+  not re-generate. `--max-iterations`, `--max-spend`, and
+  `--max-wall-seconds` stop with distinct typed reasons (`iterations` /
+  `spend` / `wall`). A fully blocked hold-out is a hold-out failure, not a
+  free promotion. `ghp_` tokens are redacted before reflection. Prompts are versioned, content-hashed objects stored beside the
+  workflow; a literal `prompt:` auto-registers on first use and the YAML is
+  never rewritten. Promotion requires `--min-improvement` and, with
+  `--require-approval`, a human payload that includes the diff and the score
+  delta. A held-out set is mandatory; a held-out or named frozen-fixture
+  regression refuses promotion. Redaction applies to reflection; a secret in
+  a case is blocked, not sent. Candidates are untrusted data, never executed
+  as configuration. `readyagents prompts list|show|history|diff|rollback`
+  review and restore exactly. Not fine-tuning, not a hosted optimizer, not
+  GEPA/DSPy parity — measured deltas on the operator's own suite. Repos that
+  never optimize are unchanged. See
+  [docs/prompt-optimization.md](docs/prompt-optimization.md).
 - **Benchmark harness.** `readyagents bench run` executes a six-shape
   scenario suite (classify, research-with-tools, approval, foreach, team,
   document) offline by default from synthetic cassettes — zero cost, no
