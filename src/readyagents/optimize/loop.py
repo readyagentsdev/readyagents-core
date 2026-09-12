@@ -156,6 +156,9 @@ def optimize_workflow(
             "held-out set is mandatory; every hold-out case was blocked or empty",
             reason="holdout",
         )
+    hold_baseline_rate = baseline_hold.pass_rate
+    last_hold_rate = hold_baseline_rate
+    adopted_hold_rate: float | None = None
     best_score = baseline_train.pass_rate
     promoted = False
     approval: dict[str, Any] | None = None
@@ -210,32 +213,42 @@ def optimize_workflow(
                     activate=False,
                     node_id=node_id,
                 )
+                scorer = score_llm if score_llm is not None else generator
                 train_snap, _ = score_suite(
                     train,
                     settings=settings,
-                    llm=score_llm,
+                    llm=scorer,
                     prompt_text=text,
                     node_id=node_id,
                     secrets=secret_list,
+                    replay=False,
                 )
                 hold_snap, _ = score_suite(
                     hold,
                     settings=settings,
-                    llm=score_llm,
+                    llm=scorer,
                     prompt_text=text,
                     node_id=node_id,
                     secrets=secret_list,
+                    replay=False,
                 )
+                spend = spend + train_snap.spend_usd + hold_snap.spend_usd
+                _persist(source, node_id, prompt_id, spend, iterations)
+                if max_spend is not None and spend > max_spend:
+                    raise OptimizeStopSpend(f"spend budget exhausted ({spend} > {max_spend})")
                 frozen_snap = baseline_frozen
                 if frozen_cases:
                     frozen_snap, _ = score_suite(
                         frozen_cases,
                         settings=settings,
-                        llm=score_llm,
+                        llm=scorer,
                         prompt_text=text,
                         node_id=node_id,
                         secrets=secret_list,
+                        replay=False,
                     )
+                    spend = spend + frozen_snap.spend_usd
+                    _persist(source, node_id, prompt_id, spend, iterations)
                 named = frozen_regressions(
                     baseline_frozen or baseline_train,
                     frozen_snap or train_snap,
@@ -245,6 +258,7 @@ def optimize_workflow(
                 named.extend(frozen_regressions(baseline_train, train_snap, frozen_names))
                 named.extend(frozen_regressions(baseline_hold, hold_snap, frozen_names))
                 named = list(dict.fromkeys(named))
+                last_hold_rate = hold_snap.pass_rate
                 hold_bad = holdout_regressed(baseline_hold, hold_snap)
                 if hold_bad:
                     named.append(f"hold-out:{','.join(hold_snap.failed_names) or 'score'}")
@@ -281,6 +295,8 @@ def optimize_workflow(
                     best_score = train_snap.pass_rate
                     baseline_train = train_snap
                     baseline_hold = hold_snap
+                    last_hold_rate = hold_snap.pass_rate
+                    adopted_hold_rate = hold_snap.pass_rate
                 elif adopt and require_approval:
                     approval = approval_payload(
                         source,
@@ -319,19 +335,17 @@ def optimize_workflow(
         raw = (iterations[0].train or {}).get("pass_rate")
         first_train = float(raw) if raw is not None else first_train
     delta = best_score - first_train
+    held_score = hold_baseline_rate
+    if adopted_hold_rate is not None:
+        held_score = adopted_hold_rate
+    elif last_hold_rate is not None:
+        held_score = last_hold_rate
     held = {
-        "score": baseline_hold.pass_rate,
-        "baseline": float(
-            (iterations[0].held_out or {}).get("pass_rate")
-            if iterations
-            else baseline_hold.pass_rate
-        ),
+        "score": held_score,
+        "baseline": hold_baseline_rate,
         "regression": False,
     }
     if iterations:
-        last_hold = iterations[-1].held_out or {}
-        if last_hold.get("pass_rate") is not None:
-            held["score"] = float(last_hold["pass_rate"])
         held["regression"] = bool(
             any("hold-out:" in n for row in iterations for n in row.regressions)
         )

@@ -28,14 +28,17 @@ readyagents prompts rollback flow.yaml --id draft
    nothing.
 6. Persist the iteration so a killed run resumes.
 
-Where a case has a cassette, scoring replays it offline at **zero cost**
-and does not construct a provider. A case without a cassette is refused
-unless an explicit scorer is injected (tests). The CLI path does not
-build a live client to score. Candidate generation is the only spend,
-metered by `--max-spend`. `--max-iterations`, `--max-spend`, and
+Where a case has a cassette, **baseline** scoring replays it offline at
+**zero cost** and does not construct a provider. A mutated candidate prompt
+cannot replay that cassette (the key includes the prompt), so candidates
+are scored with the generation provider and that spend counts under
+`--max-spend`. `--max-iterations`, `--max-spend`, and
 `--max-wall-seconds` each stop with a distinct typed reason
-(`iterations` / `spend` / `wall`). Generation spend is persisted so
-`--resume` does not re-pay completed work.
+(`iterations` / `spend` / `wall`). Spend is persisted so `--resume` does
+not re-pay completed work. Reflection sees redacted failing-case **diffs**
+(inputs, expected vs actual), not name/reason only. The JSON `held_out.score`
+is the last scored or adopted hold-out pass rate, not the pre-candidate
+baseline snapshot.
 
 ## Registry
 

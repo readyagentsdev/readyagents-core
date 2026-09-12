@@ -191,6 +191,142 @@ def test_cassette_scoring_zero_spend(tmp_path: Path, tmp_settings) -> None:
     assert snap.total == 1
 
 
+def _record_cassette(path: Path, text: str, tmp_settings) -> Path:
+    llm = ScriptedLLM().enqueue("other", usage={"cost_micros": 0})
+    state = run_workflow_file_test(
+        path,
+        inputs={"text": text},
+        llm=llm,
+        settings=tmp_settings,
+        persist=False,
+        record=True,
+    )
+    cassette = Path(str(state.metadata.get("cassette") or ""))
+    assert cassette.is_file()
+    return cassette
+
+
+def test_candidate_outscores_cassette_baseline_without_score_llm(
+    tmp_path: Path, tmp_settings
+) -> None:
+    path = _flow(tmp_path)
+    before = path.read_bytes()
+    cases = [
+        EvalCase(
+            name="train-down",
+            workflow=path,
+            inputs={"text": "production is down"},
+            expect_status="succeeded",
+            expect_contains={"label": "urgent"},
+            cassette=_record_cassette(path, "production is down", tmp_settings),
+        ),
+        EvalCase(
+            name="train-outage",
+            workflow=path,
+            inputs={"text": "checkout is down"},
+            expect_status="succeeded",
+            expect_contains={"label": "urgent"},
+            cassette=_record_cassette(path, "checkout is down", tmp_settings),
+        ),
+        EvalCase(
+            name="hold-hello",
+            workflow=path,
+            inputs={"text": "hello"},
+            expect_status="succeeded",
+            cassette=_record_cassette(path, "hello", tmp_settings),
+        ),
+    ]
+    better = "urgent-rule. Label the ticket: {{text}}"
+    gen = KeywordLLM(candidates=[better])
+    report = optimize_workflow(
+        path,
+        cases,
+        node="draft",
+        max_iterations=1,
+        min_improvement=0.05,
+        candidates=1,
+        llm=gen,
+        score_llm=None,
+        settings=tmp_settings,
+        resume=False,
+    )
+    assert path.read_bytes() == before
+    assert report.promoted is True
+    assert report.best_score > report.baseline_score
+    assert report.baseline_score == 0.0
+    scoring_calls = [
+        msgs
+        for msgs in gen.calls
+        if "urgent-rule" in " ".join(str(getattr(m, "content", "") or "") for m in msgs)
+        and "failing_cases" not in " ".join(str(getattr(m, "content", "") or "") for m in msgs)
+    ]
+    assert scoring_calls, "candidate scoring must use the generation provider, not cassette replay"
+
+
+def test_failure_payload_includes_redacted_diffs(tmp_path: Path, tmp_settings) -> None:
+    path = _flow(tmp_path)
+    better = "urgent-rule. Label the ticket: {{text}}"
+    gen = KeywordLLM(candidates=[better])
+    optimize_workflow(
+        path,
+        _cases(path),
+        node="draft",
+        max_iterations=1,
+        min_improvement=1.1,
+        candidates=1,
+        llm=gen,
+        score_llm=KeywordLLM(),
+        settings=tmp_settings,
+        resume=False,
+    )
+    blobs = [
+        " ".join(str(getattr(m, "content", "") or "") for m in msgs)
+        for msgs in gen.calls
+        if any("failing_cases" in str(getattr(m, "content", "") or "") for m in msgs)
+    ]
+    assert blobs
+    data = json.loads(blobs[0][blobs[0].find("{") : blobs[0].rfind("}") + 1])
+    rows = data.get("failing_cases") or []
+    assert rows
+    row = rows[0]
+    assert "inputs" in row and "text" in row["inputs"]
+    assert "expected" in row and "actual" in row
+    assert "contains" in row["expected"] or "status" in row["expected"]
+    assert row["reason"]
+
+
+def test_held_out_score_is_adopted_not_baseline(tmp_path: Path, tmp_settings) -> None:
+    path = _flow(tmp_path)
+    train = _cases(path)[:2]
+    hold = [
+        EvalCase(
+            name="hold-hello",
+            workflow=path,
+            inputs={"text": "hello"},
+            expect_status="succeeded",
+            expect_contains={"label": "urgent"},
+        )
+    ]
+    better = "urgent-rule. Label the ticket: {{text}}"
+    report = optimize_workflow(
+        path,
+        train,
+        hold_out=hold,
+        node="draft",
+        max_iterations=1,
+        min_improvement=0.05,
+        candidates=1,
+        llm=KeywordLLM(candidates=[better]),
+        score_llm=KeywordLLM(),
+        settings=tmp_settings,
+        resume=False,
+    )
+    assert report.promoted is True
+    assert report.held_out["baseline"] == 0.0
+    assert report.held_out["score"] == 1.0
+    assert report.held_out["score"] != report.held_out["baseline"]
+
+
 def test_optimize_promotes_above_threshold_and_holdout(tmp_path: Path, tmp_settings) -> None:
     path = _flow(tmp_path)
     before = path.read_bytes()
@@ -527,11 +663,13 @@ def test_cli_optimize_json_no_double_ok(tmp_path: Path, tmp_settings, monkeypatc
                 f"    cassette: {c1}",
                 "    inputs: {text: production is down}",
                 "    expect_status: succeeded",
+                "    expect_contains: {label: urgent}",
                 "  - name: train-outage",
                 "    workflow: classify.yaml",
                 f"    cassette: {c2}",
                 "    inputs: {text: checkout is down}",
                 "    expect_status: succeeded",
+                "    expect_contains: {label: urgent}",
                 "  - name: hold-hello",
                 "    workflow: classify.yaml",
                 f"    cassette: {c3}",
@@ -581,7 +719,9 @@ def test_cli_optimize_json_no_double_ok(tmp_path: Path, tmp_settings, monkeypatc
     assert payload["command"] == "optimize"
     assert payload["stop_reason"] == "iterations"
     assert "held_out" in payload
-    assert payload["promoted"] in {True, False}
+    assert "score" in payload["held_out"]
+    assert payload["promoted"] is True
+    assert payload["best_score"] > payload["baseline_score"]
     again = runner.invoke(
         app,
         [

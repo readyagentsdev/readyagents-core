@@ -53,7 +53,7 @@ def generate_candidates(
 
 
 def bind_generator(llm: Any, model: str | None, settings: Any) -> tuple[Any, str]:
-    """Construct a provider only here. Scoring never calls this."""
+    """Construct a provider for generation and candidate scoring. Baseline replay does not."""
     if llm is not None:
         return llm, model or "scripted"
     if not model:
@@ -68,6 +68,8 @@ def bind_generator(llm: Any, model: str | None, settings: Any) -> tuple[Any, str
 
 
 def failure_payload(snapshot: ScoreSnapshot) -> list[dict[str, Any]]:
+    if snapshot.failures:
+        return [dict(row) for row in snapshot.failures]
     rows: list[dict[str, Any]] = []
     for name in snapshot.failed_names:
         rows.append({"name": name, "reason": snapshot.reasons.get(name, "")})
