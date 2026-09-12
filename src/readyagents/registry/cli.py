@@ -217,6 +217,18 @@ def registry_list_cmd(
     model: str | None = typer.Option(None, "--model"),
     kind: str | None = typer.Option(None, "--kind"),
     stale: bool = typer.Option(False, "--stale", help="Only unused decommission candidates."),
+    min_spend: int | None = typer.Option(
+        None, "--min-spend", help="Minimum derived spend_micros (inclusive)."
+    ),
+    max_spend: int | None = typer.Option(
+        None, "--max-spend", help="Maximum derived spend_micros (inclusive)."
+    ),
+    min_health: float | None = typer.Option(
+        None, "--min-health", help="Minimum derived health_score (inclusive)."
+    ),
+    max_health: float | None = typer.Option(
+        None, "--max-health", help="Maximum derived health_score (inclusive)."
+    ),
     unredact: bool = typer.Option(False, "--unredact"),
     actor: str | None = typer.Option(None, "--actor", envvar="READYAGENTS_ACTOR"),
     as_json: bool = typer.Option(False, "--json"),
@@ -236,6 +248,10 @@ def registry_list_cmd(
             model=model,
             kind=kind,
             stale=True if stale else None,
+            min_spend_micros=min_spend,
+            max_spend_micros=max_spend,
+            min_health=min_health,
+            max_health=max_health,
             unused_ids=unused,
             redact=not unredact,
             authorizer=_authorizer(),
@@ -282,15 +298,49 @@ def registry_show_cmd(
 
 @registry_app.command("stats")
 def registry_stats_cmd(
+    owner: str | None = typer.Option(None, "--owner"),
+    tier: str | None = typer.Option(None, "--tier"),
+    model: str | None = typer.Option(None, "--model"),
+    kind: str | None = typer.Option(None, "--kind"),
+    stale: bool = typer.Option(False, "--stale", help="Only unused decommission candidates."),
+    min_spend: int | None = typer.Option(
+        None, "--min-spend", help="Minimum derived spend_micros (inclusive)."
+    ),
+    max_spend: int | None = typer.Option(
+        None, "--max-spend", help="Maximum derived spend_micros (inclusive)."
+    ),
+    min_health: float | None = typer.Option(
+        None, "--min-health", help="Minimum derived health_score (inclusive)."
+    ),
+    max_health: float | None = typer.Option(
+        None, "--max-health", help="Maximum derived health_score (inclusive)."
+    ),
     actor: str | None = typer.Option(None, "--actor", envvar="READYAGENTS_ACTOR"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Portfolio summary for a governance meeting. Roles, not personal contacts."""
     from readyagents.config import get_settings
+    from readyagents.registry.check import check
     from readyagents.registry.view import stats
 
     try:
-        payload = stats(settings=get_settings(), authorizer=_authorizer(), actor=actor)
+        settings = get_settings()
+        unused = {row["agent_id"] for row in check(settings=settings).unused}
+        payload = stats(
+            settings=settings,
+            owner=owner,
+            tier=tier,
+            model=model,
+            kind=kind,
+            stale=True if stale else None,
+            min_spend_micros=min_spend,
+            max_spend_micros=max_spend,
+            min_health=min_health,
+            max_health=max_health,
+            unused_ids=unused,
+            authorizer=_authorizer(),
+            actor=actor,
+        )
     except (RegistryRefused, AuthorizationError) as extra:
         _emit_error("registry stats", extra, as_json=as_json)
     if as_json:

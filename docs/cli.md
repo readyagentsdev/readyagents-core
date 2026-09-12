@@ -212,15 +212,17 @@ not an Article 49 filing. See [registry.md](registry.md).
 readyagents registry scan --json
 readyagents registry annotate agt_… --owner payments_ops --tier high --json
 readyagents registry check --enforce --json
-readyagents registry list --tier high --json
+readyagents registry list --tier high --max-spend 1000 --min-health 0.9 --json
 readyagents registry show agt_… --json
 readyagents registry stats --json
 readyagents registry card agt_… --json
 readyagents registry export agt_… --format annex-viii --out annex-viii-draft.json --yes --json
 ```
 
-`--unredact` is RBAC-checked. Export paths are workspace-confined; the filename
-must contain `draft`. Scan never executes a workflow or imports a pack.
+`--unredact` is RBAC-checked. `list` and `stats` accept `--min-spend` /
+`--max-spend` (derived `spend_micros`) and `--min-health` / `--max-health`.
+Export paths are workspace-confined; the filename must contain `draft`. Scan
+never executes a workflow or imports a pack.
 
 ## `readyagents promote PATH --from SRC --to DST`
 
