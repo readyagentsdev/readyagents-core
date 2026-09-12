@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +16,18 @@ from readyagents.config import Settings, get_settings
 from readyagents.distill.schema import AdapterRecord, DistillConfig
 from readyagents.errors import DistillRefused
 from readyagents.permissions import restrict_file
+
+_bypass_pins: ContextVar[bool] = ContextVar("distill_bypass_pins", default=False)
+
+
+@contextmanager
+def bypass_promoted_pins() -> Iterator[None]:
+    """Evaluate/rescore must not route either side through a live pin."""
+    token = _bypass_pins.set(True)
+    try:
+        yield
+    finally:
+        _bypass_pins.reset(token)
 
 
 def distill_dir(settings: Settings | None = None) -> Path:
@@ -123,6 +138,8 @@ def save_promoted(pins: dict[str, Any], settings: Settings | None = None) -> Non
 
 
 def pin_for(node_id: str, settings: Settings | None = None) -> dict[str, Any] | None:
+    if _bypass_pins.get():
+        return None
     pins = load_promoted(settings)
     row = pins.get(str(node_id))
     return row if isinstance(row, dict) else None

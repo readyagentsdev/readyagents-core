@@ -18,7 +18,8 @@ All notable changes to ReadyAgents Core.
   with incumbent fallback and auto-demote on fixture-suite regression. A promoted
   `adapter:` ref is served through the pack tuner (`Tuner.complete`); capability
   checks do not abort fallback to the incumbent. Evaluate binds the candidate to
-  that provider. Sovereign mode refuses hosted tune. Ledger `distill_delta`
+  that provider and bypasses live pins so incumbent and candidate stay
+  like-for-like. Sovereign mode refuses hosted tune. Ledger `distill_delta`
   records spend before/after.
   No quality claim beyond the operator's fixtures; no benchmark/leaderboard.
   Byte-identical without a promoted adapter. See

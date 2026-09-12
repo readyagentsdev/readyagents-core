@@ -145,7 +145,7 @@ class BlobLLM:
         return CompletionResult(text=self.text, model=model)
 
 
-def _suite(tmp: Path, *, expect: str = "ok") -> Path:
+def _suite(tmp: Path, *, expect: str = "ok", node_id: str = "out") -> Path:
     path = tmp / "suite.yaml"
     path.write_text(
         "cases:\n"
@@ -154,7 +154,7 @@ def _suite(tmp: Path, *, expect: str = "ok") -> Path:
         "      name: frozen\n"
         "      default_model: mock:x\n"
         "      nodes:\n"
-        "        - id: out\n"
+        f"        - id: {node_id}\n"
         "          type: agent\n"
         "          prompt: say ok\n"
         "          output_key: output\n"
@@ -684,3 +684,59 @@ def test_promoted_adapter_falls_back_to_incumbent(
     assert "INCUMBENT_OK" in str(state.output_keys.get("out"))
     routes = (state.metadata or {}).get("routes") or []
     assert routes and routes[0].get("fallback") is True
+
+
+def test_evaluate_pinned_matching_node_id_sides_differ(
+    tmp_path: Path, tmp_settings, monkeypatch
+) -> None:
+    """Suite node id equals the live pin; incumbent must not ride adapter:."""
+    monkeypatch.setenv("READYAGENTS_HOME", str(tmp_settings.home_path()))
+    monkeypatch.setenv("READYAGENTS_WORKSPACE", str(tmp_path))
+    clear_settings_cache()
+    record, keyring = _signed_adapter(tmp_path, tmp_settings, tuner=PhraseTuner())
+    good = EvalComparison(
+        incumbent=SideScore(accuracy=1, holdout=1.0, cost_micros=10),
+        candidate=SideScore(accuracy=1, holdout=1.0, cost_micros=4),
+        holdout={"named": True, "incumbent": 1.0, "candidate": 1.0},
+        canary_passed=True,
+        fixture_digest="sha256:old",
+    )
+    promote(
+        record.id,
+        "classify",
+        settings=tmp_settings,
+        comparison=good,
+        incumbent="mock:incumbent",
+        keyring=keyring,
+    )
+    assert pin_for("classify", tmp_settings) is not None
+    suite = _suite(tmp_path, expect="CANDIDATE_SIDE", node_id="classify")
+    report = evaluate(
+        suite=suite,
+        dataset=tmp_path / "ds",
+        incumbent_llm=BlobLLM("INCUMBENT_SIDE"),
+        candidate_llm=BlobLLM("CANDIDATE_SIDE"),
+        adapter=record.path,
+        tuner=PhraseTuner(),
+        settings=tmp_settings,
+    )
+    assert report.candidate.passed >= 1
+    assert report.incumbent.failed >= 1
+    assert report.candidate.accuracy != report.incumbent.accuracy
+    save_config(DistillConfig(min_parity=1.0), tmp_settings)
+    changed = rescore_promoted(
+        settings=tmp_settings,
+        suite=suite,
+        dataset=tmp_path / "ds",
+        incumbent_llm=BlobLLM("CANDIDATE_SIDE"),
+        candidate_llm=BlobLLM("WRONG"),
+        tuner=PhraseTuner(),
+        keyring=keyring,
+    )
+    assert changed
+    assert pin_for("classify", tmp_settings) is None
+    from readyagents.distill.store import load_adapter
+
+    demoted = load_adapter(record.id, tmp_settings)
+    assert demoted.status == "demoted"
+    assert demoted.demote_reason == "regression"
