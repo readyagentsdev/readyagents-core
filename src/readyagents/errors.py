@@ -239,6 +239,49 @@ class BenchRefused(BenchError):
         super().__init__(message)
 
 
+class OptimizeError(ReadyAgentsError):
+    """Prompt optimization, scoring, or registry failure."""
+
+
+class OptimizeRefused(OptimizeError):
+    """Optimization refused: hold-out, secret, hostile candidate, or missing node."""
+
+    def __init__(self, message: str, *, reason: str = "refused", report: Any = None) -> None:
+        self.reason = reason
+        self.report = report
+        super().__init__(message)
+
+
+class OptimizeStopped(OptimizeError):
+    """Loop stopped on a declared budget. Distinct subclasses per budget."""
+
+    def __init__(self, message: str, *, reason: str, report: Any = None) -> None:
+        self.reason = reason
+        self.report = report
+        super().__init__(message)
+
+
+class OptimizeStopIterations(OptimizeStopped):
+    """``--max-iterations`` exhausted. Distinct from spend and wall-clock."""
+
+    def __init__(self, message: str = "iteration budget exhausted", *, report: Any = None) -> None:
+        super().__init__(message, reason="iterations", report=report)
+
+
+class OptimizeStopSpend(OptimizeStopped):
+    """``--max-spend`` exhausted. Distinct from iterations and wall-clock."""
+
+    def __init__(self, message: str = "spend budget exhausted", *, report: Any = None) -> None:
+        super().__init__(message, reason="spend", report=report)
+
+
+class OptimizeStopWall(OptimizeStopped):
+    """Wall-clock budget exhausted. Distinct from iterations and spend."""
+
+    def __init__(self, message: str = "wall-clock budget exhausted", *, report: Any = None) -> None:
+        super().__init__(message, reason="wall", report=report)
+
+
 class SimulateError(ReadyAgentsError):
     """Simulation generation, scoring, or freeze failure."""
 

@@ -490,6 +490,14 @@ class NodeSpec(BaseModel):
         default=None,
         description="Agent or approval prompt. Templates allowed.",
     )
+    prompt_id: str | None = Field(
+        default=None,
+        description="Optional registry id. Literal prompt: still works when omitted.",
+    )
+    prompt_version: int | None = Field(
+        default=None,
+        description="Optional pinned registry version. Omitted uses the active version.",
+    )
     system: str | None = Field(default=None, description="Optional system prompt for agent nodes.")
     model: str | None = Field(
         default=None,

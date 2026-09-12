@@ -131,6 +131,11 @@ bench_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(bench_app, name="bench")
+prompts_app = typer.Typer(
+    help="List, show, diff, and rollback versioned prompts. Never rewrites workflow YAML.",
+    no_args_is_help=True,
+)
+app.add_typer(prompts_app, name="prompts")
 
 console = Console()
 err_console = Console(stderr=True)
@@ -520,6 +525,323 @@ def eval_cmd(
         console.print(f"passed={report.passed} failed={report.failed}")
     if not report.ok:
         raise typer.Exit(code=1)
+
+
+@app.command("optimize")
+def optimize_cmd(
+    path: Path = _WORKFLOW_ARG,
+    eval_suite: Path = typer.Option(..., "--eval", help="Eval suite YAML used as the scorer."),
+    node: str | None = typer.Option(None, "--node", help="Prompt-bearing node id."),
+    max_iterations: int = typer.Option(8, "--max-iterations"),
+    max_spend: float | None = typer.Option(None, "--max-spend", help="Generation spend cap (USD)."),
+    max_wall_seconds: float | None = typer.Option(None, "--max-wall-seconds"),
+    min_improvement: float = typer.Option(0.05, "--min-improvement"),
+    n_candidates: int = typer.Option(3, "--candidates"),
+    hold_out: Path | None = typer.Option(
+        None, "--hold-out", help="Held-out eval suite (mandatory)."
+    ),
+    frozen: Path | None = typer.Option(
+        None, "--frozen", help="Frozen fixture suite that must not regress."
+    ),
+    require_approval: bool = typer.Option(False, "--require-approval"),
+    model: str | None = typer.Option(
+        None, "--model", help="Provider for candidate generation only."
+    ),
+    resume: bool = typer.Option(True, "--resume/--no-resume"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Reflective prompt optimization. Scoring is eval; generation is the only spend."""
+    from readyagents.config import get_settings
+    from readyagents.errors import OptimizeRefused, OptimizeStopped
+    from readyagents.optimize.loop import optimize_workflow
+
+    settings = get_settings()
+    try:
+        report = optimize_workflow(
+            path,
+            eval_suite,
+            node=node,
+            max_iterations=max_iterations,
+            max_spend=max_spend,
+            max_wall_seconds=max_wall_seconds,
+            min_improvement=min_improvement,
+            candidates=n_candidates,
+            hold_out=hold_out,
+            frozen=frozen,
+            require_approval=require_approval,
+            model=model,
+            settings=settings,
+            resume=resume,
+        )
+    except OptimizeRefused as extra:
+        payload = extra.report.as_dict() if getattr(extra, "report", None) is not None else {}
+        payload.pop("ok", None)
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "optimize",
+                    ok=False,
+                    error="OptimizeRefused",
+                    message=str(extra),
+                    reason=extra.reason,
+                    **payload,
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "optimize",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    body = report.as_dict()
+    ok = bool(body.pop("ok", True))
+    if as_json:
+        _print_json(_json_envelope("optimize", ok=ok, **body))
+        return
+    console.print(
+        f"optimize stop={report.stop_reason} promoted={report.promoted} "
+        f"delta={report.delta} spend_usd={report.spend_usd} "
+        f"held_out={report.held_out.get('score')}"
+    )
+    if isinstance(report.stop, OptimizeStopped) and not report.promoted:
+        return
+
+
+@prompts_app.command("list")
+def prompts_list_cmd(
+    path: Path = _WORKFLOW_ARG,
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    from readyagents.errors import OptimizeRefused
+    from readyagents.prompts.registry import list_prompts, register_literals
+
+    try:
+        register_literals(path)
+        rows = list_prompts(path)
+    except OptimizeRefused as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "prompts list",
+                    ok=False,
+                    error="OptimizeRefused",
+                    message=str(extra),
+                    reason=extra.reason,
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "prompts list", ok=False, error=type(extra).__name__, message=str(extra)
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(_json_envelope("prompts list", ok=True, prompts=rows))
+        return
+    if not rows:
+        console.print("no registered prompts")
+        return
+    for row in rows:
+        console.print(
+            f"{row['id']} node={row['node_id']} v{row['active_version']} "
+            f"hash={row['content_hash'][:12]}"
+        )
+
+
+@prompts_app.command("show")
+def prompts_show_cmd(
+    path: Path = _WORKFLOW_ARG,
+    prompt_id: str = typer.Option(..., "--id"),
+    version: int | None = typer.Option(None, "--version"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    from readyagents.errors import OptimizeRefused
+    from readyagents.prompts.registry import get_prompt, register_literals
+
+    try:
+        register_literals(path)
+        row = get_prompt(path, prompt_id, version=version)
+    except OptimizeRefused as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "prompts show",
+                    ok=False,
+                    error="OptimizeRefused",
+                    message=str(extra),
+                    reason=extra.reason,
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "prompts show", ok=False, error=type(extra).__name__, message=str(extra)
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    body = row.as_dict()
+    if as_json:
+        _print_json(_json_envelope("prompts show", ok=True, prompt=body))
+        return
+    console.print(f"{prompt_id}@{row.version} hash={row.content_hash}")
+    console.print(row.text)
+
+
+@prompts_app.command("history")
+def prompts_history_cmd(
+    path: Path = _WORKFLOW_ARG,
+    prompt_id: str = typer.Option(..., "--id"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    from readyagents.errors import OptimizeRefused
+    from readyagents.prompts.registry import history, register_literals
+
+    try:
+        register_literals(path)
+        rows = history(path, prompt_id)
+    except OptimizeRefused as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "prompts history",
+                    ok=False,
+                    error="OptimizeRefused",
+                    message=str(extra),
+                    reason=extra.reason,
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "prompts history", ok=False, error=type(extra).__name__, message=str(extra)
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(_json_envelope("prompts history", ok=True, versions=rows))
+        return
+    for row in rows:
+        console.print(f"v{row['version']} {row['source']} hash={row['content_hash'][:12]}")
+
+
+@prompts_app.command("diff")
+def prompts_diff_cmd(
+    path: Path = _WORKFLOW_ARG,
+    prompt_id: str = typer.Option(..., "--id"),
+    left: int | None = typer.Option(None, "--left"),
+    right: int | None = typer.Option(None, "--right"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    from readyagents.errors import OptimizeRefused
+    from readyagents.prompts.registry import diff_versions, register_literals
+
+    try:
+        register_literals(path)
+        text = diff_versions(path, prompt_id, left=left, right=right)
+    except OptimizeRefused as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "prompts diff",
+                    ok=False,
+                    error="OptimizeRefused",
+                    message=str(extra),
+                    reason=extra.reason,
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "prompts diff", ok=False, error=type(extra).__name__, message=str(extra)
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    if as_json:
+        _print_json(_json_envelope("prompts diff", ok=True, diff=text))
+        return
+    console.print(text or "(no diff)")
+
+
+@prompts_app.command("rollback")
+def prompts_rollback_cmd(
+    path: Path = _WORKFLOW_ARG,
+    prompt_id: str = typer.Option(..., "--id"),
+    version: int | None = typer.Option(None, "--version"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    from readyagents.errors import OptimizeRefused
+    from readyagents.prompts.registry import register_literals, rollback
+
+    try:
+        register_literals(path)
+        row = rollback(path, prompt_id, version=version)
+    except OptimizeRefused as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "prompts rollback",
+                    ok=False,
+                    error="OptimizeRefused",
+                    message=str(extra),
+                    reason=extra.reason,
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "prompts rollback",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    body = row.as_dict()
+    if as_json:
+        _print_json(_json_envelope("prompts rollback", ok=True, prompt=body))
+        return
+    console.print(f"rolled back {prompt_id} to v{row.version} hash={row.content_hash}")
 
 
 @app.command("simulate")

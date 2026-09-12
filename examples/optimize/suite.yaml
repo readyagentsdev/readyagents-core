@@ -1,0 +1,21 @@
+# Keyless optimize suite. Scoring uses eval; generation is mocked in tests.
+cases:
+  - name: train-down
+    workflow: classify.yaml
+    inputs:
+      text: "production is down"
+    expect_status: succeeded
+    expect_contains:
+      label: urgent
+  - name: train-outage
+    workflow: classify.yaml
+    inputs:
+      text: "checkout is down"
+    expect_status: succeeded
+    expect_contains:
+      label: urgent
+  - name: hold-hello
+    workflow: classify.yaml
+    inputs:
+      text: "hello"
+    expect_status: succeeded

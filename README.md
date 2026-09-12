@@ -64,6 +64,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Optional [simulation](docs/simulation.md) (`readyagents simulate`) — **Unreleased**; declaration-driven cases, honest coverage, dry-run default; not exhaustive, not a hosted simulator
 - Optional [self-healing](docs/self-healing.md) (`readyagents health`, `recovery:`) — **Unreleased**; fingerprints and fail-safe gates; not prediction; not a hosted reliability service
 - Optional [benchmark harness](docs/benchmarks.md) (`readyagents bench`) — **Unreleased**; offline cassettes, labelled engine vs live timing; not a model-quality or competitor ranking
+- Optional [prompt optimization](docs/prompt-optimization.md) (`readyagents optimize`, `readyagents prompts`) — **Unreleased**; versioned prompts, offline reflective loop, gated promotion; not GEPA/DSPy parity; YAML that never optimizes is unchanged
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -102,6 +103,8 @@ flowchart LR
 | `readyagents validate PATH` | Schema-validate a workflow (source-located errors on failure) |
 | `readyagents schema` | Print/write/check the generated workflow JSON Schema |
 | `readyagents eval PATH` | Score a keyless fixture suite (exit 0/1) |
+| `readyagents optimize PATH --eval SUITE` | Reflective prompt optimization against your eval suite (**Unreleased**; not a hosted optimizer) |
+| `readyagents prompts list` / `show` / `history` / `diff` / `rollback` | Versioned prompts beside the workflow; rollback restores exactly |
 | `readyagents run PATH [--input KEY=VALUE] [--dry-run] [--approve NODE] [--reject NODE] [--decision-file FILE] [--actor NAME] [--pack PATH] [--policy PATH] [--estimate] [--max-spend USD] [--max-tokens N] [--label KEY=VALUE] [--sovereign] [--stream]` | Execute (or `--estimate` without running). `--stream` is opt-in Unreleased |
 | `readyagents batch PATH --input-file FILE [--concurrency N] [--max-spend USD] [--out FILE]` | Foreground: one workflow, many JSONL/CSV rows (opt-in; Unreleased) |
 | `readyagents attest RUN_ID` | Data-residency attestation (technical evidence, not legal compliance) |
