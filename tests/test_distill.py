@@ -16,7 +16,7 @@ from readyagents.distill.canary import CANARY_TOKEN, canary_pass, plant_secret
 from readyagents.distill.dataset import build_dataset
 from readyagents.distill.evaluate import evaluate
 from readyagents.distill.plan import plan
-from readyagents.distill.promote import demote, promote, rescore_promoted
+from readyagents.distill.promote import promote, rescore_promoted
 from readyagents.distill.schema import DistillConfig, EvalComparison, SideScore
 from readyagents.distill.store import pin_for, save_config
 from readyagents.distill.train import train
@@ -31,11 +31,13 @@ from readyagents.errors import (
     DistillSovereignHosted,
     DistillTrainMissing,
     DistillUnsigned,
+    LLMError,
 )
 from readyagents.feedback.capture import record_human_correction
 from readyagents.llm.base import CompletionResult
 from readyagents.routing.select import select_route
 from readyagents.run_store import open_run_store
+from readyagents.testing.helpers import ScriptedLLM, run_workflow_spec
 from readyagents.workflow.schema import NodeSpec, WorkflowSpec
 from readyagents.workflow.state import RunState
 
@@ -192,7 +194,7 @@ def test_plan_verdicts_enough_not_enough_too_broad(tmp_settings) -> None:
     assert empty.verdict == "not_enough_data"
     _seed_corrections(tmp_settings, 5, label="spam")
     broad = plan("classify", settings=tmp_settings, min_examples=4)
-    assert broad.verdict in {"task_too_broad", "viable"}
+    assert broad.verdict == "task_too_broad"
     save_config(DistillConfig(min_examples=4, broad_ratio=1.0), tmp_settings)
     ok = plan("classify", settings=tmp_settings, min_examples=4)
     assert ok.verdict == "viable"
@@ -519,24 +521,23 @@ def test_canary_and_auto_demote(tmp_path: Path, tmp_settings) -> None:
         comparison=good,
         keyring=load_keyring(home=tmp_settings.home_path()),
     )
-    save_config(DistillConfig(min_parity=1.0, max_cost_micros=1), tmp_settings)
+    save_config(DistillConfig(min_parity=1.0), tmp_settings)
     changed = rescore_promoted(
         settings=tmp_settings,
         suite=suite,
         dataset=tmp_path / "ds",
         incumbent_llm=BlobLLM("ok"),
-        candidate_llm=BlobLLM("ok"),
+        candidate_llm=BlobLLM("WRONG"),
         tuner=HonestTuner(),
         keyring=load_keyring(home=tmp_settings.home_path()),
     )
-    # rescore runs evaluate which may pass or demote on cost; pin must not silently rot.
-    assert pin_for("classify", tmp_settings) is None or changed == []
-    if pin_for("classify", tmp_settings) is not None:
-        demote(record.id, settings=tmp_settings, reason="below_threshold")
+    assert changed
     assert pin_for("classify", tmp_settings) is None
     from readyagents.distill.store import load_adapter
 
-    assert load_adapter(record.id, tmp_settings).demote_reason
+    demoted = load_adapter(record.id, tmp_settings)
+    assert demoted.status == "demoted"
+    assert demoted.demote_reason == "regression"
 
 
 def test_cli_plan_and_train_pack_missing(tmp_path: Path, tmp_settings, monkeypatch) -> None:
@@ -559,3 +560,127 @@ def test_cli_plan_and_train_pack_missing(tmp_path: Path, tmp_settings, monkeypat
     body = json.loads(trained.stdout[trained.stdout.find("{") :])
     assert body["ok"] is False
     assert body["error"] in {"DistillTrainMissing", "DistillRefused", "ConfigError", "PathError"}
+
+
+class PhraseTuner(HonestTuner):
+    phrase = "ADAPTER_OK"
+
+    def complete(self, adapter: Path, prompt: str) -> str:
+        return self.phrase
+
+
+class BoomTuner(HonestTuner):
+    def complete(self, adapter: Path, prompt: str) -> str:
+        raise LLMError("adapter down")
+
+
+def _signed_adapter(tmp_path: Path, tmp_settings, tuner=None):
+    from readyagents.trust.keyring import add_key, load_keyring
+
+    _seed_corrections(tmp_settings, 4)
+    build_dataset("classify", tmp_path / "ds", settings=tmp_settings, seed=1, yes=True)
+    priv, pub = _ed25519(tmp_path)
+    add_key(pub, name="ops", home=tmp_settings.home_path())
+    record = train(
+        tmp_path / "ds",
+        base="mock:base",
+        settings=tmp_settings,
+        tuner=tuner or HonestTuner(),
+        sign_key=priv,
+        node_id="classify",
+    )
+    return record, load_keyring(home=tmp_settings.home_path())
+
+
+def test_evaluate_candidate_uses_tuner_complete(tmp_path: Path, tmp_settings) -> None:
+    record, _ring = _signed_adapter(tmp_path, tmp_settings, tuner=PhraseTuner())
+    suite = _suite(tmp_path, expect="ADAPTER_OK")
+    report = evaluate(
+        suite=suite,
+        dataset=tmp_path / "ds",
+        incumbent_llm=BlobLLM("INCUMBENT"),
+        adapter=record.path,
+        tuner=PhraseTuner(),
+        settings=tmp_settings,
+    )
+    assert report.holdout.get("named") is True
+    assert report.candidate.accuracy > report.incumbent.accuracy
+    assert report.incumbent.failed >= 1
+    assert report.candidate.passed >= 1
+
+
+def test_promoted_adapter_served_via_tuner(tmp_path: Path, tmp_settings, monkeypatch) -> None:
+    monkeypatch.setenv("READYAGENTS_HOME", str(tmp_settings.home_path()))
+    monkeypatch.setenv("READYAGENTS_WORKSPACE", str(tmp_path))
+    clear_settings_cache()
+    record, keyring = _signed_adapter(tmp_path, tmp_settings, tuner=PhraseTuner())
+    good = EvalComparison(
+        incumbent=SideScore(accuracy=1, holdout=1.0, cost_micros=10),
+        candidate=SideScore(accuracy=1, holdout=1.0, cost_micros=4),
+        holdout={"named": True, "incumbent": 1.0, "candidate": 1.0},
+        canary_passed=True,
+        fixture_digest="sha256:abc",
+    )
+    promote(
+        record.id,
+        "classify",
+        settings=tmp_settings,
+        comparison=good,
+        incumbent="mock:incumbent",
+        keyring=keyring,
+    )
+    import importlib
+
+    train_mod = importlib.import_module("readyagents.distill.train")
+    monkeypatch.setattr(train_mod, "collect_tuner", lambda packs=None: PhraseTuner())
+    spec = WorkflowSpec.model_validate(
+        {
+            "name": "pin_run",
+            "nodes": [{"id": "classify", "type": "agent", "prompt": "hello", "output_key": "out"}],
+        }
+    )
+    state = run_workflow_spec(spec, llm=None)
+    assert state.status == "succeeded"
+    assert "ADAPTER_OK" in str(state.output_keys.get("out"))
+    routes = (state.metadata or {}).get("routes") or []
+    assert routes and str(routes[0].get("model", "")).startswith("adapter:")
+
+
+def test_promoted_adapter_falls_back_to_incumbent(
+    tmp_path: Path, tmp_settings, monkeypatch
+) -> None:
+    monkeypatch.setenv("READYAGENTS_HOME", str(tmp_settings.home_path()))
+    monkeypatch.setenv("READYAGENTS_WORKSPACE", str(tmp_path))
+    clear_settings_cache()
+    record, keyring = _signed_adapter(tmp_path, tmp_settings, tuner=BoomTuner())
+    good = EvalComparison(
+        incumbent=SideScore(accuracy=1, holdout=1.0, cost_micros=10),
+        candidate=SideScore(accuracy=1, holdout=1.0, cost_micros=4),
+        holdout={"named": True, "incumbent": 1.0, "candidate": 1.0},
+        canary_passed=True,
+        fixture_digest="sha256:abc",
+    )
+    promote(
+        record.id,
+        "classify",
+        settings=tmp_settings,
+        comparison=good,
+        incumbent="mock:incumbent",
+        keyring=keyring,
+    )
+    import importlib
+
+    train_mod = importlib.import_module("readyagents.distill.train")
+    monkeypatch.setattr(train_mod, "collect_tuner", lambda packs=None: BoomTuner())
+    spec = WorkflowSpec.model_validate(
+        {
+            "name": "pin_run",
+            "nodes": [{"id": "classify", "type": "agent", "prompt": "hello", "output_key": "out"}],
+        }
+    )
+    llm = ScriptedLLM().enqueue("INCUMBENT_OK")
+    state = run_workflow_spec(spec, llm=llm)
+    assert state.status == "succeeded"
+    assert "INCUMBENT_OK" in str(state.output_keys.get("out"))
+    routes = (state.metadata or {}).get("routes") or []
+    assert routes and routes[0].get("fallback") is True

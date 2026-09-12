@@ -30,10 +30,11 @@ def evaluate(
     if not holdout:
         raise DistillHoldoutMissing()
     fixture_digest = digest_bytes(Path(suite).read_bytes())
+    cand_llm = _candidate_llm(candidate_llm, adapter=adapter, tuner=tuner, settings=settings)
     inc = run_eval(cases, llm=incumbent_llm, settings=settings)
-    cand = run_eval(cases, llm=candidate_llm, settings=settings)
+    cand = run_eval(cases, llm=cand_llm, settings=settings)
     inc_h = run_eval(holdout, llm=incumbent_llm, settings=settings)
-    cand_h = run_eval(holdout, llm=candidate_llm, settings=settings)
+    cand_h = run_eval(holdout, llm=cand_llm, settings=settings)
     regressions = [
         row.name
         for row, other in zip(inc.results, cand.results, strict=False)
@@ -59,6 +60,26 @@ def evaluate(
     if comparison.candidate.holdout is None or comparison.incumbent.holdout is None:
         raise DistillHoldoutMissing()
     return comparison
+
+
+def _candidate_llm(
+    candidate_llm: Any,
+    *,
+    adapter: Path | str | None,
+    tuner: Any,
+    settings: Any,
+) -> Any:
+    del settings
+    if candidate_llm is not None:
+        return candidate_llm
+    if adapter is None:
+        return None
+    from readyagents.distill.provider import AdapterProvider
+    from readyagents.distill.train import collect_tuner
+
+    resolved = tuner if tuner is not None else collect_tuner()
+    adapter_id = Path(adapter).parent.name
+    return AdapterProvider(Path(adapter), resolved, adapter_id)
 
 
 def _holdout_cases(dataset: Path | str) -> list[EvalCase]:

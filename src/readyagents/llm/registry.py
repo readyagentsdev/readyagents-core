@@ -86,6 +86,11 @@ def get_provider(
     ref = model_ref or settings.default_model
     provider_name, model_id = parse_model_ref(ref)
 
+    if provider_name == "adapter":
+        from readyagents.distill.provider import adapter_provider
+
+        return adapter_provider(model_id, settings=settings), model_id
+
     if implicit and not _has_key(settings, provider_name, secrets):
         fallback = _implicit_fallback_ref(settings, secrets)
         if fallback:

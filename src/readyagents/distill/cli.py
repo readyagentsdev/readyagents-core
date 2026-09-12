@@ -170,13 +170,20 @@ def distill_evaluate_cmd(
     from readyagents.config import get_settings
     from readyagents.distill.evaluate import evaluate
     from readyagents.distill.store import load_adapter
+    from readyagents.distill.train import collect_tuner
 
     try:
         settings = get_settings()
         artifact = None
         if adapter:
             artifact = load_adapter(adapter, settings).path
-        report = evaluate(suite=against, dataset=dataset, adapter=artifact, settings=settings)
+        report = evaluate(
+            suite=against,
+            dataset=dataset,
+            adapter=artifact,
+            tuner=collect_tuner(),
+            settings=settings,
+        )
     except DistillRefused as extra:
         _emit_error("distill evaluate", extra, as_json=as_json)
     if as_json:
