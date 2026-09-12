@@ -247,6 +247,11 @@ def _maybe_rollback(
     guard = spec.rollback
     if guard is None or not guard.on:
         return None
+    current = store.current(env)
+    if current and current.get("rollback_reason"):
+        # Already sitting on a revert. Leftover windowed failures must not
+        # treat the abandoned pin as previous and roll forward.
+        return None
     window = int(guard.on.get("window") or 50)
     rows = run_store.list(RunQuery(limit=window))
     total = len(rows)
@@ -256,18 +261,33 @@ def _maybe_rollback(
     error_rate = failed / total
     threshold = guard.on.get("error_rate_above")
     if threshold is not None and error_rate > float(threshold):
-        return store.rollback(env, actor=actor, reason=f"error_rate {error_rate:.3f} > {threshold}")
+        return store.rollback(
+            env,
+            actor=actor,
+            reason=f"error_rate {error_rate:.3f} > {threshold}",
+            retain_failed=False,
+        )
     min_health = guard.on.get("health_below")
     if min_health is not None:
         ok = (total - failed) / total
         if ok < float(min_health):
-            return store.rollback(env, actor=actor, reason=f"health {ok:.3f} < {min_health}")
+            return store.rollback(
+                env,
+                actor=actor,
+                reason=f"health {ok:.3f} < {min_health}",
+                retain_failed=False,
+            )
     cost_cap = guard.on.get("cost_per_run_above")
     if cost_cap is not None and rows:
         costs = [int((item.state.usage or {}).get("cost_micros") or 0) / 1_000_000 for item in rows]
         avg = sum(costs) / len(costs)
         if avg > float(cost_cap):
-            return store.rollback(env, actor=actor, reason=f"cost_per_run {avg:.4f} > {cost_cap}")
+            return store.rollback(
+                env,
+                actor=actor,
+                reason=f"cost_per_run {avg:.4f} > {cost_cap}",
+                retain_failed=False,
+            )
     latency_cap = guard.on.get("latency_ms_above")
     if latency_cap is not None and rows:
         samples = [_wall_ms(item.state) for item in rows]
@@ -276,7 +296,10 @@ def _maybe_rollback(
             avg_ms = sum(present) / len(present)
             if avg_ms > float(latency_cap):
                 return store.rollback(
-                    env, actor=actor, reason=f"latency_ms {avg_ms:.1f} > {latency_cap}"
+                    env,
+                    actor=actor,
+                    reason=f"latency_ms {avg_ms:.1f} > {latency_cap}",
+                    retain_failed=False,
                 )
     return None
 

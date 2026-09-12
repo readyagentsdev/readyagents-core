@@ -103,9 +103,11 @@ spelling as the rollback guard map. Quoted `"on":` is equivalent.
 Declared guards (`error_rate_above`, `health_below`, `cost_per_run_above`,
 `latency_ms_above`) are evaluated **when a run happens**, over that
 environment's isolated store. There is no always-on watcher: a bad release
-keeps serving until the next run touches the guard. After a guard fires, later
-runs keep the rolled-back pin; they do not auto-promote the failed candidate
-back.
+keeps serving until the next run touches the guard. A guard revert restores
+the previous pin and does **not** install the failed pin as previous, so
+leftover windowed failures cannot roll it forward. Later runs keep the
+rolled-back pin; they do not auto-promote the failed candidate back. Manual
+rollback still retains the abandoned pin as previous (authorised re-entry).
 
 When `gates.approval.roles` is set, **manual** rollback requires the same
 approval class as promote (`--approve rollback`). Guard-triggered rollback is

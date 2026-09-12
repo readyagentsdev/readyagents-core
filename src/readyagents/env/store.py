@@ -81,13 +81,22 @@ class EnvStore:
             return
         self._write(path, dict(pointer))
 
-    def rollback(self, name: str, *, actor: str | None, reason: str) -> dict[str, Any]:
+    def rollback(
+        self,
+        name: str,
+        *,
+        actor: str | None,
+        reason: str,
+        retain_failed: bool = True,
+    ) -> dict[str, Any]:
         prev = self.previous(name)
         if not prev:
             raise EnvRefused(f"environment {name!r} has no previous release", reason="rollback")
         current = self.current(name)
         directory = self.env_dir(name)
-        if current:
+        if retain_failed and current:
+            # Manual rollback: keep the abandoned pin as previous so an
+            # authorised operator can still inspect or re-enter it.
             self._write(directory / "previous.json", current)
         pointer = dict(prev)
         pointer["rolled_back_at"] = utc_now()
@@ -102,6 +111,8 @@ class EnvStore:
                 "reason": reason,
                 "actor": actor,
                 "release": pointer.get("digest"),
+                "from": (current or {}).get("digest"),
+                "retain_failed": retain_failed,
             },
         )
         return pointer

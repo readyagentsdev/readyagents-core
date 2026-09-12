@@ -238,11 +238,12 @@ def test_rollback_guard_never_auto_forwards(tmp_path: Path, tmp_settings) -> Non
     spec = loaded.environments["prod"]
     v1 = _flow(tmp_path, "SAFE", "safe.yaml")
     v2 = _flow(tmp_path, "BAD", "bad.yaml")
-    deploy(v1, "prod", spec=spec, settings=tmp_settings)
-    deploy(v2, "prod", spec=spec, settings=tmp_settings)
+    safe = deploy(v1, "prod", spec=spec, settings=tmp_settings)
+    bad = deploy(v2, "prod", spec=spec, settings=tmp_settings)
     store = EnvStore(tmp_settings)
     before = store.current("prod")
     assert before is not None
+    assert before["digest"] == bad["digest"]
     env_store = JsonRunStore(store.runs_dir("prod"))
     for i in range(8):
         failed = RunState.start("echo", {}, run_id=f"fail{i}")
@@ -253,10 +254,24 @@ def test_rollback_guard_never_auto_forwards(tmp_path: Path, tmp_settings) -> Non
     assert state.metadata.get("rollback")
     after = store.current("prod")
     assert after is not None
-    assert after["digest"] != before["digest"]
+    assert after["digest"] == safe["digest"]
+    assert after["digest"] != bad["digest"]
     assert store.candidate("prod") is None
+    prev = store.previous("prod")
+    assert prev is None or prev.get("digest") != bad["digest"]
     nxt = run_in_environment(v2, "prod", settings=tmp_settings, persist=True)
     assert nxt.output_keys["out"] == "SAFE"
+    assert nxt.metadata["release"] == safe["digest"]
+    held = store.current("prod")
+    assert held is not None
+    assert held["digest"] == safe["digest"]
+    third = run_in_environment(v2, "prod", settings=tmp_settings, persist=True)
+    assert third.output_keys["out"] == "SAFE"
+    assert third.metadata["release"] == safe["digest"]
+    still = store.current("prod")
+    assert still is not None
+    assert still["digest"] == safe["digest"]
+    assert still["digest"] != bad["digest"]
     assert nxt.metadata["release"] == after["digest"]
 
 
