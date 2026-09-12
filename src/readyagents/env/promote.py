@@ -33,6 +33,9 @@ def promote(
 ) -> dict[str, Any]:
     """Copy source env current onto target if all gates pass. Does not re-pin."""
     del sign_key
+    from readyagents.registry.enforce import enforce_promote
+
+    enforce_promote(workflow, settings=settings)
     store = EnvStore(settings)
     candidate = store.current(source)
     if candidate is None:

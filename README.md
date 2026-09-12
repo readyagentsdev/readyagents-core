@@ -70,6 +70,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Optional [conversational sessions](docs/conversational-sessions.md) (`type: converse`, `readyagents sessions`, `serve chat`) — **Unreleased**; turns are durable runs; loopback chat; no audio in core; not a hosted chat product
 - Optional [environments and rollout](docs/environments.md) (`readyagents.env.yaml`, `run --env`, `promote`, `rollback`, `env status|history|diff`) — **Unreleased**; pinned signed releases, gated promote, canary/shadow, lazy rollback; not a hosted deploy
 - Optional [migration importers](docs/migration.md) (`readyagents import`) — **Unreleased**; n8n / LangGraph / CrewAI / trigger-action; structural translation plus a fidelity report; never exec source Python; not behavioural equivalence
+- Optional [agent registry](docs/registry.md) (`readyagents registry`) — **Unreleased**; inventory from declared roots; derived facts plus declared roles/tier; draft Annex VIII export, not a legal filing; not a hosted registry
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -112,6 +113,7 @@ flowchart LR
 | `readyagents optimize PATH --eval SUITE` | Reflective prompt optimization against your eval suite (**Unreleased**; not a hosted optimizer) |
 | `readyagents prompts list` / `show` / `history` / `diff` / `rollback` | Versioned prompts beside the workflow; rollback restores exactly |
 | `readyagents env status` / `history` / `diff` / `deploy` | Declared environments and pinned releases (**Unreleased**; not a hosted deploy) |
+| `readyagents registry scan` / `annotate` / `check` / `list` / `show` / `stats` / `card` / `export` | Local agent inventory from declared roots (**Unreleased**; not a hosted registry; Annex VIII export is a draft, not a filing) |
 | `readyagents promote PATH --from SRC --to DST` | Copy a source pin onto a target after eval/fixture/bench/health/approval gates |
 | `readyagents rollback --env NAME` | Restore the previous release atomically; never auto-forwards |
 | `readyagents feedback export` / `stats` | Consent-gated correction datasets (**Unreleased**; production data; not a hosted service) |
@@ -219,6 +221,7 @@ flowchart LR
 - [Conversational sessions](docs/conversational-sessions.md) (opt-in `type: converse`; Unreleased; loopback `serve chat`; no audio in core)
 - [Environments and rollout](docs/environments.md) (opt-in `readyagents.env.yaml`; Unreleased; pinned releases; gated promote; not a hosted deploy)
 - [Migration](docs/migration.md) (opt-in `readyagents import`; Unreleased; structural translation only)
+- [Agent registry](docs/registry.md) (opt-in `readyagents registry`; Unreleased; declared roots; draft Annex VIII, not a filing)
 - [Packaging](docs/packaging.md) (opt-in `readyagents package`; Unreleased; review-before-install; not a marketplace)
 - [Simulation](docs/simulation.md) (opt-in `readyagents simulate`; Unreleased; not exhaustive; not a hosted simulator)
 - [Self-healing](docs/self-healing.md) (opt-in `readyagents health` / `recovery:`; Unreleased; not prediction; not a hosted service)

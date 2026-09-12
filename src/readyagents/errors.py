@@ -358,6 +358,38 @@ class ImportBoundNodes(ImportRefused):
         super().__init__(message, reason="nodes")
 
 
+class RegistryError(ReadyAgentsError):
+    """Agent registry / fleet-governance failure."""
+
+
+class RegistryRefused(RegistryError):
+    """Typed refuse: roots, metadata, enforce, export, RBAC."""
+
+    def __init__(self, message: str, *, reason: str = "refused") -> None:
+        self.reason = reason
+        super().__init__(message)
+
+
+class RegistryTierApproval(RegistryRefused):
+    def __init__(self, message: str = "high-tier agent requires an approval gate") -> None:
+        super().__init__(message, reason="approval_gate")
+
+
+class RegistryTierEvidence(RegistryRefused):
+    def __init__(self, message: str = "high-tier agent requires an evidence pack") -> None:
+        super().__init__(message, reason="evidence_pack")
+
+
+class RegistryTierSigned(RegistryRefused):
+    def __init__(self, message: str = "high-tier agent requires a signed release") -> None:
+        super().__init__(message, reason="signed_release")
+
+
+class RegistryTierCadence(RegistryRefused):
+    def __init__(self, message: str = "high-tier agent review cadence is unmet") -> None:
+        super().__init__(message, reason="review_cadence")
+
+
 class SessionError(ReadyAgentsError):
     """Conversational session failure."""
 

@@ -6,6 +6,21 @@ All notable changes to ReadyAgents Core.
 
 ### Added
 
+- **Agent registry and fleet governance.** `readyagents registry scan` inventories
+  workflows, packages, pinned releases, and pack files under **declared roots**
+  only (workspace-confined; never uninvited). Stable `agt_` ids survive rename,
+  move, and version change; a copy is a new agent. Derived facts (tools, models,
+  egress hosts, gates, spend, health) are recomputed on scan and are not stored
+  as editable truth. `annotate` fills missing declared fields (owner/backup as
+  **roles**, purpose, tier, data classes, retention, review, decommission).
+  `check` reports missing metadata, drift since last review, overdue reviews, and
+  unused **candidates** — it never deletes. Tier requirements live in registry
+  config, not workflow YAML; `--enforce` and optional promotion gating fail with
+  distinct typed reasons. `card` and `export --format annex-viii` name every
+  unknown and label the Annex record a **draft**, not a legal filing or
+  compliance claim. RBAC on commands; exports confined, warned, redacted. Scan
+  does not execute a workflow or import a pack. Unregistered agents are
+  byte-identical. Not a hosted registry. See [docs/registry.md](docs/registry.md).
 - **Migration importers.** `readyagents import SOURCE PATH` parses operator-exported
   n8n JSON, LangGraph declarative Python (AST only), CrewAI YAML/Python (AST
   only), or Zapier-shaped trigger-action JSON into a new ReadyAgents workflow
