@@ -8,6 +8,7 @@ readyagents bench run --offline --json
 readyagents bench run --offline --out results.json
 readyagents bench compare results.json --baseline baselines/bench_offline.json
 readyagents bench compare --models mock:a,mock:b --scenario classify --json
+readyagents bench compare --workflows a.yaml,b.yaml --input text=hello --json
 ```
 
 A repository that never runs bench is unchanged.
@@ -39,6 +40,12 @@ Committed baseline: `baselines/bench_offline.json`. `bench compare` fails on
 metric drift (tokens, cost, nodes, tools, success). Wall-clock uses a
 declared percent **and** a minimum absolute delta so CI noise is not a
 regression.
+
+`--models a,b` runs the same scenario(s) once per ref with `default_model`
+bound into the run. The reported `model` is the engine's
+`metadata.model.model`, not a CLI sticker. `--workflows a.yaml,b.yaml`
+runs both files through eval with the same `--input KEY=VALUE` mapping
+and prints side-by-side metrics.
 
 Live mode is refused when `CI` is set unless `--allow-ci-live`. GitHub
 Actions runs the offline suite on every push/PR next to

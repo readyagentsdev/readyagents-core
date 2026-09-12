@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 
 from readyagents.bench.compare import compare_results, load_baseline
 from readyagents.bench.layout import MODE_OFFLINE, TIMING_LIVE, TIMING_OFFLINE
-from readyagents.bench.run import run_bench
+from readyagents.bench.run import bind_model, run_bench
 from readyagents.bench.suite import assert_synthetic_cassette, load_suite
 from readyagents.cli import app
 from readyagents.config import clear_settings_cache
@@ -102,6 +102,19 @@ def test_malformed_baseline_refused(tmp_path: Path) -> None:
         load_baseline(path)
 
 
+def test_run_bench_binds_model_into_settings(tmp_settings) -> None:
+    original = tmp_settings.default_model
+    bound = bind_model(tmp_settings, "mock:bound")
+    assert bound is not tmp_settings
+    assert bound.default_model == "mock:bound"
+    assert tmp_settings.default_model == original
+    report = run_bench(_SUITE, settings=tmp_settings, scenarios=["classify"], model="mock:bound")
+    assert report.scenarios[0].model == "mock:bound"
+    default = run_bench(_SUITE, settings=tmp_settings, scenarios=["classify"])
+    assert default.scenarios[0].model == original
+    assert default.scenarios[0].model != "mock:bound"
+
+
 def test_live_refused_in_ci(monkeypatch: pytest.MonkeyPatch, tmp_settings) -> None:
     monkeypatch.setenv("CI", "true")
     with pytest.raises(BenchRefused, match="CI"):
@@ -133,10 +146,54 @@ def test_cli_bench_help_twice_and_json(tmp_path: Path, monkeypatch: pytest.Monke
     assert cmp_.exit_code == 0, cmp_.stdout + cmp_.stderr
     models = runner.invoke(
         app,
-        ["bench", "compare", "--models", "mock:a,mock:b", "--scenario", "classify", "--json"],
+        [
+            "bench",
+            "compare",
+            "--models",
+            "mock:alpha,mock:beta",
+            "--scenario",
+            "classify",
+            "--json",
+        ],
     )
     assert models.exit_code == 0, models.stdout + models.stderr
     blob = json.loads(models.stdout[models.stdout.find("{") :])
-    assert blob["inputs"] == "identical"
-    assert len(blob["models"]) == 2
+    assert blob["kind"] == "models"
+    assert blob["models"] == ["mock:alpha", "mock:beta"]
+    assert isinstance(blob["inputs"], dict)
+    assert blob["inputs"]["classify"]["text"]
+    shared = blob["inputs"]["classify"]
+    rows = [rep["scenarios"][0] for rep in blob["reports"]]
+    assert rows[0]["model"] == "mock:alpha"
+    assert rows[1]["model"] == "mock:beta"
+    assert rows[0]["model"] != rows[1]["model"]
+    assert rows[0]["node_count"] == rows[1]["node_count"]
+    assert shared == blob["inputs"]["classify"]
+    a = _ROOT / "examples" / "bench" / "classify.yaml"
+    b = tmp_path / "classify-copy.yaml"
+    b.write_text(a.read_text(encoding="utf-8"), encoding="utf-8")
+    flows = runner.invoke(
+        app,
+        [
+            "bench",
+            "compare",
+            "--workflows",
+            f"{a},{b}",
+            "--input",
+            "text=shared-hello",
+            "--json",
+        ],
+    )
+    assert flows.exit_code == 0, flows.stdout + flows.stderr
+    wblob = json.loads(flows.stdout[flows.stdout.find("{") :])
+    assert wblob["ok"] is True
+    assert wblob["kind"] == "workflows"
+    assert wblob["inputs"] == {"text": "shared-hello"}
+    assert (
+        wblob["reports"][0]["inputs"] == wblob["reports"][1]["inputs"] == {"text": "shared-hello"}
+    )
+    assert "metrics" in wblob["reports"][0]
+    assert (
+        wblob["reports"][0]["metrics"]["node_count"] == wblob["reports"][1]["metrics"]["node_count"]
+    )
     clear_settings_cache()

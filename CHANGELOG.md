@@ -14,7 +14,11 @@ All notable changes to ReadyAgents Core.
   live end-to-end timing are separate labelled objects and are never one
   number. `bench compare` checks a schema-validated baseline with a wall-clock
   tolerance band; `--models` / `--workflows` compare like-for-like on
-  identical inputs. Every result carries a method statement and a
+  identical inputs. `--models` binds each ref into `settings.default_model`
+  for the run — the reported `model` is engine metadata, not a CLI label.
+  `--workflows` drives both YAML files through eval with the same `--input`
+  mapping and emits side-by-side metrics; `--json` does not double-pass `ok`.
+  Every result carries a method statement and a
   reproduction line. Live is opt-in, metered, and refused when `CI` is set
   unless `--allow-ci-live`. The offline suite runs in GitHub Actions beside
   `scripts/bench_batch.py`. No competitor rankings, no leaderboard, no

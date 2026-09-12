@@ -36,6 +36,7 @@ class ScenarioMetrics:
     timing_offline: Timing | None = None
     timing_live: Timing | None = None
     cassette_digest: str = ""
+    model: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -47,6 +48,7 @@ class ScenarioMetrics:
             "cost_usd": self.cost_usd,
             "tool_calls": self.tool_calls,
             "node_count": self.node_count,
+            "model": self.model,
             "determinism": dict(self.determinism),
             "timing_offline": (
                 None if self.timing_offline is None else self.timing_offline.as_dict()
@@ -98,12 +100,23 @@ def collect(
         node_count=len(state.results),
         determinism={k: det.get(k) for k in ("sealed", "recomputed", "unsealable", "misses")},
         cassette_digest=cassette_digest,
+        model=_model_from_state(state),
     )
     if mode == MODE_LIVE:
         metrics.timing_live = timing
     else:
         metrics.timing_offline = timing
     return metrics
+
+
+def _model_from_state(state: RunState) -> str:
+    meta = state.metadata if isinstance(state.metadata, dict) else {}
+    raw = meta.get("model")
+    if isinstance(raw, dict):
+        return str(raw.get("model") or "")
+    if isinstance(raw, str):
+        return raw
+    return ""
 
 
 def method_statement(
