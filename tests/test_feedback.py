@@ -13,6 +13,7 @@ from readyagents.errors import FeedbackRefused
 from readyagents.feedback.capture import record_human_correction, record_implicit
 from readyagents.feedback.diff import apply_diff, structured_diff
 from readyagents.feedback.layout import HUMAN, IMPLICIT
+from readyagents.feedback.stats import feedback_stats
 from readyagents.workflow.schema import NodeSpec
 
 runner = CliRunner()
@@ -329,3 +330,63 @@ def test_structured_diff_roundtrip() -> None:
     diff = structured_diff(original, edited)
     assert diff
     assert apply_diff(original, diff) == edited
+
+
+def test_structured_diff_insert_in_middle() -> None:
+    original = "alpha\nbeta"
+    edited = "alpha\nX\nbeta"
+    rebuilt = apply_diff(original, structured_diff(original, edited))
+    assert rebuilt == edited
+    assert rebuilt != "X\nalpha\nbeta"
+
+
+def test_structured_diff_nonunique_replace() -> None:
+    original = "foo\nfoo"
+    edited = "foo\nbar"
+    rebuilt = apply_diff(original, structured_diff(original, edited))
+    assert rebuilt == edited
+    assert rebuilt != "bar\nfoo"
+
+
+def test_stats_by_week_is_iso_week_not_day(tmp_settings) -> None:
+    from readyagents.run_store import open_run_store
+    from readyagents.workflow.state import RunState
+
+    state = RunState.start("flow", {})
+    node = _gate()
+    record_human_correction(
+        state,
+        node=node,
+        actor_role="editor",
+        reason="a",
+        original="a",
+        edited="b",
+        label="wrong_fact",
+        decision_id="d1",
+    )
+    record_human_correction(
+        state,
+        node=node,
+        actor_role="editor",
+        reason="c",
+        original="c",
+        edited="d",
+        label="wrong_tone",
+        decision_id="d2",
+    )
+    rows = state.metadata["feedback"]
+    rows[0]["ts"] = "2026-09-07T12:00:00+00:00"
+    rows[1]["ts"] = "2026-09-12T12:00:00+00:00"
+    store = open_run_store(tmp_settings)
+    try:
+        store.save(state)
+    finally:
+        store.close()
+    report = feedback_stats(settings=tmp_settings, by="week")
+    keys = [str(row["week"]) for row in report.rows]
+    assert keys
+    for key in keys:
+        assert "-W" in key
+        assert not (len(key) == 10 and key[4] == "-" and key[7] == "-" and key[:4].isdigit())
+    assert len(keys) == 1
+    assert report.rows[0]["n"] == 2
