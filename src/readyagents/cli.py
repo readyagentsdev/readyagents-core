@@ -545,7 +545,9 @@ def optimize_cmd(
     ),
     require_approval: bool = typer.Option(False, "--require-approval"),
     model: str | None = typer.Option(
-        None, "--model", help="Provider for candidate generation only."
+        None,
+        "--model",
+        help="Provider for candidate generation and candidate scoring (not baseline replay).",
     ),
     resume: bool = typer.Option(True, "--resume/--no-resume"),
     as_json: bool = typer.Option(False, "--json"),

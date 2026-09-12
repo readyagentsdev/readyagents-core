@@ -25,11 +25,14 @@ def score_suite(
     prompt_text: str | None = None,
     node_id: str | None = None,
     secrets: list[str] | None = None,
+    replay: bool = True,
 ) -> tuple[ScoreSnapshot, list[dict[str, str]]]:
     """Drive ``run_eval`` so determinism / nodes / tools / usage fails are real fails.
 
-    Cassette-backed cases are scored with ``llm=None`` so the engine uses
-    CassetteProvider and does not construct a live provider.
+    ``replay=True`` (baseline): cassette cases use CassetteProvider, llm=None,
+    zero cost. ``replay=False`` (candidate): overlay the prompt and pass ``llm``
+    so a changed prompt is scored; spend is counted. Cassette replay of a
+    mutated prompt would CassetteMiss every case.
     """
     if not cases:
         return ScoreSnapshot(), []
@@ -62,17 +65,30 @@ def score_suite(
         cassette_cases = [row for row in usable if row.cassette is not None]
         other_cases = [row for row in usable if row.cassette is None]
         results = []
-        if cassette_cases:
-            report = run_eval(cassette_cases, settings=settings, llm=None)
-            results.extend(report.results)
-        if other_cases:
+        if replay:
+            if cassette_cases:
+                report = run_eval(cassette_cases, settings=settings, llm=None)
+                results.extend(report.results)
+            if other_cases:
+                if llm is None:
+                    raise OptimizeRefused(
+                        "non-cassette scoring would construct a live provider; "
+                        "give every case a cassette or an explicit scorer",
+                        reason="scoring",
+                    )
+                report = run_eval(other_cases, settings=settings, llm=llm, dry_run=False)
+                results.extend(report.results)
+        else:
             if llm is None:
                 raise OptimizeRefused(
-                    "non-cassette scoring would construct a live provider; "
-                    "give every case a cassette or an explicit scorer",
+                    "candidate scoring needs the generation provider; "
+                    "cassette replay cannot score a mutated prompt",
                     reason="scoring",
                 )
-            report = run_eval(other_cases, settings=settings, llm=llm, dry_run=False)
+            live = [
+                replace(row, cassette=None) if row.cassette is not None else row for row in usable
+            ]
+            report = run_eval(live, settings=settings, llm=llm, dry_run=False)
             results.extend(report.results)
     finally:
         for path in temps:
@@ -84,14 +100,17 @@ def score_suite(
     failed = [row for row in results if not row.passed]
     spend = 0.0
     reasons: dict[str, str] = {}
+    by_name = {row.name: row for row in usable}
+    failures: list[dict[str, Any]] = []
     for row in results:
         reasons[row.name] = row.reason
         state = row.state
-        if state is None:
-            continue
-        usage = dict(state.usage or {})
-        micros = int(usage.get("cost_micros") or 0)
-        spend += micros / 1_000_000.0
+        if state is not None:
+            usage = dict(state.usage or {})
+            micros = int(usage.get("cost_micros") or 0)
+            spend += micros / 1_000_000.0
+        if not row.passed:
+            failures.append(_failure_diff(by_name.get(row.name), row))
     total = len(results)
     rate = (len(passed) / total) if total else 0.0
     snap = ScoreSnapshot(
@@ -102,8 +121,36 @@ def score_suite(
         spend_usd=round(spend, 6),
         failed_names=[row.name for row in failed],
         reasons=reasons,
+        failures=failures,
     )
     return snap, blocked
+
+
+def _failure_diff(case: EvalCase | None, result: Any) -> dict[str, Any]:
+    expected: dict[str, Any] = {}
+    inputs: dict[str, Any] = {}
+    if case is not None:
+        inputs = dict(case.inputs or {})
+        expected["status"] = case.expect_status
+        if case.expect_contains:
+            expected["contains"] = dict(case.expect_contains)
+        if case.expect_outputs:
+            expected["outputs"] = dict(case.expect_outputs)
+        if case.expect_nodes:
+            expected["nodes"] = list(case.expect_nodes)
+    actual: dict[str, Any] = {}
+    state = getattr(result, "state", None)
+    if state is not None:
+        actual["status"] = state.status
+        actual["outputs"] = dict(state.output_keys or state.node_outputs or {})
+        actual["nodes"] = [row.node_id for row in (state.results or [])]
+    return {
+        "name": getattr(result, "name", ""),
+        "reason": getattr(result, "reason", "") or "",
+        "inputs": inputs,
+        "expected": expected,
+        "actual": actual,
+    }
 
 
 def _overlay_prompt(source: Path, node_id: str, text: str) -> Path:

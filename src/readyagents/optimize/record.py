@@ -17,6 +17,7 @@ class ScoreSnapshot:
     spend_usd: float = 0.0
     failed_names: list[str] = field(default_factory=list)
     reasons: dict[str, str] = field(default_factory=dict)
+    failures: list[dict[str, Any]] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -27,6 +28,7 @@ class ScoreSnapshot:
             "spend_usd": self.spend_usd,
             "failed_names": list(self.failed_names),
             "reasons": dict(self.reasons),
+            "failures": list(self.failures),
         }
 
 

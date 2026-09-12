@@ -11,10 +11,12 @@ All notable changes to ReadyAgents Core.
   trajectory, usage ceilings — no LLM-as-judge in core), redact failing
   cases, propose candidates, re-score, keep only a measured improvement that
   regresses nothing. Cassette-backed scoring is zero cost and does not
-  construct a provider; a case without a cassette is refused rather than
-  calling `get_provider`. Only candidate generation spends, capped by
-  `--max-spend` from priced token usage. Spend is persisted so resume does
-  not re-generate. `--max-iterations`, `--max-spend`, and
+  construct a provider. Cassette replay is the unmodified baseline only;
+  a mutated candidate is scored with the generation provider and that
+  spend counts under `--max-spend`. Reflection payloads include redacted
+  failing-case diffs (inputs, expected vs actual). `held_out.score` is the
+  last scored or adopted hold-out pass rate, not the pre-candidate snapshot.
+  Spend is persisted so resume does not re-generate. `--max-iterations`, `--max-spend`, and
   `--max-wall-seconds` stop with distinct typed reasons (`iterations` /
   `spend` / `wall`). A fully blocked hold-out is a hold-out failure, not a
   free promotion. `ghp_` tokens are redacted before reflection. Prompts are versioned, content-hashed objects stored beside the
