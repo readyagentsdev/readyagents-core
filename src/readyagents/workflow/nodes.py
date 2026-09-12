@@ -20,6 +20,7 @@ from readyagents.errors import (
     CapabilityError,
     CassetteMiss,
     CircuitOpen,
+    ConverseRequired,
     EgressDenied,
     GateExpired,
     LLMError,
@@ -31,6 +32,7 @@ from readyagents.errors import (
     RouteBudgetExceeded,
     RoutingError,
     RunawayGuard,
+    SessionError,
     SkillError,
     TableError,
     TeamError,
@@ -414,6 +416,10 @@ def _execute_node_body(node: NodeSpec, state: RunState, ctx: ExecutionContext) -
         from readyagents.browser.node import run_browser_node
 
         output = run_browser_node(node, state, ctx)
+    elif kind == NodeType.converse.value:
+        from readyagents.sessions.converse import run_converse_node
+
+        output = run_converse_node(node, state, ctx)
     else:
         known = ", ".join(t.value for t in NodeType)
         raise WorkflowError(
@@ -1563,6 +1569,8 @@ def execute_node_with_policy(
             raise
         except ApprovalRequired:
             raise
+        except ConverseRequired:
+            raise
         except WaitingRequired:
             raise
         except GateExpired:
@@ -1609,6 +1617,8 @@ def execute_node_with_policy(
         except SkillError:
             raise
         except BrowserError:
+            raise
+        except SessionError:
             raise
         except ReadyAgentsError as exc:
             last_error = exc
@@ -1956,6 +1966,8 @@ def _run_parallel(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dic
             return branch.id, output
         except ApprovalRequired:
             raise
+        except ConverseRequired:
+            raise
         except CancellationRequested:
             raise
         except (
@@ -2078,6 +2090,15 @@ def _run_include(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> Any:
             state.run_id,
             exc.prompt,
             state=state,
+        ) from exc
+    except ConverseRequired as exc:
+        raise ConverseRequired(
+            exc.node_id,
+            state.run_id,
+            exc.say,
+            state=state,
+            pause=exc.pause,
+            mode=exc.mode,
         ) from exc
     if nested.status == "paused":
         raise ApprovalRequired(

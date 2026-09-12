@@ -51,6 +51,7 @@ class NodeType(StrEnum):
     wait = "wait"
     skill = "skill"
     browser = "browser"
+    converse = "converse"
 
 
 class RetrySpec(BaseModel):
@@ -475,7 +476,7 @@ class NodeSpec(BaseModel):
         description=(
             "Node kind. Built-ins: agent, tool, condition, transform, approval, "
             "parallel, include, foreach, a2a, memory, code, team, document, "
-            "transcribe, ingest, table, classify, wait, skill, browser. "
+            "transcribe, ingest, table, classify, wait, skill, browser, converse. "
             "Packs may add types."
         )
     )
@@ -937,6 +938,26 @@ class NodeSpec(BaseModel):
             "wait_for, screenshot, download, extract. Never model-synthesised."
         ),
     )
+    say: str | None = Field(
+        default=None,
+        description="Message emitted by type: converse before parking for a reply.",
+    )
+    expect: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional JSON Schema for a converse reply payload.",
+    )
+    mode: str | None = Field(
+        default=None,
+        description="converse mode: user (default) or human_agent.",
+    )
+    roles: list[str] = Field(
+        default_factory=list,
+        description="human_agent converse: roles that may take the conversation.",
+    )
+    history: str | None = Field(
+        default=None,
+        description="converse handoff history: full_history (default for human_agent).",
+    )
 
     @field_validator("for_file", mode="before")
     @classmethod
@@ -1033,6 +1054,13 @@ class NodeSpec(BaseModel):
             if not name:
                 raise ValueError(f"Node '{self.id}': skill nodes require 'skill'")
             self.skill = name
+        elif t == NodeType.converse.value:
+            if not (self.say or "").strip():
+                raise ValueError(f"Node '{self.id}': converse nodes require 'say'")
+            mode = str(self.mode or "user").strip().lower() or "user"
+            if mode not in {"user", "human_agent"}:
+                raise ValueError(f"Node '{self.id}': mode must be user or human_agent")
+            self.mode = mode
         elif t == NodeType.browser.value:
             if not self.actions:
                 raise ValueError(f"Node '{self.id}': browser nodes require 'actions'")
@@ -1329,6 +1357,35 @@ class EdgeSpec(BaseModel):
     when: str | None = Field(default=None, description="Optional condition for taking this edge.")
 
 
+class ConversationSpec(BaseModel):
+    """Optional session bounds for workflows that use type: converse."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_turns: int | None = Field(default=None, ge=1, description="Hard cap on session turns.")
+    turn_timeout: str | None = Field(default=None, description="Per-turn pause timeout (30s, 5m).")
+    deadline: str | None = Field(default=None, description="Session deadline duration (24h).")
+    on_expire: str = Field(default="close", description="close, fail, or handoff.")
+    budget: BudgetSpec | None = Field(
+        default=None, description="Conversation-wide token/cost budget."
+    )
+    compaction: dict[str, Any] | None = Field(
+        default=None, description="History compaction: {max_turns} records dropped turns."
+    )
+    memory: dict[str, Any] | None = Field(
+        default=None,
+        description="Session memory. promote: subject:… is the only way to keep it.",
+    )
+
+    @field_validator("on_expire")
+    @classmethod
+    def _expire(cls, value: str) -> str:
+        cleaned = str(value or "close").strip().lower()
+        if cleaned not in {"close", "fail", "handoff"}:
+            raise ValueError("conversation.on_expire must be close, fail, or handoff")
+        return cleaned
+
+
 class WorkflowSpec(BaseModel):
     """A validated workflow document."""
 
@@ -1419,6 +1476,10 @@ class WorkflowSpec(BaseModel):
             "Optional event contracts that may start this workflow. Core validates "
             "and decides; core starts no listener."
         ),
+    )
+    conversation: ConversationSpec | None = Field(
+        default=None,
+        description="Optional session bounds for type: converse. Omitted: one-shot unchanged.",
     )
 
     @model_validator(mode="after")
