@@ -38,10 +38,29 @@ def enforce_promote(
         digest = digest_bytes(path.read_bytes())
     except OSError:
         digest = ""
-    for entry in load_entries(settings=settings):
-        if entry.derived.path == rel or (digest and entry.derived.digest == digest):
+    try:
+        resolved = path.resolve()
+    except OSError:
+        resolved = path
+    entries = load_entries(settings=settings)
+    for entry in entries:
+        if entry.derived.path == rel:
             enforce_entry(entry, cfg)
             return
+    workspace = settings.workspace_path()
+    for entry in entries:
+        if not digest or entry.derived.digest != digest:
+            continue
+        indexed = workspace / entry.derived.path if entry.derived.path else None
+        if indexed is not None and indexed.is_file():
+            try:
+                if indexed.resolve() != resolved:
+                    # Copy: the original still exists. Do not inherit its tier.
+                    continue
+            except OSError:
+                continue
+        enforce_entry(entry, cfg)
+        return
 
 
 def enforce_entry(entry: RegistryEntry, cfg: RegistryConfig) -> None:

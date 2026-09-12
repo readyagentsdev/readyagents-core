@@ -13,7 +13,7 @@ registry metadata still runs exactly as it does today.
 readyagents registry scan --json
 readyagents registry annotate agt_… --owner payments_ops --tier high --purpose "…"
 readyagents registry check --json
-readyagents registry list --tier high --json
+readyagents registry list --tier high --max-spend 1000 --min-health 0.9 --json
 readyagents registry show agt_… --json
 readyagents registry stats --json
 readyagents registry card agt_… --json
@@ -91,6 +91,13 @@ The path is workspace-confined; `--yes` is required because the file is a
 reconnaissance document (automation map, data flows, owners). Default views
 redact egress hosts as `[redacted-endpoint]` and secretish tool names.
 `--unredact` is an RBAC-checked action (`registry.unredact`).
+`registry list` and `stats` filter by owner, tier, model, kind, spend
+(`--min-spend` / `--max-spend` in micros), health (`--min-health` /
+`--max-health`), and staleness. Missing health scores do not match a health
+predicate. Promotion gating (`enforce: true`) binds the workflow path to the
+inventory entry with that path; a byte-identical **copy** is a different agent
+and uses the copy's declared tier. Digest matching is only a fallback when the
+indexed path is gone (a rename/move that has not been re-scanned).
 
 ## Access
 

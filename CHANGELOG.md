@@ -20,7 +20,11 @@ All notable changes to ReadyAgents Core.
   unknown and label the Annex record a **draft**, not a legal filing or
   compliance claim. RBAC on commands; exports confined, warned, redacted. Scan
   does not execute a workflow or import a pack. Unregistered agents are
-  byte-identical. Not a hosted registry. See [docs/registry.md](docs/registry.md).
+  byte-identical. Not a hosted registry. `registry list` / `stats` filter by
+  owner, tier, model, spend, health, and staleness. Promotion gating matches
+  an exact inventory path; digest is only a move fallback when that path is
+  gone, so a copied workflow keeps its own declared tier. See
+  [docs/registry.md](docs/registry.md).
 - **Migration importers.** `readyagents import SOURCE PATH` parses operator-exported
   n8n JSON, LangGraph declarative Python (AST only), CrewAI YAML/Python (AST
   only), or Zapier-shaped trigger-action JSON into a new ReadyAgents workflow

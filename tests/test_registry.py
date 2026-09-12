@@ -39,6 +39,8 @@ from readyagents.registry.schema import (
 )
 from readyagents.registry.store import save_config
 from readyagents.registry.view import list_agents, stats
+from readyagents.run_store import open_run_store
+from readyagents.workflow.state import RunState
 
 runner = CliRunner()
 
@@ -112,6 +114,19 @@ def _rich(tmp: Path) -> Path:
         encoding="utf-8",
     )
     return path
+
+
+def _record_run(settings, workflow_name: str, *, status: str, cost_micros: int) -> None:
+    store = open_run_store(settings)
+    try:
+        state = RunState.start(workflow_name, {})
+        state.status = status
+        state.usage = {"cost_micros": int(cost_micros)}
+        store.save(state)
+    finally:
+        closer = getattr(store, "close", None)
+        if callable(closer):
+            closer()
 
 
 def _enable(tmp_settings, roots: list[str] | None = None, **kwargs: object) -> RegistryConfig:
@@ -361,6 +376,63 @@ def test_enforce_promote_noop_when_off(tmp_path: Path, tmp_settings) -> None:
     enforce_promote(flow, settings=tmp_settings)
 
 
+def test_promote_copy_uses_copy_declared_tier(tmp_path: Path, tmp_settings) -> None:
+    (tmp_path / "readyagents.env.yaml").write_text(
+        "version: 1\nenvironments:\n  staging: {}\n  prod: {}\n",
+        encoding="utf-8",
+    )
+    original = _flow(tmp_path, "orig", "orig.yaml")
+    deploy(original, "staging", spec=EnvironmentSpec(), settings=tmp_settings)
+    _enable(tmp_settings, enforce=True)
+    orig_id = scan(settings=tmp_settings)[0].agent_id
+    _fill(orig_id, tmp_settings, risk_tier="high")
+    copied = original.parent / "copy.yaml"
+    copied.write_text(original.read_text(encoding="utf-8"), encoding="utf-8")
+    entries = scan(settings=tmp_settings)
+    by_name = {Path(item.derived.path).name: item for item in entries}
+    assert "orig.yaml" in by_name and "copy.yaml" in by_name
+    assert by_name["copy.yaml"].agent_id != by_name["orig.yaml"].agent_id
+    _fill(by_name["copy.yaml"].agent_id, tmp_settings, risk_tier="low")
+    pointer = promote(
+        copied,
+        source="staging",
+        target="prod",
+        spec=EnvironmentSpec(),
+        settings=tmp_settings,
+    )
+    assert pointer.get("digest")
+    with pytest.raises(RegistryTierApproval):
+        promote(
+            original,
+            source="staging",
+            target="prod",
+            spec=EnvironmentSpec(),
+            settings=tmp_settings,
+        )
+
+
+def test_enforce_promote_move_without_rescan_keeps_tier(tmp_path: Path, tmp_settings) -> None:
+    (tmp_path / "readyagents.env.yaml").write_text(
+        "version: 1\nenvironments:\n  staging: {}\n  prod: {}\n",
+        encoding="utf-8",
+    )
+    original = _flow(tmp_path, "movedsrc", "orig.yaml")
+    deploy(original, "staging", spec=EnvironmentSpec(), settings=tmp_settings)
+    _enable(tmp_settings, enforce=True)
+    orig_id = scan(settings=tmp_settings)[0].agent_id
+    _fill(orig_id, tmp_settings, risk_tier="high")
+    moved = original.parent / "moved.yaml"
+    original.rename(moved)
+    with pytest.raises(RegistryTierApproval):
+        promote(
+            moved,
+            source="staging",
+            target="prod",
+            spec=EnvironmentSpec(),
+            settings=tmp_settings,
+        )
+
+
 def test_card_and_annex_name_unknowns(tmp_path: Path, tmp_settings) -> None:
     _rich(tmp_path)
     _enable(tmp_settings)
@@ -410,6 +482,39 @@ def test_list_redacts_endpoints_rbac_and_stats(tmp_path: Path, tmp_settings) -> 
     assert "medium" in summary["by_tier"]
 
 
+def test_list_and_stats_filters_drop_non_matching_spend_and_health(
+    tmp_path: Path, tmp_settings
+) -> None:
+    _flow(tmp_path, "cheap", "cheap.yaml")
+    _flow(tmp_path, "costly", "costly.yaml")
+    _record_run(tmp_settings, "cheap", status="succeeded", cost_micros=100)
+    _record_run(tmp_settings, "costly", status="failed", cost_micros=9000)
+    _enable(tmp_settings)
+    scan(settings=tmp_settings)
+    rows = list_agents(settings=tmp_settings, kind="workflow")
+    assert len(rows) == 2
+    spends = sorted(int(row["spend_micros"] or 0) for row in rows)
+    low, high = spends[0], spends[1]
+    assert low < high
+    cheap_rows = list_agents(settings=tmp_settings, kind="workflow", max_spend_micros=low)
+    assert {int(row["spend_micros"] or 0) for row in cheap_rows} == {low}
+    assert all(int(row["spend_micros"] or 0) <= low for row in cheap_rows)
+    costly_rows = list_agents(settings=tmp_settings, kind="workflow", min_spend_micros=high)
+    assert {int(row["spend_micros"] or 0) for row in costly_rows} == {high}
+    scores = sorted(float(row["health_score"]) for row in rows if row["health_score"] is not None)
+    assert len(scores) == 2
+    weak, strong = scores[0], scores[1]
+    assert weak < strong
+    healthy = list_agents(settings=tmp_settings, kind="workflow", min_health=strong)
+    assert {float(row["health_score"]) for row in healthy} == {strong}
+    assert all(float(row["health_score"]) >= strong for row in healthy)
+    sick = list_agents(settings=tmp_settings, kind="workflow", max_health=weak)
+    assert {float(row["health_score"]) for row in sick} == {weak}
+    sliced = stats(settings=tmp_settings, kind="workflow", max_spend_micros=low)
+    assert sliced["count"] == 1
+    assert sliced["spend_micros"] == low
+
+
 def test_export_requires_yes_and_is_confined(tmp_path: Path, tmp_settings) -> None:
     _flow(tmp_path)
     _enable(tmp_settings)
@@ -450,6 +555,47 @@ def test_cli_scan_list_check_json(tmp_path: Path, tmp_settings, monkeypatch) -> 
     empty = runner.invoke(app, ["registry", "scan", "--root", "missing-root", "--json"])
     # missing-root under workspace with no files -> zero agents, still ok
     assert empty.exit_code == 0
+
+
+def test_cli_list_spend_and_health_filters(tmp_path: Path, tmp_settings, monkeypatch) -> None:
+    _flow(tmp_path, "cheap", "cheap.yaml")
+    _flow(tmp_path, "costly", "costly.yaml")
+    _record_run(tmp_settings, "cheap", status="succeeded", cost_micros=100)
+    _record_run(tmp_settings, "costly", status="failed", cost_micros=9000)
+    _enable(tmp_settings)
+    scan(settings=tmp_settings)
+    rows = list_agents(settings=tmp_settings, kind="workflow")
+    spends = sorted(int(row["spend_micros"] or 0) for row in rows)
+    low, high = spends[0], spends[1]
+    monkeypatch.setenv("READYAGENTS_HOME", str(tmp_settings.home_path()))
+    monkeypatch.setenv("READYAGENTS_WORKSPACE", str(tmp_path))
+    clear_settings_cache()
+    listed = runner.invoke(
+        app, ["registry", "list", "--kind", "workflow", "--max-spend", str(low), "--json"]
+    )
+    assert listed.exit_code == 0, listed.stdout + listed.stderr
+    payload = json.loads(listed.stdout[listed.stdout.find("{") :])
+    assert payload["ok"] is True
+    assert payload["command"] == "registry list"
+    assert payload["count"] == 1
+    assert int(payload["agents"][0]["spend_micros"]) == low
+    scores = sorted(float(row["health_score"]) for row in rows if row["health_score"] is not None)
+    strong = scores[-1]
+    healthy = runner.invoke(
+        app, ["registry", "list", "--kind", "workflow", "--min-health", str(strong), "--json"]
+    )
+    assert healthy.exit_code == 0, healthy.stdout + healthy.stderr
+    body = json.loads(healthy.stdout[healthy.stdout.find("{") :])
+    assert body["count"] == 1
+    assert float(body["agents"][0]["health_score"]) == strong
+    summary = runner.invoke(
+        app, ["registry", "stats", "--kind", "workflow", "--min-spend", str(high), "--json"]
+    )
+    assert summary.exit_code == 0, summary.stdout + summary.stderr
+    stats_body = json.loads(summary.stdout[summary.stdout.find("{") :])
+    assert stats_body["ok"] is True
+    assert stats_body["count"] == 1
+    assert int(stats_body["spend_micros"]) == high
 
 
 def test_cli_no_roots_refused(tmp_path: Path, tmp_settings, monkeypatch) -> None:
