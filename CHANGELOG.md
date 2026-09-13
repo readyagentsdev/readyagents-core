@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 2.0.0 — 2026-09-13
+
 ### Added
 
 - **Local distillation.** `readyagents distill plan|dataset|train|evaluate|promote`

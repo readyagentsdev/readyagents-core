@@ -1,3 +1,33 @@
+# ReadyAgents Core 2.0.0
+
+**Catch-up minor→major: distill, registry/fleet, connectors-era product surface.**
+
+This release lands the post-1.9.0 Unreleased surface as **2.0.0**: local
+distillation (plan/dataset/train/evaluate/promote), agent registry and fleet
+governance, migration importers, environments/rollout, conversational sessions,
+governed browser, feedback edits, prompt optimize, bench/health/simulate,
+packaging, Agent Skills, event triggers, wait, table/classify/ingest,
+multimodal, Gemini/Bedrock/Vertex, studio, teams, contracts, code sandbox,
+streaming, batch, scoped memory, and A2A.
+
+Packs remain waitlisted, not for sale. Core stays BYOK and local-first. See
+[CHANGELOG.md](CHANGELOG.md) for the full Added/Fixed list and the linked docs
+under `docs/`.
+
+## Try it
+
+```bash
+pip install readyagentsdev==2.0.0
+readyagents new my-flow
+readyagents connectors list
+readyagents registry scan --help
+readyagents distill plan --help
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
+
+
 # ReadyAgents Core 1.9.0
 
 **Connector suite: typed contract, SDK, first-party set, catalog CLI.**
