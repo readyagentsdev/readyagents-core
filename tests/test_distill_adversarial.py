@@ -200,7 +200,6 @@ def _is_negated(plain: str, start: int, end: int) -> bool:
     return _NEAR_NEGATION.search(near) is not None
 
 
-
 def _unreleased_distill_bullet() -> str:
     """Prefer the current package version section; fall back to Unreleased."""
     from readyagents import __version__
@@ -220,6 +219,7 @@ def _unreleased_distill_bullet() -> str:
         if match:
             return match.group(0)
     raise AssertionError("CHANGELOG missing Local distillation bullet")
+
 
 def _good_comparison() -> EvalComparison:
     return EvalComparison(

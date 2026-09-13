@@ -113,7 +113,6 @@ def _plain(text: str) -> str:
     return text.replace("\u2014", "-").replace("\u2013", "-")
 
 
-
 def _unreleased_registry_bullet() -> str:
     """Prefer the current package version section; fall back to Unreleased."""
     from readyagents import __version__
@@ -133,6 +132,7 @@ def _unreleased_registry_bullet() -> str:
             nxt = section.find("\n- ", idx + 1)
             return section[idx:] if nxt < 0 else section[idx:nxt]
     raise AssertionError("CHANGELOG missing Agent registry bullet")
+
 
 def test_scan_ignores_workflow_outside_declared_roots(tmp_path: Path, tmp_settings) -> None:
     _flow(tmp_path, "inside")
