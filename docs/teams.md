@@ -1,6 +1,6 @@
 # Multi-agent teams (`type: team`)
 
-**Unreleased on this checkout — not on the 1.9.0 tag.** Opt-in supervisor plus a
+Opt-in supervisor plus a
 **closed** declared member set. The engine enforces stop conditions. This does
 **not** claim routing quality. No runtime member creation, no nested teams, no
 new mandatory extra.

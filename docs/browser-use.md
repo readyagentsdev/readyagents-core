@@ -1,6 +1,6 @@
 # Governed browser use
 
-**Unreleased on this checkout — not on the 1.9.0 tag.** `type: browser` is a
+`type: browser` is a
 declared, policed, recorded node. It is not a free-running browser agent.
 
 A workflow without a browser node is unchanged. Core installs with **no**

@@ -1,6 +1,6 @@
 # Conversational sessions
 
-**Unreleased on this checkout — not on the 1.9.0 tag.** A session is a
+A session is a
 **sequence of durable runs**, not a socket holding state in memory. One-shot
 workflows that never converse are unchanged.
 

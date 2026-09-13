@@ -1,6 +1,6 @@
 # Agent registry and fleet governance
 
-**Unreleased on this checkout — not on the 1.9.0 tag.** `readyagents registry`
+`readyagents registry`
 builds a **local inventory** from artifacts that already exist: workflows,
 packages, pinned releases, and pack files under **declared roots**. It is not a
 hosted registry, not an organisation directory, not SSO, and **not an Article 49

@@ -1,6 +1,6 @@
 # Migration and importers
 
-**Unreleased on this checkout — not on the 1.9.0 tag.** `readyagents import`
+`readyagents import`
 translates an **operator-exported** workflow into ReadyAgents YAML plus a
 fidelity report. This is **structural translation only**, not behavioural
 equivalence. There is no round-trip export, no scraping of a source UI or API,

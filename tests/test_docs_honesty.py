@@ -132,8 +132,8 @@ def test_mcp_docs_name_readyagentsdev_extra() -> None:
     assert "readyagentsdev[mcp]" in text
 
 
-def test_readme_does_not_sell_unreleased_as_tag() -> None:
+def test_readme_current_version_matches_package() -> None:
     text = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "Unreleased" in text
-    assert "not on the 1.9.0 tag" in text or "not on the 1.9.0" in text
+    assert f"**{__version__}**" in text
+    assert "not on the 1.9.0 tag" not in text
     assert "Release notes 0.8.0" not in text

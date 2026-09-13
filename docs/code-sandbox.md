@@ -1,6 +1,6 @@
 # Sandboxed `type: code`
 
-**Unreleased on this checkout — not on the 1.9.0 tag.** Python only. The default
+Python only. The default
 `subprocess` tier defends against accident and careless code. It is **not**
 hostile-code-proof. Hostile workloads need the optional `container` pack and
 operator-level isolation. ReadyAgents Core does not bundle a container runtime.

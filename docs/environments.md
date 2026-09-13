@@ -1,6 +1,6 @@
 # Environments, versioning, and safe rollout
 
-**Unreleased on this checkout — not on the 1.9.0 tag.** An environment is a
+An environment is a
 **declared configuration bundle** (routing, budget, policy, secret *scope*,
 run-store path), not a server. A release is a **content-addressed pin** of the
 workflow, its includes, prompts, policy, and lockfile. There is no hosted

@@ -1,6 +1,6 @@
 # Memory
 
-**Unreleased on this checkout — not on the 1.9.0 tag.** Delayed prompt
+Delayed prompt
 injection is the reason memory is dangerous. Scope escape is the breach. This
 page describes a local, scoped store with retrieval — not semantic quality, not
 a memory product, not a benchmark claim.

@@ -1,6 +1,6 @@
 # Guardrails and output contracts
 
-**Unreleased on this checkout — not on the 1.9.0 tag.** Opt-in `contract:` on a
+Opt-in `contract:` on a
 value-producing node. The engine enforces a declared structural schema and
 named content rules. This does **not** make outputs safe. There is no shipped
 toxicity, bias, or safety classifier and no hosted moderation API.

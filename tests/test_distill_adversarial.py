@@ -200,21 +200,26 @@ def _is_negated(plain: str, start: int, end: int) -> bool:
     return _NEAR_NEGATION.search(near) is not None
 
 
-def _unreleased_distill_bullet() -> str:
-    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    marker = "## Unreleased"
-    start = text.find(marker)
-    assert start >= 0, "CHANGELOG missing Unreleased section"
-    rest = text[start:]
-    next_h2 = re.search(r"\n## (?!Unreleased)", rest)
-    section = rest[: next_h2.start()] if next_h2 else rest
-    match = re.search(
-        r"(?ms)^-\s+\*\*Local distillation\.\*\*.*?(?=^\-\s+\*\*|\Z)",
-        section,
-    )
-    assert match, "CHANGELOG Unreleased missing Local distillation bullet"
-    return match.group(0)
 
+def _unreleased_distill_bullet() -> str:
+    """Prefer the current package version section; fall back to Unreleased."""
+    from readyagents import __version__
+
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    for marker in (f"## {__version__}", "## Unreleased"):
+        start = text.find(marker)
+        if start < 0:
+            continue
+        rest = text[start:]
+        next_h2 = re.search(r"\n## (?!Unreleased)", rest)
+        section = rest[: next_h2.start()] if next_h2 else rest
+        match = re.search(
+            r"(?ms)^-\s+\*\*Local distillation\.\*\*.*?(?=^-\s+\*\*|\Z)",
+            section,
+        )
+        if match:
+            return match.group(0)
+    raise AssertionError("CHANGELOG missing Local distillation bullet")
 
 def _good_comparison() -> EvalComparison:
     return EvalComparison(

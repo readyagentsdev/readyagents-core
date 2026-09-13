@@ -1,6 +1,6 @@
 # Distillation and local adapters
 
-**Unreleased on this checkout — not on the 1.9.0 tag.** Distillation turns
+Distillation turns
 consented run corrections into a **small adapter for one node**, evaluates it
 on **your** frozen fixtures (including a holdout the trainer never saw), and
 promotes it into routing only after measured thresholds. Core **never trains**

@@ -1,6 +1,6 @@
 # A2A interoperability
 
-**Unreleased on this checkout — not on the 1.9.0 tag.** Remote content is
+Remote content is
 untrusted. Delegation can exfiltrate. This page describes a served mapping over
 the durable run record, not A2A certification and not a hosted agent directory.
 

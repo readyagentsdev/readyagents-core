@@ -1,6 +1,6 @@
 # Workflow studio (`readyagents studio`)
 
-**Unreleased on this checkout — not on the 1.9.0 tag.** Opt-in foreground
+Opt-in foreground
 localhost canvas and run inspector. It is not a hosted product, not a
 multi-user editor, and it does not make workflows safe.
 
