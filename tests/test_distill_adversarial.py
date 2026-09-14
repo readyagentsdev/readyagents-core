@@ -201,24 +201,14 @@ def _is_negated(plain: str, start: int, end: int) -> bool:
 
 
 def _unreleased_distill_bullet() -> str:
-    """Prefer the current package version section; fall back to Unreleased."""
-    from readyagents import __version__
-
+    """Find the Local distillation bullet in Unreleased or any version section."""
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    for marker in (f"## {__version__}", "## Unreleased"):
-        start = text.find(marker)
-        if start < 0:
-            continue
-        rest = text[start:]
-        next_h2 = re.search(r"\n## (?!Unreleased)", rest)
-        section = rest[: next_h2.start()] if next_h2 else rest
-        match = re.search(
-            r"(?ms)^-\s+\*\*Local distillation\.\*\*.*?(?=^-\s+\*\*|\Z)",
-            section,
-        )
-        if match:
-            return match.group(0)
-    raise AssertionError("CHANGELOG missing Local distillation bullet")
+    match = re.search(
+        r"(?ms)^-\s+\*\*Local distillation\.\*\*.*?(?=^-\s+\*\*|\Z)",
+        text,
+    )
+    assert match, "CHANGELOG missing Local distillation bullet"
+    return match.group(0)
 
 
 def _good_comparison() -> EvalComparison:

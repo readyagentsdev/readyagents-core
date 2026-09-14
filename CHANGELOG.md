@@ -4,6 +4,13 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 2.0.1 — 2026-09-14
+
+### Fixed
+
+- README no longer labels features that shipped in 2.0.0 as **Unreleased**.
+  Caution caveats (not certification / quality / hosted) stay.
+
 ## 2.0.0 — 2026-09-13
 
 ### Added

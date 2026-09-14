@@ -1,3 +1,22 @@
+# ReadyAgents Core 2.0.1
+
+**Docs honesty: clear stale Unreleased labels for the 2.0.0 surface.**
+
+README (and matching version pins) no longer mark features that already shipped
+under CHANGELOG 2.0.0 as Unreleased. Caution caveats remain: not certification,
+not a quality claim, not a hosted product/service.
+
+## Try it
+
+```bash
+pip install readyagentsdev==2.0.1
+readyagents version
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
+
+
 # ReadyAgents Core 2.0.0
 
 **Catch-up minor→major: distill, registry/fleet, connectors-era product surface.**

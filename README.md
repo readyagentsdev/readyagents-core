@@ -11,7 +11,7 @@ This repository is the free core. You keep the provider account and the bill. In
 
 ## 60-second start
 
-Requires **Python 3.11–3.14** on Linux, macOS, or Windows. Current version is **2.0.0**. Install with `pip install readyagentsdev`, or from this clone.
+Requires **Python 3.11–3.14** on Linux, macOS, or Windows. Current version is **2.0.1**. Install with `pip install readyagentsdev`, or from this clone.
 
 ```bash
 git clone https://github.com/readyagentsdev/readyagents-core.git
@@ -47,31 +47,31 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Builtin tools with **zero extra servers**: `now`, `calc`, `json_get`, `list_dir`, `read_file`, `write_file`, optional `http_get`
 - Small governed connector set (`rest`, `sql`, `object_storage`, `message`, `ingest`) plus `readyagents connectors` catalog — [connectors](docs/connectors.md)
 - Optional [MCP](https://modelcontextprotocol.io) client and server (`readyagents mcp serve`, `readyagents mcp probe`) with official tasks and MRTR approvals
-- Optional [A2A](docs/a2a.md) serve/probe and `type: a2a` delegation (**Unreleased** on this checkout; 0.3 JSON-RPC projection; remote content untrusted; not certification)
-- Optional [memory](docs/memory.md) (`type: memory`, local JSON/SQLite, BM25, TTL/forget) — **Unreleased** on this checkout; untrusted; delayed injection and scope escape first; not a quality claim
-- Optional [sandboxed code](docs/code-sandbox.md) (`type: code`, subprocess default) — **Unreleased**; accident-grade isolation, not hostile-code-proof; no bundled container runtime
-- Optional [output contracts](docs/guardrails.md) (`contract:` on a value-producing node) — **Unreleased**; declared schema and content rules, not a safety classifier
-- Optional [multi-agent teams](docs/teams.md) (`type: team`) — **Unreleased**; closed members, engine-enforced stop, no routing-quality claim
-- Optional [workflow studio](docs/studio.md) (`readyagents studio`) — **Unreleased**; loopback canvas and run inspector; YAML on disk stays the source of truth; not a hosted product
-- Optional [model routing](docs/model-routing.md) (`routing:`, Gemini/Bedrock/Vertex extras, `readyagents models`) — **Unreleased**; declared policy, not quality inference; no-policy selection unchanged
-- Optional [multimodal I/O](docs/multimodal.md) (`MediaPart`, `type: document`, `type: transcribe`, image/pdf/audio extras) — **Unreleased**; plumbing and governance, not extraction accuracy; text-only runs unchanged
-- Optional [knowledge pipelines](docs/knowledge.md) (`type: ingest`, `readyagents knowledge`) — **Unreleased**; citations and freshness, not a retrieval-quality claim; plain memory writes unchanged
-- Optional [data pipelines](docs/data-pipelines.md) (`type: table`, `type: classify`, `readyagents table`) — **Unreleased**; deterministic ops and remainder-only classify; not a warehouse; `json_get`/`foreach` defaults unchanged
-- Optional [long-horizon waits](docs/long-horizon.md) (`type: wait`, `readyagents wake` / `event`) — **Unreleased**; lazy wake, no daemon; `waiting` ≠ `paused`; not a scheduler
-- Optional [event triggers](docs/event-triggers.md) (`triggers:`, `readyagents triggers`) — **Unreleased**; core contract only, no listener in core; at-least-once plus idempotency, not exactly-once; loopback-default webhook
-- Optional [agent skills](docs/agent-skills.md) (`type: skill`, `readyagents skills` / `agents-md`) — **Unreleased**; open SKILL.md format; untrusted instructions; sandbox scripts; not a marketplace
-- Optional [workflow packaging](docs/packaging.md) (`readyagents package`) — **Unreleased**; review-before-install archives with policy, fixtures, and signature; signed static index; not a hosted marketplace
-- Optional [simulation](docs/simulation.md) (`readyagents simulate`) — **Unreleased**; declaration-driven cases, honest coverage, dry-run default; not exhaustive, not a hosted simulator
-- Optional [self-healing](docs/self-healing.md) (`readyagents health`, `recovery:`) — **Unreleased**; fingerprints and fail-safe gates; not prediction; not a hosted reliability service
-- Optional [benchmark harness](docs/benchmarks.md) (`readyagents bench`) — **Unreleased**; offline cassettes, labelled engine vs live timing; not a model-quality or competitor ranking
-- Optional [prompt optimization](docs/prompt-optimization.md) (`readyagents optimize`, `readyagents prompts`) — **Unreleased**; versioned prompts, offline reflective loop, gated promotion; not GEPA/DSPy parity; YAML that never optimizes is unchanged
-- Optional [feedback export](docs/feedback.md) (`readyagents feedback export|stats`) — **Unreleased**; consent-gated corrections as eval/sft/dpo; not fine-tuning; not a hosted dataset
-- Optional [governed browser use](docs/browser-use.md) (`type: browser`) — **Unreleased**; declared actions, allowlist, taint, offline replay; driver in an optional pack; no CAPTCHA solving; not a free-running browser agent
-- Optional [conversational sessions](docs/conversational-sessions.md) (`type: converse`, `readyagents sessions`, `serve chat`) — **Unreleased**; turns are durable runs; loopback chat; no audio in core; not a hosted chat product
-- Optional [environments and rollout](docs/environments.md) (`readyagents.env.yaml`, `run --env`, `promote`, `rollback`, `env status|history|diff`) — **Unreleased**; pinned signed releases, gated promote, canary/shadow, lazy rollback; not a hosted deploy
-- Optional [migration importers](docs/migration.md) (`readyagents import`) — **Unreleased**; n8n / LangGraph / CrewAI / trigger-action; structural translation plus a fidelity report; never exec source Python; not behavioural equivalence
-- Optional [agent registry](docs/registry.md) (`readyagents registry`) — **Unreleased**; inventory from declared roots; derived facts plus declared roles/tier; draft Annex VIII export, not a legal filing; not a hosted registry
-- Optional [distillation](docs/distillation.md) (`readyagents distill`) — **Unreleased**; consented hashed splits, pack-owned training, holdout-gated one-node adapters; not a quality claim; core never trains
+- Optional [A2A](docs/a2a.md) serve/probe and `type: a2a` delegation (0.3 JSON-RPC projection; remote content untrusted; not certification)
+- Optional [memory](docs/memory.md) (`type: memory`, local JSON/SQLite, BM25, TTL/forget) — untrusted; delayed injection and scope escape first; not a quality claim
+- Optional [sandboxed code](docs/code-sandbox.md) (`type: code`, subprocess default) — accident-grade isolation, not hostile-code-proof; no bundled container runtime
+- Optional [output contracts](docs/guardrails.md) (`contract:` on a value-producing node) — declared schema and content rules, not a safety classifier
+- Optional [multi-agent teams](docs/teams.md) (`type: team`) — closed members, engine-enforced stop, no routing-quality claim
+- Optional [workflow studio](docs/studio.md) (`readyagents studio`) — loopback canvas and run inspector; YAML on disk stays the source of truth; not a hosted product
+- Optional [model routing](docs/model-routing.md) (`routing:`, Gemini/Bedrock/Vertex extras, `readyagents models`) — declared policy, not quality inference; no-policy selection unchanged
+- Optional [multimodal I/O](docs/multimodal.md) (`MediaPart`, `type: document`, `type: transcribe`, image/pdf/audio extras) — plumbing and governance, not extraction accuracy; text-only runs unchanged
+- Optional [knowledge pipelines](docs/knowledge.md) (`type: ingest`, `readyagents knowledge`) — citations and freshness, not a retrieval-quality claim; plain memory writes unchanged
+- Optional [data pipelines](docs/data-pipelines.md) (`type: table`, `type: classify`, `readyagents table`) — deterministic ops and remainder-only classify; not a warehouse; `json_get`/`foreach` defaults unchanged
+- Optional [long-horizon waits](docs/long-horizon.md) (`type: wait`, `readyagents wake` / `event`) — lazy wake, no daemon; `waiting` ≠ `paused`; not a scheduler
+- Optional [event triggers](docs/event-triggers.md) (`triggers:`, `readyagents triggers`) — core contract only, no listener in core; at-least-once plus idempotency, not exactly-once; loopback-default webhook
+- Optional [agent skills](docs/agent-skills.md) (`type: skill`, `readyagents skills` / `agents-md`) — open SKILL.md format; untrusted instructions; sandbox scripts; not a marketplace
+- Optional [workflow packaging](docs/packaging.md) (`readyagents package`) — review-before-install archives with policy, fixtures, and signature; signed static index; not a hosted marketplace
+- Optional [simulation](docs/simulation.md) (`readyagents simulate`) — declaration-driven cases, honest coverage, dry-run default; not exhaustive, not a hosted simulator
+- Optional [self-healing](docs/self-healing.md) (`readyagents health`, `recovery:`) — fingerprints and fail-safe gates; not prediction; not a hosted reliability service
+- Optional [benchmark harness](docs/benchmarks.md) (`readyagents bench`) — offline cassettes, labelled engine vs live timing; not a model-quality or competitor ranking
+- Optional [prompt optimization](docs/prompt-optimization.md) (`readyagents optimize`, `readyagents prompts`) — versioned prompts, offline reflective loop, gated promotion; not GEPA/DSPy parity; YAML that never optimizes is unchanged
+- Optional [feedback export](docs/feedback.md) (`readyagents feedback export|stats`) — consent-gated corrections as eval/sft/dpo; not fine-tuning; not a hosted dataset
+- Optional [governed browser use](docs/browser-use.md) (`type: browser`) — declared actions, allowlist, taint, offline replay; driver in an optional pack; no CAPTCHA solving; not a free-running browser agent
+- Optional [conversational sessions](docs/conversational-sessions.md) (`type: converse`, `readyagents sessions`, `serve chat`) — turns are durable runs; loopback chat; no audio in core; not a hosted chat product
+- Optional [environments and rollout](docs/environments.md) (`readyagents.env.yaml`, `run --env`, `promote`, `rollback`, `env status|history|diff`) — pinned signed releases, gated promote, canary/shadow, lazy rollback; not a hosted deploy
+- Optional [migration importers](docs/migration.md) (`readyagents import`) — n8n / LangGraph / CrewAI / trigger-action; structural translation plus a fidelity report; never exec source Python; not behavioural equivalence
+- Optional [agent registry](docs/registry.md) (`readyagents registry`) — inventory from declared roots; derived facts plus declared roles/tier; draft Annex VIII export, not a legal filing; not a hosted registry
+- Optional [distillation](docs/distillation.md) (`readyagents distill`) — consented hashed splits, pack-owned training, holdout-gated one-node adapters; not a quality claim; core never trains
 - Extra node types and tools via Python entry points (`readyagents.packs`)
 - Per-node token/cost, budgets, `--estimate` / `--max-spend` caps, local spend ledger, model fallback, JSON logs
 - External approval injection (`readyagents decide`) and outbound pause notify
@@ -107,20 +107,20 @@ flowchart LR
 | --- | --- |
 | `readyagents init` | Write `.env` from `.env.example` if missing |
 | `readyagents new [name] [--template basic\|approval\|research\|pipeline\|review\|foreach\|agent-tools\|gated]` | Scaffold workflow + README + `.env.example` + local JSON Schema |
-| `readyagents import SOURCE PATH [--out DIR] [--explain SOURCE]` | Import n8n / LangGraph / CrewAI / trigger-action exports (**Unreleased**; structural translation only) |
+| `readyagents import SOURCE PATH [--out DIR] [--explain SOURCE]` | Import n8n / LangGraph / CrewAI / trigger-action exports (structural translation only) |
 | `readyagents validate PATH` | Schema-validate a workflow (source-located errors on failure) |
 | `readyagents schema` | Print/write/check the generated workflow JSON Schema |
 | `readyagents eval PATH` | Score a keyless fixture suite (exit 0/1) |
-| `readyagents optimize PATH --eval SUITE` | Reflective prompt optimization against your eval suite (**Unreleased**; not a hosted optimizer) |
+| `readyagents optimize PATH --eval SUITE` | Reflective prompt optimization against your eval suite (not a hosted optimizer) |
 | `readyagents prompts list` / `show` / `history` / `diff` / `rollback` | Versioned prompts beside the workflow; rollback restores exactly |
-| `readyagents env status` / `history` / `diff` / `deploy` | Declared environments and pinned releases (**Unreleased**; not a hosted deploy) |
-| `readyagents registry scan` / `annotate` / `check` / `list` / `show` / `stats` / `card` / `export` | Local agent inventory from declared roots (**Unreleased**; not a hosted registry; Annex VIII export is a draft, not a filing) |
-| `readyagents distill plan` / `dataset` / `train` / `evaluate` / `promote` | Local one-node adapters from consented runs (**Unreleased**; pack trains; holdout required; not a quality claim) |
+| `readyagents env status` / `history` / `diff` / `deploy` | Declared environments and pinned releases (not a hosted deploy) |
+| `readyagents registry scan` / `annotate` / `check` / `list` / `show` / `stats` / `card` / `export` | Local agent inventory from declared roots (not a hosted registry; Annex VIII export is a draft, not a filing) |
+| `readyagents distill plan` / `dataset` / `train` / `evaluate` / `promote` | Local one-node adapters from consented runs (pack trains; holdout required; not a quality claim) |
 | `readyagents promote PATH --from SRC --to DST` | Copy a source pin onto a target after eval/fixture/bench/health/approval gates |
 | `readyagents rollback --env NAME` | Restore the previous release atomically; never auto-forwards |
-| `readyagents feedback export` / `stats` | Consent-gated correction datasets (**Unreleased**; production data; not a hosted service) |
-| `readyagents run PATH [--input KEY=VALUE] [--dry-run] [--approve NODE] [--reject NODE] [--decision-file FILE] [--actor NAME] [--pack PATH] [--policy PATH] [--estimate] [--max-spend USD] [--max-tokens N] [--label KEY=VALUE] [--sovereign] [--stream] [--env NAME]` | Execute (or `--estimate` without running). `--env` runs a pinned release. `--stream` is opt-in Unreleased |
-| `readyagents batch PATH --input-file FILE [--concurrency N] [--max-spend USD] [--out FILE]` | Foreground: one workflow, many JSONL/CSV rows (opt-in; Unreleased) |
+| `readyagents feedback export` / `stats` | Consent-gated correction datasets (production data; not a hosted service) |
+| `readyagents run PATH [--input KEY=VALUE] [--dry-run] [--approve NODE] [--reject NODE] [--decision-file FILE] [--actor NAME] [--pack PATH] [--policy PATH] [--estimate] [--max-spend USD] [--max-tokens N] [--label KEY=VALUE] [--sovereign] [--stream] [--env NAME]` | Execute (or `--estimate` without running). `--env` runs a pinned release. `--stream` is opt-in |
+| `readyagents batch PATH --input-file FILE [--concurrency N] [--max-spend USD] [--out FILE]` | Foreground: one workflow, many JSONL/CSV rows (opt-in) |
 | `readyagents attest RUN_ID` | Data-residency attestation (technical evidence, not legal compliance) |
 | `readyagents bundle --out DIR` | Offline wheel set for `pip install --no-index --find-links` |
 | `readyagents resume RUN_ID [--approve NODE] [--reject NODE] [--decision-file FILE] [--policy PATH]` | Resume a paused or failed run |
@@ -146,8 +146,8 @@ flowchart LR
 | `readyagents connectors list` / `show` / `test` | Small governed catalog (`rest`, `sql`, `object_storage`, `message`, `ingest`) — not 500 SaaS |
 | `readyagents sign` / `verify` / `lock` / `sbom` / `trust` | Supply-chain: signatures prove origin, not safety |
 | `readyagents approvals serve` | Foreground localhost approval page (not a hosted dashboard) |
-| `readyagents studio [--port 8790] [--open] [--read-only]` | Foreground localhost canvas and run inspector (**Unreleased**; not a hosted product) |
-| `readyagents models list` / `show` / `route --explain` | Dry model catalog and routing explain (**Unreleased**; no provider call) |
+| `readyagents studio [--port 8790] [--open] [--read-only]` | Foreground localhost canvas and run inspector (not a hosted product) |
+| `readyagents models list` / `show` / `route --explain` | Dry model catalog and routing explain (no provider call) |
 | `readyagents mcp serve` | Stdio MCP server (builtin tools); `--json` prints protocol versions |
 | `readyagents mcp probe URL` | Read-only `server/discover` diagnostic (never calls a tool) |
 | `readyagents a2a serve PATH` | Foreground A2A door for one workflow (loopback by default) |
@@ -208,27 +208,27 @@ flowchart LR
 - [MCP](docs/mcp.md)
 - [A2A](docs/a2a.md) (untrusted remote content; delegation can exfiltrate; not certification)
 - [Memory](docs/memory.md) (untrusted; delayed injection and scope escape; not a quality claim)
-- [Scale and batch](docs/scale.md) (opt-in; Unreleased; not a distributed worker; benchmarks are not a marketing claim)
-- [Streaming](docs/streaming.md) (opt-in `--stream`; Unreleased; not audio)
-- [Guardrails / output contracts](docs/guardrails.md) (opt-in `contract:`; Unreleased; declared rules, not a safety claim)
-- [Multi-agent teams](docs/teams.md) (opt-in `type: team`; Unreleased; closed members; no quality claim)
-- [Model routing](docs/model-routing.md) (opt-in `routing:`; Unreleased; declared policy, not a quality claim)
-- [Multimodal I/O](docs/multimodal.md) (opt-in `MediaPart` / `type: document` / `type: transcribe`; Unreleased; extras; not an OCR claim)
-- [Knowledge pipelines](docs/knowledge.md) (opt-in `type: ingest`; Unreleased; citations/freshness; not a retrieval-quality claim)
-- [Data pipelines](docs/data-pipelines.md) (opt-in `type: table` / `type: classify`; Unreleased; not a warehouse)
-- [Long-horizon waits](docs/long-horizon.md) (opt-in `type: wait`; Unreleased; lazy `wake`; not a scheduler)
-- [Event triggers](docs/event-triggers.md) (opt-in `triggers:`; Unreleased; no listener in core; at-least-once plus idempotency)
-- [Agent Skills](docs/agent-skills.md) (opt-in `type: skill`; Unreleased; open format; not a marketplace)
-- [Governed browser use](docs/browser-use.md) (opt-in `type: browser`; Unreleased; declared actions; no CAPTCHA; optional pack)
-- [Conversational sessions](docs/conversational-sessions.md) (opt-in `type: converse`; Unreleased; loopback `serve chat`; no audio in core)
-- [Environments and rollout](docs/environments.md) (opt-in `readyagents.env.yaml`; Unreleased; pinned releases; gated promote; not a hosted deploy)
-- [Migration](docs/migration.md) (opt-in `readyagents import`; Unreleased; structural translation only)
-- [Agent registry](docs/registry.md) (opt-in `readyagents registry`; Unreleased; declared roots; draft Annex VIII, not a filing)
-- [Distillation](docs/distillation.md) (opt-in `readyagents distill`; Unreleased; pack-owned training; holdout-gated adapters; not a quality claim)
-- [Packaging](docs/packaging.md) (opt-in `readyagents package`; Unreleased; review-before-install; not a marketplace)
-- [Simulation](docs/simulation.md) (opt-in `readyagents simulate`; Unreleased; not exhaustive; not a hosted simulator)
-- [Self-healing](docs/self-healing.md) (opt-in `readyagents health` / `recovery:`; Unreleased; not prediction; not a hosted service)
-- [Benchmarks](docs/benchmarks.md) (opt-in `readyagents bench`; Unreleased; offline cassettes; not a quality ranking)
+- [Scale and batch](docs/scale.md) (opt-in; not a distributed worker; benchmarks are not a marketing claim)
+- [Streaming](docs/streaming.md) (opt-in `--stream`; not audio)
+- [Guardrails / output contracts](docs/guardrails.md) (opt-in `contract:`; declared rules, not a safety claim)
+- [Multi-agent teams](docs/teams.md) (opt-in `type: team`; closed members; no quality claim)
+- [Model routing](docs/model-routing.md) (opt-in `routing:`; declared policy, not a quality claim)
+- [Multimodal I/O](docs/multimodal.md) (opt-in `MediaPart` / `type: document` / `type: transcribe`; extras; not an OCR claim)
+- [Knowledge pipelines](docs/knowledge.md) (opt-in `type: ingest`; citations/freshness; not a retrieval-quality claim)
+- [Data pipelines](docs/data-pipelines.md) (opt-in `type: table` / `type: classify`; not a warehouse)
+- [Long-horizon waits](docs/long-horizon.md) (opt-in `type: wait`; lazy `wake`; not a scheduler)
+- [Event triggers](docs/event-triggers.md) (opt-in `triggers:`; no listener in core; at-least-once plus idempotency)
+- [Agent Skills](docs/agent-skills.md) (opt-in `type: skill`; open format; not a marketplace)
+- [Governed browser use](docs/browser-use.md) (opt-in `type: browser`; declared actions; no CAPTCHA; optional pack)
+- [Conversational sessions](docs/conversational-sessions.md) (opt-in `type: converse`; loopback `serve chat`; no audio in core)
+- [Environments and rollout](docs/environments.md) (opt-in `readyagents.env.yaml`; pinned releases; gated promote; not a hosted deploy)
+- [Migration](docs/migration.md) (opt-in `readyagents import`; structural translation only)
+- [Agent registry](docs/registry.md) (opt-in `readyagents registry`; declared roots; draft Annex VIII, not a filing)
+- [Distillation](docs/distillation.md) (opt-in `readyagents distill`; pack-owned training; holdout-gated adapters; not a quality claim)
+- [Packaging](docs/packaging.md) (opt-in `readyagents package`; review-before-install; not a marketplace)
+- [Simulation](docs/simulation.md) (opt-in `readyagents simulate`; not exhaustive; not a hosted simulator)
+- [Self-healing](docs/self-healing.md) (opt-in `readyagents health` / `recovery:`; not prediction; not a hosted service)
+- [Benchmarks](docs/benchmarks.md) (opt-in `readyagents bench`; offline cassettes; not a quality ranking)
 - [Packs](docs/packs.md)
 - [Supply-chain trust](docs/supply-chain.md) (signatures prove origin, not safety)
 - [Continuous pack](docs/continuous-pack.md) (optional, separate distribution)
@@ -237,7 +237,7 @@ flowchart LR
 - [Compliance evidence](docs/compliance.md) (Articles 12–14 mapping; not certification)
 - [Observability](docs/observability.md)
 - [Changelog](CHANGELOG.md)
-- [Release notes 2.0.0](RELEASE_NOTES.md)
+- [Release notes 2.0.1](RELEASE_NOTES.md)
 
 ## Install extras
 

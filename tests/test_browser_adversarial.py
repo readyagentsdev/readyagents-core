@@ -441,16 +441,12 @@ def _negated(plain: str, start: int) -> bool:
 def test_no_captcha_undetectability_or_engine_imports() -> None:
     docs = (ROOT / "docs" / "browser-use.md").read_text(encoding="utf-8")
     assert re.search(r"no captcha solv", docs, re.I), "docs/browser-use.md must refuse CAPTCHA"
-    from readyagents import __version__
-
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    # Prefer the version section that documents governed browser (shipped in 2.0.0).
     unreleased = None
-    for heading in (f"## {__version__}", "## Unreleased"):
-        if heading not in changelog:
-            continue
-        candidate = changelog.split(heading, 1)[-1].split("\n## ", 1)[0]
-        if "Governed browser use" in candidate:
-            unreleased = candidate
+    for chunk in re.split(r"(?=\n## )", "\n" + changelog):
+        if "Governed browser use" in chunk:
+            unreleased = chunk
             break
     assert unreleased is not None and "Governed browser use" in unreleased
     assert re.search(r"no captcha solv", unreleased, re.I)

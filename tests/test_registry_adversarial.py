@@ -114,24 +114,20 @@ def _plain(text: str) -> str:
 
 
 def _unreleased_registry_bullet() -> str:
-    """Prefer the current package version section; fall back to Unreleased."""
-    from readyagents import __version__
-
+    """Find the Agent registry bullet in Unreleased or any version section."""
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    for heading in (f"## {__version__}", "## Unreleased"):
-        start = text.find(heading)
-        if start < 0:
-            continue
-        section = text[start:]
-        end = section.find("\n## ", 1)
-        if end > 0:
-            section = section[:end]
-        marker = "- **Agent registry"
-        idx = section.find(marker)
-        if idx >= 0:
-            nxt = section.find("\n- ", idx + 1)
-            return section[idx:] if nxt < 0 else section[idx:nxt]
-    raise AssertionError("CHANGELOG missing Agent registry bullet")
+    marker = "- **Agent registry"
+    idx = text.find(marker)
+    assert idx >= 0, "CHANGELOG missing Agent registry bullet"
+    nxt = text.find("\n- ", idx + 1)
+    # stop at next major bullet or next ## heading
+    end_h = text.find("\n## ", idx + 1)
+    end = len(text)
+    if nxt >= 0:
+        end = min(end, nxt)
+    if end_h >= 0:
+        end = min(end, end_h)
+    return text[idx:end]
 
 
 def test_scan_ignores_workflow_outside_declared_roots(tmp_path: Path, tmp_settings) -> None:

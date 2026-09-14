@@ -1,6 +1,6 @@
 # First ten minutes
 
-No API keys. Current version is **2.0.0** (`readyagents version`). Install from PyPI
+No API keys. Current version is **2.0.1** (`readyagents version`). Install from PyPI
 (`pip install readyagentsdev`) or from a clone (`pip install -e .`) as in the
 [README](../README.md). The wheel does **not** ship `examples/`.
 
@@ -98,9 +98,9 @@ Add an `agent` node only after you install an extra
 (`pip install "readyagentsdev[openai]"` or `"readyagentsdev[anthropic]"`; from a
 clone, `pip install -e ".[openai]"`) and put your own key in `.env`.
 
-## Optional (2.0.0 surface)
+## Optional (2.0.1 surface)
 
-**2.0.0** includes connectors, sovereign, memory, and A2A. Keyless examples:
+**2.0.1** includes connectors, sovereign, memory, and A2A. Keyless examples:
 
 ```bash
 readyagents run examples/connector_rest.yaml
