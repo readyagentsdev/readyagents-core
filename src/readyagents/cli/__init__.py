@@ -76,9 +76,11 @@ from readyagents.cli._common import (
 from readyagents.cli.a2a import a2a_app
 from readyagents.cli.approvals import approvals_app
 from readyagents.cli.audit import audit_app, register_attest, register_evidence
+from readyagents.cli.bench import bench_app
 from readyagents.cli.connectors import connectors_app
 from readyagents.cli.delegations import delegations_app
 from readyagents.cli.env import env_app
+from readyagents.cli.feedback import feedback_app
 from readyagents.cli.health import health_app
 from readyagents.cli.identity import identity_app, trust_app
 from readyagents.cli.knowledge import knowledge_app
@@ -114,16 +116,8 @@ app.add_typer(package_app, name="package", rich_help_panel="Extras: Packaging an
 app.add_typer(models_app, name="models", rich_help_panel="Extras: Model and prompt")
 app.add_typer(distill_app, name="distill", rich_help_panel="Extras: Model and prompt")
 app.add_typer(health_app, name="health", rich_help_panel="Extras: Operations")
-bench_app = typer.Typer(
-    help="Offline-by-default benchmark suite. Not a model-quality claim.",
-    no_args_is_help=True,
-)
 app.add_typer(bench_app, name="bench", rich_help_panel="Extras: Model and prompt")
 app.add_typer(prompts_app, name="prompts", rich_help_panel="Extras: Model and prompt")
-feedback_app = typer.Typer(
-    help="Export consented corrections. Production data in a portable file. No hosted dataset.",
-    no_args_is_help=True,
-)
 app.add_typer(feedback_app, name="feedback", rich_help_panel="Extras: Model and prompt")
 app.add_typer(sessions_app, name="sessions", rich_help_panel="Extras: Agent capability")
 app.add_typer(env_app, name="env", rich_help_panel="Extras: Operations")
@@ -629,128 +623,6 @@ def optimize_cmd(
     )
     if isinstance(report.stop, OptimizeStopped) and not report.promoted:
         return
-
-
-@feedback_app.command("export")
-def feedback_export_cmd(
-    fmt: str = typer.Option("eval", "--format", help="eval (default), sft, or dpo."),
-    out: Path = typer.Option(..., "--out", help="Destination file under the workspace."),
-    scope: str | None = typer.Option(None, "--scope", help="Recorded consent scope to include."),
-    node: str | None = typer.Option(None, "--node"),
-    since: str | None = typer.Option(None, "--since"),
-    min_rating: int | None = typer.Option(None, "--min-rating"),
-    yes: bool = typer.Option(False, "--yes", help="Acknowledge the production-data warning."),
-    as_json: bool = typer.Option(False, "--json"),
-) -> None:
-    """Export consented corrections. Unconsented runs are excluded from every format."""
-    from readyagents.audit import audit_dir_for, make_auditor
-    from readyagents.config import get_settings
-    from readyagents.errors import FeedbackRefused
-    from readyagents.feedback.export import export_feedback
-    from readyagents.policy import Redactor
-    from readyagents.replay.record import known_secret_values
-
-    settings = get_settings()
-    console.print("Warning: an export is production data in a portable file.")
-    if not yes:
-        typer.confirm("Write the export?", abort=True)
-    try:
-        report = export_feedback(
-            settings=settings,
-            dest=out,
-            fmt=fmt,
-            scope=scope,
-            node=node,
-            since=since,
-            min_rating=min_rating,
-            yes=yes,
-            secrets=known_secret_values(settings),
-            redactor=Redactor(literals=known_secret_values(settings)),
-            auditor=make_auditor(audit_dir_for(settings.home_path())),
-        )
-    except FeedbackRefused as extra:
-        if as_json:
-            _print_json(
-                _json_envelope(
-                    "feedback export",
-                    ok=False,
-                    error="FeedbackRefused",
-                    message=str(extra),
-                    reason=extra.reason,
-                )
-            )
-            raise typer.Exit(code=1) from extra
-        _fail(extra)
-        return
-    except ReadyAgentsError as extra:
-        if as_json:
-            _print_json(
-                _json_envelope(
-                    "feedback export",
-                    ok=False,
-                    error=type(extra).__name__,
-                    message=str(extra),
-                )
-            )
-            raise typer.Exit(code=1) from extra
-        _fail(extra)
-        return
-    body = report.as_dict()
-    ok = bool(body.pop("ok", True))
-    if as_json:
-        _print_json(_json_envelope("feedback export", ok=ok, **body))
-        return
-    console.print(
-        f"export format={report.format} written={report.written} excluded={report.excluded}"
-    )
-
-
-@feedback_app.command("stats")
-def feedback_stats_cmd(
-    by: str = typer.Option("node", "--by", help="node, model, label, or week."),
-    as_json: bool = typer.Option(False, "--json"),
-) -> None:
-    """Correction rates with sample sizes. Does not imply statistical significance."""
-    from readyagents.config import get_settings
-    from readyagents.errors import FeedbackRefused
-    from readyagents.feedback.stats import feedback_stats
-
-    try:
-        report = feedback_stats(settings=get_settings(), by=by)
-    except FeedbackRefused as extra:
-        if as_json:
-            _print_json(
-                _json_envelope(
-                    "feedback stats",
-                    ok=False,
-                    error="FeedbackRefused",
-                    message=str(extra),
-                    reason=extra.reason,
-                )
-            )
-            raise typer.Exit(code=1) from extra
-        _fail(extra)
-        return
-    except ReadyAgentsError as extra:
-        if as_json:
-            _print_json(
-                _json_envelope(
-                    "feedback stats", ok=False, error=type(extra).__name__, message=str(extra)
-                )
-            )
-            raise typer.Exit(code=1) from extra
-        _fail(extra)
-        return
-    body = report.as_dict()
-    ok = bool(body.pop("ok", True))
-    if as_json:
-        _print_json(_json_envelope("feedback stats", ok=ok, **body))
-        return
-    console.print(f"stats by={report.by} n={report.sample_size} (no significance claim)")
-    for row in report.rows:
-        console.print(
-            f"{row.get(report.by)} n={row['n']} rate={row['correction_rate']} significance=None"
-        )
 
 
 @app.command("promote", rich_help_panel="Extras: Operations")
@@ -2258,184 +2130,6 @@ def _check_schema_file(path: Path, generated: str) -> None:
     )
     preview = "\n".join(list(diff)[:80])
     raise ConfigError(f"schema drift: {path} does not match generated output\n{preview}")
-
-
-@bench_app.command("run")
-def bench_run_cmd(
-    suite: Path | None = typer.Option(None, "--suite", help="Suite YAML (default examples/bench)."),
-    offline: bool = typer.Option(
-        False, "--offline", help="Cassette replay (default). Engine timing, not provider latency."
-    ),
-    live: bool = typer.Option(
-        False, "--live", help="Opt-in live end-to-end. Metered. Off by default."
-    ),
-    allow_ci_live: bool = typer.Option(
-        False, "--allow-ci-live", help="Required with --live when CI=true."
-    ),
-    scenarios: str | None = typer.Option(
-        None, "--scenarios", help="Comma-separated scenario names."
-    ),
-    max_spend: float | None = typer.Option(None, "--max-spend", help="Live spend cap in USD."),
-    model: str | None = typer.Option(None, "--model", help="Optional model label for comparison."),
-    out: Path | None = typer.Option(None, "--out", help="Write the JSON result document."),
-    as_json: bool = typer.Option(False, "--json"),
-) -> None:
-    """Run the scenario suite offline (default) or live. Zero cost offline."""
-    from readyagents.bench.run import run_bench
-    from readyagents.config import get_settings
-    from readyagents.errors import BenchRefused
-
-    names = [part.strip() for part in (scenarios or "").split(",") if part.strip()]
-    try:
-        if live and offline:
-            raise BenchRefused("use --offline or --live, not both", reason="mode")
-        report = run_bench(
-            suite,
-            live=live,
-            allow_ci_live=allow_ci_live,
-            settings=get_settings(),
-            scenarios=names or None,
-            max_spend=max_spend,
-            model=model,
-        )
-    except BenchRefused as extra:
-        if as_json:
-            _print_json(
-                _json_envelope(
-                    "bench run",
-                    ok=False,
-                    error="BenchRefused",
-                    message=str(extra),
-                    reason=extra.reason,
-                )
-            )
-            raise typer.Exit(code=1) from extra
-        _fail(extra)
-        return
-    except ReadyAgentsError as extra:
-        if as_json:
-            _print_json(
-                _json_envelope(
-                    "bench run", ok=False, error=type(extra).__name__, message=str(extra)
-                )
-            )
-            raise typer.Exit(code=1) from extra
-        _fail(extra)
-        return
-    body = report.as_dict()
-    if out is not None:
-        out.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    if as_json:
-        _print_json(_json_envelope("bench run", ok=True, **body))
-        return
-    console.print(report.markdown())
-
-
-@bench_app.command("compare")
-def bench_compare_cmd(
-    current: Path | None = typer.Argument(None, help="Current results JSON from bench run."),
-    baseline: Path | None = typer.Option(None, "--baseline", help="Committed baseline JSON."),
-    tolerance: float | None = typer.Option(
-        None, "--tolerance", help="Wall-clock percent tolerance (optional override)."
-    ),
-    models: str | None = typer.Option(None, "--models", help="Comma-separated model refs."),
-    workflows: str | None = typer.Option(
-        None, "--workflows", help="Comma-separated workflow paths."
-    ),
-    scenario: str | None = typer.Option(None, "--scenario", help="Scenario name for --models."),
-    suite: Path | None = typer.Option(None, "--suite"),
-    inputs: list[str] = typer.Option(
-        [],
-        "--input",
-        "-i",
-        help="Shared KEY=VALUE for --workflows (repeatable).",
-    ),
-    as_json: bool = typer.Option(False, "--json"),
-) -> None:
-    """Compare a result document to a baseline, or models/workflows like-for-like."""
-    from readyagents.bench.compare import (
-        compare_models,
-        compare_results,
-        compare_workflows,
-        load_baseline,
-    )
-    from readyagents.config import get_settings
-    from readyagents.errors import BenchRefused
-
-    try:
-        if models:
-            names = [part.strip() for part in models.split(",") if part.strip()]
-            payload = compare_models(
-                names,
-                suite=suite,
-                scenario=scenario,
-                settings=get_settings(),
-            )
-            ok = bool(payload.pop("ok"))
-            if as_json:
-                _print_json(_json_envelope("bench compare", ok=ok, **payload))
-            else:
-                console.print(f"models {', '.join(names)} on identical inputs ok={ok}")
-            if not ok:
-                raise typer.Exit(code=1)
-            return
-        if workflows:
-            paths = [part.strip() for part in workflows.split(",") if part.strip()]
-            payload = compare_workflows(
-                paths,
-                inputs=parse_input_pairs(inputs),
-                settings=get_settings(),
-            )
-            ok = bool(payload.pop("ok"))
-            if as_json:
-                _print_json(_json_envelope("bench compare", ok=ok, **payload))
-            else:
-                console.print(f"workflows {', '.join(paths)} on identical inputs ok={ok}")
-            if not ok:
-                raise typer.Exit(code=1)
-            return
-        if current is None or baseline is None:
-            raise BenchRefused("bench compare needs results.json and --baseline", reason="args")
-        data = json.loads(Path(current).read_text(encoding="utf-8"))
-        base = load_baseline(baseline)
-        extra_tol = {"wall_ms_pct": tolerance} if tolerance is not None else None
-        report = compare_results(data, base, tolerance=extra_tol)
-    except BenchRefused as extra:
-        if as_json:
-            _print_json(
-                _json_envelope(
-                    "bench compare",
-                    ok=False,
-                    error="BenchRefused",
-                    message=str(extra),
-                    reason=extra.reason,
-                )
-            )
-            raise typer.Exit(code=1) from extra
-        _fail(extra)
-        return
-    except ReadyAgentsError as extra:
-        if as_json:
-            _print_json(
-                _json_envelope(
-                    "bench compare", ok=False, error=type(extra).__name__, message=str(extra)
-                )
-            )
-            raise typer.Exit(code=1) from extra
-        _fail(extra)
-        return
-    if as_json:
-        payload = report.as_dict()
-        payload.pop("ok", None)
-        _print_json(_json_envelope("bench compare", ok=report.ok, **payload))
-    else:
-        if report.ok:
-            console.print("compare ok")
-        else:
-            for line in report.regressions:
-                console.print(f"[red]{line}[/red]")
-    if not report.ok:
-        raise typer.Exit(code=1)
 
 
 def _emit_import_error(command: str, extra: ImportRefused, *, as_json: bool) -> NoReturn:
