@@ -52,6 +52,13 @@ Use `readyagents.testing` (`ScriptedLLM`, `RecordedLLM`, `run_workflow_spec`, `r
 2. Tests for engine/schema/tool behavior you touch
 3. No generated secrets, no run artifacts under `.readyagents/`
 
+## Branches
+
+One branch per shippable change, merged and deleted — the repo auto-deletes
+head branches on merge. A branch that outlives its PR gets tagged
+`archive/<name>` and deleted; nothing is lost, and the branch list stays
+readable. Never force-push a shared branch.
+
 ## Release criteria
 
 A release is a user-recognizable event, not a commit with a tag. All three hold
