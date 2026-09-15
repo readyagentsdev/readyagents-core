@@ -3192,7 +3192,7 @@
     "help": "Create a local .env.",
     "params": [
       {
-        "default": "PosixPath('.env')",
+        "default": "Path('.env')",
         "envvar": [],
         "help": "Path to write the env file.",
         "kind": "option",

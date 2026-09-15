@@ -12,6 +12,7 @@ To regenerate the snapshot after an intentional CLI change::
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,13 @@ def _type_spec(tp: Any) -> str:
     return ":".join(parts)
 
 
+def _default_spec(default: Any) -> str:
+    text = repr(default)
+    # Path defaults repr as PosixPath/WindowsPath per platform; the snapshot
+    # records the semantic value, not the platform's Path subclass.
+    return re.sub(r"^(Posix|Windows)Path\(", "Path(", text)
+
+
 def _param_spec(param: Any) -> dict:
     is_option = type(param).__name__.endswith("Option")
     envvar = getattr(param, "envvar", None)
@@ -46,7 +54,7 @@ def _param_spec(param: Any) -> dict:
         "opts": sorted(param.opts) if is_option else [],
         "secondary_opts": sorted(param.secondary_opts) if is_option else [],
         "type": _type_spec(param.type),
-        "default": repr(param.default),
+        "default": _default_spec(param.default),
         "required": bool(param.required),
         "help": getattr(param, "help", None) or "",
         "envvar": sorted(envvar) if envvar else [],
@@ -91,7 +99,12 @@ def test_cli_surface_matches_snapshot() -> None:
         "READYAGENTS_UPDATE_SNAPSHOT=1 pytest tests/test_cli_surface.py -q"
     )
     expected = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
-    assert surface == expected, "CLI surface drifted from the committed snapshot"
+    if surface != expected:
+        diverged = sorted(
+            path for path in set(surface) | set(expected) if surface.get(path) != expected.get(path)
+        )
+        detail = "\n".join(f"diverged path: {path!r}" for path in diverged[:20])
+        raise AssertionError(f"CLI surface drifted from the committed snapshot\n{detail}")
 
 
 def test_cli_surface_covers_all_commands() -> None:
