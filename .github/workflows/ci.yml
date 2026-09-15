@@ -139,6 +139,11 @@ jobs:
           readyagents new smoke-flow --dest smoke-flow
           readyagents validate smoke-flow/workflow.yaml
           readyagents run smoke-flow/workflow.yaml --dry-run --no-persist
+          readyagents run smoke-flow/workflow.yaml
+          readyagents runs list
+          readyagents new --list-examples
+          readyagents new f --from-example calc_pipeline
+          readyagents run f/workflow.yaml
 
   airgap:
     runs-on: ubuntu-latest

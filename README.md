@@ -20,7 +20,16 @@ readyagents run my-flow/workflow.yaml
 readyagents runs list
 ```
 
-Or from a clone (adds `examples/`):
+The wheel ships the example workflows too — no clone needed:
+
+```bash
+readyagents new f --from-example calc_pipeline
+readyagents run f/workflow.yaml
+```
+
+`readyagents new --list-examples` shows all of them.
+
+Or from a clone:
 
 ```bash
 git clone https://github.com/readyagentsdev/readyagents-core.git

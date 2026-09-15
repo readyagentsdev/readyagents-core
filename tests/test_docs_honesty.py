@@ -47,25 +47,30 @@ def test_first_ten_minutes_matches_package() -> None:
     assert "0.8.0" not in text
 
 
-_NEW_CMD = re.compile(r"readyagents new ([A-Za-z0-9_-]+)(?: --template ([A-Za-z0-9_-]+))?")
+_NEW_CMD = re.compile(
+    r"readyagents new ([A-Za-z0-9_][A-Za-z0-9_-]*)"
+    r"(?: (--template|--from-example) ([A-Za-z0-9_./-]+))?"
+)
 
 
-def test_first_ten_minutes_pypi_new_dests_are_distinct(tmp_path: Path, monkeypatch) -> None:
-    """A linear follow of the PyPI walkthrough must not hit overwrite."""
+def test_first_ten_minutes_new_dests_are_distinct(tmp_path: Path, monkeypatch) -> None:
+    """A linear follow of the walkthrough must not hit overwrite (H-06: one road)."""
     text = (ROOT / "docs" / "first-ten-minutes.md").read_text(encoding="utf-8")
     found = _NEW_CMD.findall(text)
     assert found, "first-ten-minutes must show readyagents new"
-    names = [name for name, _template in found]
-    gated = [name for name, template in found if template == "gated"]
-    assert gated, "PyPI HITL path must scaffold --template gated"
-    assert "my-flow" not in gated
+    names = [name for name, _flag, _value in found]
+    hitl = [
+        name for name, flag, value in found if flag == "--from-example" and value == "approval_gate"
+    ]
+    assert hitl, "HITL path must materialize --from-example approval_gate"
+    assert "my-flow" not in hitl
     assert len(names) == len(set(names)), names
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    for name, template in found:
+    for name, flag, value in found:
         args = ["new", name]
-        if template:
-            args.extend(["--template", template])
+        if flag:
+            args.extend([flag, value])
         result = runner.invoke(app, args)
         assert result.exit_code == 0, result.stdout + result.stderr
         assert (tmp_path / name / "workflow.yaml").is_file()

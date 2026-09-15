@@ -3,28 +3,24 @@
 
 No API keys. Current version is **2.0.2** (`readyagents version`). Install from PyPI
 (`pip install readyagentsdev`) or from a clone (`pip install -e .`) as in the
-[README](../README.md). The wheel does **not** ship `examples/`.
+[README](../README.md). The wheel ships `examples/`; one road below serves both.
 
 ## 1. Prove the engine works
-
-From PyPI (no repo):
 
 ```bash
 readyagents doctor
 readyagents new my-flow
 readyagents run my-flow/workflow.yaml
-readyagents runs list
-```
-
-From a clone (this repository):
-
-```bash
-readyagents doctor
-readyagents run examples/calc_pipeline.yaml
+readyagents new f --from-example calc_pipeline
+readyagents run f/workflow.yaml
 readyagents runs list
 readyagents runs report <run_id>
-readyagents run examples/list_dir.yaml
+readyagents new g --from-example list_dir
+readyagents run g/workflow.yaml
 ```
+
+`new --from-example` materializes any shipped example (`new --list-examples`
+shows all of them), so a clone is never required for the rest of this page.
 
 Windows: activate with `.venv\Scripts\activate` then the same commands. Attach
 `readyagents doctor --json` if something fails.
@@ -42,16 +38,8 @@ automatically).
 
 ## 2. Pause is not a crash
 
-From a clone:
-
 ```bash
-readyagents run examples/approval_gate.yaml
-```
-
-From PyPI (a **different** directory than `my-flow` — `new` refuses to overwrite):
-
-```bash
-readyagents new demo --template gated
+readyagents new demo --from-example approval_gate
 readyagents run demo/workflow.yaml
 ```
 
@@ -64,7 +52,7 @@ readyagents resume <run_id> --approve gate
 readyagents resume <run_id> --reject gate
 ```
 
-Same-shot: `readyagents run examples/approval_gate.yaml --approve gate`.
+Same-shot: `readyagents run demo/workflow.yaml --approve gate`.
 
 Or inject a JSON decision without `--approve` flags:
 
@@ -72,14 +60,15 @@ Or inject a JSON decision without `--approve` flags:
 readyagents decide <run_id> --node gate --decision approve
 ```
 
-One gate is enough. `examples/gated_write.yaml` does `calc`, then a single
+One gate is enough. `gated_write` does `calc`, then a single
 approval, then `write_file`. Exit **2** means the file is still absent.
 `--approve gate` writes once. Reject never writes. That is not a rubber-stamp
 prompt on every tool. Quorum, lazy deadlines, and delegation are opt-in:
 [approvals.md](approvals.md).
 
 ```bash
-readyagents run examples/gated_write.yaml
+readyagents new gw --from-example gated_write
+readyagents run gw/workflow.yaml
 readyagents resume <run_id> --approve gate
 ```
 
@@ -108,16 +97,17 @@ clone, `pip install -e ".[openai]"`) and put your own key in `.env`.
 
 ## Optional (2.0.2 surface)
 
-**2.0.2** includes connectors, sovereign, memory, and A2A. Keyless examples:
+**2.0.2** includes connectors, sovereign, memory, and A2A. Keyless examples
+(each materialized first, same as above):
 
 ```bash
-readyagents run examples/connector_rest.yaml
+readyagents new ex-conn --from-example connector_rest && readyagents run ex-conn/workflow.yaml
 readyagents connectors list
-readyagents run examples/calc_pipeline.yaml --sovereign
-readyagents run examples/calc_pipeline.yaml --estimate
-readyagents eval examples/eval/pass.yaml
-readyagents run examples/memory_triage.yaml
-readyagents run examples/a2a_delegate.yaml --dry-run
+readyagents new ex-sov --from-example calc_pipeline && readyagents run ex-sov/workflow.yaml --sovereign
+readyagents run ex-sov/workflow.yaml --estimate
+readyagents new ex-eval --from-example eval/pass.yaml && readyagents eval ex-eval/workflow.yaml
+readyagents new ex-mem --from-example memory_triage && readyagents run ex-mem/workflow.yaml
+readyagents new ex-a2a --from-example a2a_delegate && readyagents run ex-a2a/workflow.yaml --dry-run
 ```
 
 Memory is untrusted. A2A is a 0.3 JSON-RPC projection on the v1.0 well-known
