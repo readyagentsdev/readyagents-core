@@ -55,13 +55,13 @@ app = typer.Typer(
     add_completion=False,
 )
 mcp_app = typer.Typer(help="Run ReadyAgents as an MCP server.", no_args_is_help=True)
-runs_app = typer.Typer(help="Inspect persisted workflow runs.", no_args_is_help=True)
+runs_app = typer.Typer(help="Inspect, replay, fork, diff, freeze runs.", no_args_is_help=True)
 approvals_app = typer.Typer(
-    help="Foreground localhost approval UI (not a hosted dashboard).",
+    help="Queue of paused gates.",
     no_args_is_help=True,
 )
 delegations_app = typer.Typer(help="Time-bounded approval delegations.", no_args_is_help=True)
-policy_app = typer.Typer(help="Validate and explain firewall policy files.", no_args_is_help=True)
+policy_app = typer.Typer(help="Validate and explain firewall policy.", no_args_is_help=True)
 audit_app = typer.Typer(
     help="Inspect the append-only hash-chained audit trail.", no_args_is_help=True
 )
@@ -73,98 +73,98 @@ trust_app = typer.Typer(
     help="Manage the local publisher keyring for signed artifacts.",
     no_args_is_help=True,
 )
-app.add_typer(mcp_app, name="mcp")
-app.add_typer(runs_app, name="runs")
-app.add_typer(approvals_app, name="approvals")
-app.add_typer(delegations_app, name="delegations")
-app.add_typer(policy_app, name="policy")
-app.add_typer(audit_app, name="audit")
-app.add_typer(identity_app, name="identity")
-app.add_typer(trust_app, name="trust")
+app.add_typer(mcp_app, name="mcp", rich_help_panel="Core")
+app.add_typer(runs_app, name="runs", rich_help_panel="Core")
+app.add_typer(approvals_app, name="approvals", rich_help_panel="Core")
+app.add_typer(delegations_app, name="delegations", rich_help_panel="Extras: Governance and audit")
+app.add_typer(policy_app, name="policy", rich_help_panel="Core")
+app.add_typer(audit_app, name="audit", rich_help_panel="Extras: Governance and audit")
+app.add_typer(identity_app, name="identity", rich_help_panel="Extras: Governance and audit")
+app.add_typer(trust_app, name="trust", rich_help_panel="Extras: Governance and audit")
 identity_app.add_typer(identity_trust_app, name="trust")
 connectors_app = typer.Typer(
     help="List, show, and test installed connectors (small catalog by design).",
     no_args_is_help=True,
 )
-app.add_typer(connectors_app, name="connectors")
+app.add_typer(connectors_app, name="connectors", rich_help_panel="Extras: Connectivity")
 a2a_app = typer.Typer(
     help="Serve a workflow as an A2A agent, print its card, or probe a remote card.",
     no_args_is_help=True,
 )
-app.add_typer(a2a_app, name="a2a")
+app.add_typer(a2a_app, name="a2a", rich_help_panel="Extras: Connectivity")
 memory_app = typer.Typer(
     help="Inspect, search, forget, and export the local memory store.",
     no_args_is_help=True,
 )
-app.add_typer(memory_app, name="memory")
+app.add_typer(memory_app, name="memory", rich_help_panel="Extras: Data and knowledge")
 knowledge_app = typer.Typer(
     help="Ingest, sync, cite, and forget knowledge documents. Foreground only.",
     no_args_is_help=True,
 )
-app.add_typer(knowledge_app, name="knowledge")
+app.add_typer(knowledge_app, name="knowledge", rich_help_panel="Extras: Data and knowledge")
 table_app = typer.Typer(
     help="Inspect intermediate tables (head, schema, stats). Never dumps every cell.",
     no_args_is_help=True,
 )
-app.add_typer(table_app, name="table")
+app.add_typer(table_app, name="table", rich_help_panel="Extras: Data and knowledge")
 triggers_app = typer.Typer(
     help="Inspect declared triggers, dry-run mappings, list events. Core starts no listener.",
     no_args_is_help=True,
 )
-app.add_typer(triggers_app, name="triggers")
+app.add_typer(triggers_app, name="triggers", rich_help_panel="Extras: Operations")
 skills_app = typer.Typer(
     help="Install, list, export, and remove Agent Skills. No marketplace.",
     no_args_is_help=True,
 )
-app.add_typer(skills_app, name="skills")
+app.add_typer(skills_app, name="skills", rich_help_panel="Extras: Agent capability")
 package_app = typer.Typer(
     help="Build, install, and catalog workflow packages. No hosted registry.",
     no_args_is_help=True,
 )
-app.add_typer(package_app, name="package")
+app.add_typer(package_app, name="package", rich_help_panel="Extras: Packaging and distribution")
 models_app = typer.Typer(
     help="Catalog and dry-explain model routing. Never calls a provider.",
     no_args_is_help=True,
 )
-app.add_typer(models_app, name="models")
+app.add_typer(models_app, name="models", rich_help_panel="Extras: Model and prompt")
 models_app.add_typer(adapters_app, name="adapters")
-app.add_typer(distill_app, name="distill")
+app.add_typer(distill_app, name="distill", rich_help_panel="Extras: Model and prompt")
 health_app = typer.Typer(
     help="Cluster failures by fingerprint over the run store. No daemon, no telemetry.",
     no_args_is_help=False,
 )
-app.add_typer(health_app, name="health")
+app.add_typer(health_app, name="health", rich_help_panel="Extras: Operations")
 bench_app = typer.Typer(
     help="Offline-by-default benchmark suite. Not a model-quality claim.",
     no_args_is_help=True,
 )
-app.add_typer(bench_app, name="bench")
+app.add_typer(bench_app, name="bench", rich_help_panel="Extras: Model and prompt")
 prompts_app = typer.Typer(
     help="List, show, diff, and rollback versioned prompts. Never rewrites workflow YAML.",
     no_args_is_help=True,
 )
-app.add_typer(prompts_app, name="prompts")
+app.add_typer(prompts_app, name="prompts", rich_help_panel="Extras: Model and prompt")
 feedback_app = typer.Typer(
     help="Export consented corrections. Production data in a portable file. No hosted dataset.",
     no_args_is_help=True,
 )
-app.add_typer(feedback_app, name="feedback")
+app.add_typer(feedback_app, name="feedback", rich_help_panel="Extras: Model and prompt")
 sessions_app = typer.Typer(
     help="List, show, close, replay, and freeze conversational sessions. Turns are runs.",
     no_args_is_help=True,
 )
-app.add_typer(sessions_app, name="sessions")
+app.add_typer(sessions_app, name="sessions", rich_help_panel="Extras: Agent capability")
 env_app = typer.Typer(
     help="Declared environments, pinned releases, status/history/diff. Not a hosted deploy.",
     no_args_is_help=True,
 )
-app.add_typer(env_app, name="env")
-app.add_typer(registry_app, name="registry")
+app.add_typer(env_app, name="env", rich_help_panel="Extras: Operations")
+app.add_typer(registry_app, name="registry", rich_help_panel="Extras: Operations")
 serve_app = typer.Typer(
     help="Foreground loopback surfaces. Not a hosted product.",
     no_args_is_help=True,
 )
-app.add_typer(serve_app, name="serve")
+app.add_typer(serve_app, name="serve", rich_help_panel="Extras: Packaging and distribution")
 
 console = Console()
 err_console = Console(stderr=True)
@@ -209,17 +209,17 @@ def _root(
     configure_logging(log_level, fmt=log_format)
 
 
-@app.command()
+@app.command(rich_help_panel="Core")
 def version() -> None:
-    """Print the ReadyAgents version."""
+    """Print the version."""
     console.print(__version__)
 
 
-@app.command("init")
+@app.command("init", rich_help_panel="Core")
 def init_cmd(
     dest: Path = typer.Option(Path(".env"), "--dest", help="Path to write the env file."),
 ) -> None:
-    """Create a local `.env` from `.env.example` if it does not exist."""
+    """Create a local .env."""
     example = Path(".env.example")
     if dest.exists():
         console.print(f"[yellow]{dest} already exists[/yellow] — left unchanged.")
@@ -249,7 +249,7 @@ def _print_next_steps() -> None:
     )
 
 
-@app.command("new")
+@app.command("new", rich_help_panel="Core")
 def new_cmd(
     name: str = typer.Argument("starter", help="Project / workflow name."),
     dest: Path | None = typer.Option(
@@ -264,7 +264,7 @@ def new_cmd(
         help=f"Starter kind: {', '.join(TEMPLATES)}.",
     ),
 ) -> None:
-    """Write a starter workflow, README, and `.env.example`."""
+    """Scaffold a starter workflow."""
     target = dest if dest is not None else Path(name)
     try:
         written = create_project(target, name=name, template=template)
@@ -285,7 +285,7 @@ def new_cmd(
         console.print(f"Run: [cyan]readyagents run {wf} --approve gate[/cyan]")
 
 
-@app.command("import")
+@app.command("import", rich_help_panel="Extras: Authoring")
 def import_cmd(
     source: str | None = typer.Argument(
         None, help="n8n, langgraph, crewai, or trigger (Zapier-shaped JSON)."
@@ -368,7 +368,7 @@ def import_cmd(
     console.print("structural translation only — test before use")
 
 
-@app.command()
+@app.command(rich_help_panel="Core")
 def validate(
     path: Path = _WORKFLOW_ARG,
     as_json: bool = typer.Option(
@@ -377,7 +377,7 @@ def validate(
         help="Print the workflow summary as JSON on stdout (no tables).",
     ),
 ) -> None:
-    """Schema-validate a workflow file without executing it."""
+    """Schema-validate a workflow."""
     try:
         workflow = load_workflow(path)
     except ReadyAgentsError as exc:
@@ -425,7 +425,7 @@ def validate(
     console.print(f"[green]OK[/green] — {len(workflow.nodes)} node(s), start={workflow.start}")
 
 
-@app.command("schema")
+@app.command("schema", rich_help_panel="Extras: Authoring")
 def schema_cmd(
     output: Path | None = typer.Option(
         None,
@@ -481,7 +481,7 @@ def schema_cmd(
         _fail(extra)
 
 
-@app.command("doctor")
+@app.command("doctor", rich_help_panel="Core")
 def doctor_cmd(
     as_json: bool = typer.Option(
         False,
@@ -489,7 +489,7 @@ def doctor_cmd(
         help="Print the diagnostic envelope as JSON (no tables).",
     ),
 ) -> None:
-    """Report platform, extras, workspace, permissions, loopback, and run-store. Read-only."""
+    """Report platform, extras, workspace."""
     from readyagents.doctor import format_doctor, run_doctor
 
     report = run_doctor()
@@ -501,7 +501,7 @@ def doctor_cmd(
         raise typer.Exit(code=1)
 
 
-@app.command("attest")
+@app.command("attest", rich_help_panel="Extras: Governance and audit")
 def attest_cmd(
     run_id: str = typer.Argument(..., help="Persisted run id (or unique prefix)."),
     out: Path | None = typer.Option(None, "--out", help="Write JSON to this path."),
@@ -557,7 +557,7 @@ def attest_cmd(
         _fail(extra)
 
 
-@app.command("bundle")
+@app.command("bundle", rich_help_panel="Extras: Packaging and distribution")
 def bundle_cmd(
     out: Path = typer.Option(..., "--out", help="Directory to write wheels and manifest.json."),
     python: str | None = typer.Option(
@@ -587,7 +587,7 @@ def bundle_cmd(
     console.print(f"wrote {len(payload.get('files') or [])} files under {out}")
 
 
-@app.command("eval")
+@app.command("eval", rich_help_panel="Core")
 def eval_cmd(
     path: Path = typer.Argument(
         ...,
@@ -599,7 +599,7 @@ def eval_cmd(
         help="Print the eval report as JSON on stdout (no tables).",
     ),
 ) -> None:
-    """Score fixture workflows from a suite file (no network, no API keys)."""
+    """Score a keyless fixture suite."""
     try:
         cases = load_eval_suite(path)
         report = run_eval(cases)
@@ -639,7 +639,7 @@ def eval_cmd(
         raise typer.Exit(code=1)
 
 
-@app.command("optimize")
+@app.command("optimize", rich_help_panel="Extras: Model and prompt")
 def optimize_cmd(
     path: Path = _WORKFLOW_ARG,
     eval_suite: Path = typer.Option(..., "--eval", help="Eval suite YAML used as the scorer."),
@@ -1418,7 +1418,7 @@ def env_deploy_cmd(
     console.print(f"{env} {pointer.get('digest')} {'candidate' if candidate else 'current'}")
 
 
-@app.command("promote")
+@app.command("promote", rich_help_panel="Extras: Operations")
 def promote_cmd(
     path: Path = _WORKFLOW_ARG,
     source: str = typer.Option(..., "--from", help="Source environment."),
@@ -1465,7 +1465,7 @@ def promote_cmd(
     console.print(f"{source} -> {target} {pointer.get('digest')}")
 
 
-@app.command("rollback")
+@app.command("rollback", rich_help_panel="Extras: Operations")
 def rollback_cmd(
     env: str = typer.Option(..., "--env", help="Named environment."),
     reason: str = typer.Option("manual", "--reason", help="Recorded rollback reason."),
@@ -1549,7 +1549,7 @@ def serve_chat_cmd(
     )
 
 
-@app.command("simulate")
+@app.command("simulate", rich_help_panel="Extras: Authoring")
 def simulate_cmd(
     path: Path = _WORKFLOW_ARG,
     seed: int = typer.Option(42, "--seed", help="Deterministic generator seed."),
@@ -1655,7 +1655,7 @@ def simulate_cmd(
         raise typer.Exit(code=1)
 
 
-@app.command()
+@app.command(rich_help_panel="Core")
 def run(
     path: Path = _WORKFLOW_ARG,
     inputs: list[str] = typer.Option(
@@ -1965,7 +1965,7 @@ def run(
     _emit_run(state, as_json=as_json, command="run")
 
 
-@app.command("batch")
+@app.command("batch", rich_help_panel="Extras: Operations")
 def batch_cmd(
     path: Path = _WORKFLOW_ARG,
     input_file: Path = typer.Option(
@@ -2119,7 +2119,7 @@ def batch_cmd(
     _emit_batch(report, as_json=as_json)
 
 
-@app.command("resume")
+@app.command("resume", rich_help_panel="Core")
 def resume_cmd(
     run_id: str = typer.Argument(..., help="Run id (or unique prefix)."),
     workflow: Path | None = typer.Option(
@@ -2184,7 +2184,7 @@ def resume_cmd(
         None, "--feedback-label", help="Declared taxonomy label on a feedback gate."
     ),
 ) -> None:
-    """Resume a paused or failed run from the last successful node."""
+    """Resume a paused or failed run."""
     persist = not no_persist
     try:
         parsed = parse_input_pairs(inputs)
@@ -2230,7 +2230,7 @@ def resume_cmd(
     _emit_run(state, as_json=as_json, command="resume")
 
 
-@app.command("wake")
+@app.command("wake", rich_help_panel="Extras: Operations")
 def wake_cmd(
     run_id: str | None = typer.Argument(None, help="Waiting run id, or omit with --all."),
     all_runs: bool = typer.Option(False, "--all", help="Evaluate every waiting run."),
@@ -2260,7 +2260,7 @@ def wake_cmd(
     console.print(str(report))
 
 
-@app.command("event")
+@app.command("event", rich_help_panel="Extras: Operations")
 def event_cmd(
     name: str = typer.Argument(..., help="Event name."),
     payload: Path | None = typer.Option(None, "--payload", help="JSON payload file."),
@@ -2870,7 +2870,7 @@ def _print_review(review: dict | None) -> None:
         console.print(f"upgrade widened={widened} new_tools={new_tools}")
 
 
-@app.command("agents-md")
+@app.command("agents-md", rich_help_panel="Extras: Agent capability")
 def agents_md_cmd(
     dest: Path | None = typer.Option(None, "--out", help="Write AGENTS.md here."),
     as_json: bool = typer.Option(False, "--json"),
@@ -2886,7 +2886,7 @@ def agents_md_cmd(
         console.print(text)
 
 
-@app.command("decide")
+@app.command("decide", rich_help_panel="Core")
 def decide_cmd(
     run_id: str = typer.Argument(..., help="Paused run id (or unique prefix)."),
     decision_file: Path | None = typer.Option(
@@ -2923,7 +2923,7 @@ def decide_cmd(
         None, "--feedback-label", help="Declared taxonomy label on a feedback gate."
     ),
 ) -> None:
-    """Inject an external approval decision into a paused run, then resume.
+    """Inject an approval decision.
 
     This is the core side of a webhook/pack: no always-on HTTP listener.
     A pack can receive the webhook and call this (or write --file).
@@ -3829,7 +3829,7 @@ def connectors_test_cmd(
         raise typer.Exit(code=1)
 
 
-@app.command("packs")
+@app.command("packs", rich_help_panel="Extras: Packaging and distribution")
 def packs_cmd(
     as_json: bool = typer.Option(False, "--json", help="Print JSON instead of a table."),
     pack: list[str] = typer.Option([], "--pack", help=_PACK_HELP),
@@ -4511,7 +4511,7 @@ def approvals_list_cmd(
         )
 
 
-@app.command("delegate")
+@app.command("delegate", rich_help_panel="Extras: Governance and audit")
 def delegate_cmd(
     from_actor: str = typer.Option(..., "--from", help="Delegator actor id."),
     to_actor: str = typer.Option(..., "--to", help="Delegate actor id."),
@@ -4943,7 +4943,7 @@ def audit_verify_cmd(
         raise typer.Exit(code=1)
 
 
-@app.command("evidence")
+@app.command("evidence", rich_help_panel="Extras: Governance and audit")
 def evidence_cmd(
     run_id: str = typer.Argument(..., help="Run id (or unique prefix)."),
     out: Path | None = typer.Option(None, "--out", help="Output directory."),
@@ -5027,7 +5027,7 @@ def evidence_cmd(
     console.print(f"Wrote evidence pack {pack}")
 
 
-@app.command("spend")
+@app.command("spend", rich_help_panel="Core")
 def spend_cmd(
     since: str | None = typer.Option(None, "--since", help="Include entries on/after YYYY-MM-DD."),
     by: str = typer.Option(
@@ -5037,7 +5037,7 @@ def spend_cmd(
     ),
     as_json: bool = typer.Option(False, "--json", help="Print JSON instead of a table."),
 ) -> None:
-    """Aggregate the local spend ledger. No network."""
+    """Aggregate the local spend ledger."""
     from readyagents.config import get_settings
     from readyagents.cost.ledger import query_spend
 
@@ -5260,7 +5260,7 @@ def models_route_cmd(
         console.print("  explain=true")
 
 
-@app.command("studio")
+@app.command("studio", rich_help_panel="Extras: Authoring")
 def studio_cmd(
     host: str = typer.Option(
         "127.0.0.1",
@@ -5301,7 +5301,7 @@ def studio_cmd(
         _fail(exc)
 
 
-@app.command("graph")
+@app.command("graph", rich_help_panel="Extras: Authoring")
 def graph_cmd(
     path: Path = _WORKFLOW_ARG,
     direction: str = typer.Option("LR", "--direction", help="LR or TD."),
@@ -5545,7 +5545,7 @@ def identity_trust_remove(
     console.print(f"removed issuer {issuer}")
 
 
-@app.command("sign")
+@app.command("sign", rich_help_panel="Extras: Governance and audit")
 def sign_cmd(
     path: Path = typer.Argument(..., help="Workflow, pack, or SKILL.md path."),
     key: Path = typer.Option(..., "--key", help="Operator-supplied Ed25519 private key."),
@@ -5580,7 +5580,7 @@ def sign_cmd(
     )
 
 
-@app.command("verify")
+@app.command("verify", rich_help_panel="Extras: Governance and audit")
 def verify_cmd(
     path: Path = typer.Argument(..., help="Workflow, pack, or SKILL.md path."),
     as_json: bool = typer.Option(False, "--json"),
@@ -5709,7 +5709,7 @@ def trust_remove_cmd(
     console.print(f"removed {entry.name} key_id={entry.key_id}")
 
 
-@app.command("lock")
+@app.command("lock", rich_help_panel="Extras: Governance and audit")
 def lock_cmd(
     path: Path = _WORKFLOW_ARG,
     out: Path | None = typer.Option(
@@ -5765,7 +5765,7 @@ def lock_cmd(
     console.print(f"wrote {dest} artifacts={len(lock.artifacts)}")
 
 
-@app.command("sbom")
+@app.command("sbom", rich_help_panel="Extras: Governance and audit")
 def sbom_cmd(
     path: Path = _WORKFLOW_ARG,
     out: Path | None = typer.Option(None, "--out", help="Write the SBOM JSON to this path."),
