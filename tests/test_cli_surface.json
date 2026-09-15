@@ -4205,6 +4205,32 @@
         "required": false,
         "secondary_opts": [],
         "type": "StringParamType:str"
+      },
+      {
+        "default": "False",
+        "envvar": [],
+        "help": "List shipped example workflows and exit.",
+        "kind": "option",
+        "name": "list_examples_flag",
+        "opts": [
+          "--list-examples"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "BoolParamType:boolean"
+      },
+      {
+        "default": "None",
+        "envvar": [],
+        "help": "Copy a shipped example instead of a template (cannot combine with --template).",
+        "kind": "option",
+        "name": "from_example",
+        "opts": [
+          "--from-example"
+        ],
+        "required": false,
+        "secondary_opts": [],
+        "type": "StringParamType:str"
       }
     ]
   },

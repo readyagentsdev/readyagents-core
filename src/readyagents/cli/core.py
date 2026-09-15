@@ -24,7 +24,8 @@ from readyagents.cli._common import (
     console,
     err_console,
 )
-from readyagents.errors import ReadyAgentsError
+from readyagents.errors import ConfigError, ReadyAgentsError
+from readyagents.examples import list_examples, materialize_example
 from readyagents.packs.loader import collect_pack_specs
 from readyagents.scaffold import (
     TEMPLATES,
@@ -116,8 +117,37 @@ def new_cmd(
         "-t",
         help=f"Starter kind: {', '.join(TEMPLATES)}.",
     ),
+    list_examples_flag: bool = typer.Option(
+        False,
+        "--list-examples",
+        help="List shipped example workflows and exit.",
+    ),
+    from_example: str | None = typer.Option(
+        None,
+        "--from-example",
+        help="Copy a shipped example instead of a template (cannot combine with --template).",
+    ),
 ) -> None:
     """Scaffold a starter workflow."""
+    if list_examples_flag:
+        for example in list_examples():
+            console.print(example)
+        return
+    if from_example is not None:
+        if template != "pipeline":
+            _fail(ConfigError("Cannot combine --from-example with --template."))
+            return
+        target = dest if dest is not None else Path(name)
+        try:
+            written = materialize_example(from_example, target)
+        except ReadyAgentsError as exc:
+            _fail(exc)
+            return
+        console.print(f"[green]Created {target.resolve()}[/green]  from-example={from_example}")
+        for path in written:
+            console.print(f"  {path.name}")
+        console.print(f"Run: [cyan]readyagents run {target / written[0].name}[/cyan]")
+        return
     target = dest if dest is not None else Path(name)
     try:
         written = create_project(target, name=name, template=template)
