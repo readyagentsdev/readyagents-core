@@ -1,7 +1,7 @@
 # First ten minutes
 > **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
-No API keys. Current version is **2.0.1** (`readyagents version`). Install from PyPI
+No API keys. Current version is **2.0.2** (`readyagents version`). Install from PyPI
 (`pip install readyagentsdev`) or from a clone (`pip install -e .`) as in the
 [README](../README.md). The wheel does **not** ship `examples/`.
 
