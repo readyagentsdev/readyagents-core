@@ -111,7 +111,7 @@ from readyagents.cli.identity import identity_app, trust_app
 from readyagents.cli.knowledge import knowledge_app
 from readyagents.cli.mcp import mcp_app
 from readyagents.cli.memory import memory_app
-from readyagents.cli.models import models_app
+from readyagents.cli.models import models_app, register_optimize
 from readyagents.cli.operations import (
     register_batch,
     register_event,
@@ -120,13 +120,14 @@ from readyagents.cli.operations import (
     register_wake,
 )
 from readyagents.cli.package import package_app
+from readyagents.cli.packaging import register_bundle, register_packs
 from readyagents.cli.policy import policy_app
 from readyagents.cli.prompts import prompts_app
 from readyagents.cli.run import register_run
 from readyagents.cli.runs import runs_app
 from readyagents.cli.serve import serve_app
 from readyagents.cli.sessions import sessions_app
-from readyagents.cli.skills import skills_app
+from readyagents.cli.skills import register_agents_md, skills_app
 from readyagents.cli.table import table_app
 from readyagents.cli.triggers import triggers_app
 
@@ -213,129 +214,13 @@ register_doctor(app)
 register_attest(app)
 
 
-@app.command("bundle", rich_help_panel="Extras: Packaging and distribution")
-def bundle_cmd(
-    out: Path = typer.Option(..., "--out", help="Directory to write wheels and manifest.json."),
-    python: str | None = typer.Option(
-        None, "--python", help="Target Python X.Y (one per invocation)."
-    ),
-    platform: str | None = typer.Option(
-        None, "--platform", help="Target platform tag (one per invocation)."
-    ),
-    as_json: bool = typer.Option(False, "--json"),
-) -> None:
-    """Collect wheels for offline `pip install --no-index --find-links`."""
-    from readyagents.sovereign.bundle import write_bundle
-
-    try:
-        payload = write_bundle(out, python=python, platform=platform)
-    except ReadyAgentsError as extra:
-        if as_json:
-            _print_json(
-                _json_envelope("bundle", ok=False, error=type(extra).__name__, message=str(extra))
-            )
-            raise typer.Exit(code=1) from extra
-        _fail(extra)
-        return
-    if as_json:
-        _print_json(_json_envelope("bundle", ok=True, path=str(out), **payload))
-        return
-    console.print(f"wrote {len(payload.get('files') or [])} files under {out}")
+register_bundle(app)
 
 
 register_eval(app)
 
 
-@app.command("optimize", rich_help_panel="Extras: Model and prompt")
-def optimize_cmd(
-    path: Path = _WORKFLOW_ARG,
-    eval_suite: Path = typer.Option(..., "--eval", help="Eval suite YAML used as the scorer."),
-    node: str | None = typer.Option(None, "--node", help="Prompt-bearing node id."),
-    max_iterations: int = typer.Option(8, "--max-iterations"),
-    max_spend: float | None = typer.Option(None, "--max-spend", help="Generation spend cap (USD)."),
-    max_wall_seconds: float | None = typer.Option(None, "--max-wall-seconds"),
-    min_improvement: float = typer.Option(0.05, "--min-improvement"),
-    n_candidates: int = typer.Option(3, "--candidates"),
-    hold_out: Path | None = typer.Option(
-        None, "--hold-out", help="Held-out eval suite (mandatory)."
-    ),
-    frozen: Path | None = typer.Option(
-        None, "--frozen", help="Frozen fixture suite that must not regress."
-    ),
-    require_approval: bool = typer.Option(False, "--require-approval"),
-    model: str | None = typer.Option(
-        None,
-        "--model",
-        help="Provider for candidate generation and candidate scoring (not baseline replay).",
-    ),
-    resume: bool = typer.Option(True, "--resume/--no-resume"),
-    as_json: bool = typer.Option(False, "--json"),
-) -> None:
-    """Reflective prompt optimization. Scoring is eval; generation is the only spend."""
-    from readyagents.config import get_settings
-    from readyagents.errors import OptimizeRefused, OptimizeStopped
-    from readyagents.optimize.loop import optimize_workflow
-
-    settings = get_settings()
-    try:
-        report = optimize_workflow(
-            path,
-            eval_suite,
-            node=node,
-            max_iterations=max_iterations,
-            max_spend=max_spend,
-            max_wall_seconds=max_wall_seconds,
-            min_improvement=min_improvement,
-            candidates=n_candidates,
-            hold_out=hold_out,
-            frozen=frozen,
-            require_approval=require_approval,
-            model=model,
-            settings=settings,
-            resume=resume,
-        )
-    except OptimizeRefused as extra:
-        payload = extra.report.as_dict() if getattr(extra, "report", None) is not None else {}
-        payload.pop("ok", None)
-        if as_json:
-            _print_json(
-                _json_envelope(
-                    "optimize",
-                    ok=False,
-                    error="OptimizeRefused",
-                    message=str(extra),
-                    reason=extra.reason,
-                    **payload,
-                )
-            )
-            raise typer.Exit(code=1) from extra
-        _fail(extra)
-        return
-    except ReadyAgentsError as extra:
-        if as_json:
-            _print_json(
-                _json_envelope(
-                    "optimize",
-                    ok=False,
-                    error=type(extra).__name__,
-                    message=str(extra),
-                )
-            )
-            raise typer.Exit(code=1) from extra
-        _fail(extra)
-        return
-    body = report.as_dict()
-    ok = bool(body.pop("ok", True))
-    if as_json:
-        _print_json(_json_envelope("optimize", ok=ok, **body))
-        return
-    console.print(
-        f"optimize stop={report.stop_reason} promoted={report.promoted} "
-        f"delta={report.delta} spend_usd={report.spend_usd} "
-        f"held_out={report.held_out.get('score')}"
-    )
-    if isinstance(report.stop, OptimizeStopped) and not report.promoted:
-        return
+register_optimize(app)
 
 
 register_promote(app)
@@ -362,66 +247,13 @@ register_wake(app)
 register_event(app)
 
 
-@app.command("agents-md", rich_help_panel="Extras: Agent capability")
-def agents_md_cmd(
-    dest: Path | None = typer.Option(None, "--out", help="Write AGENTS.md here."),
-    as_json: bool = typer.Option(False, "--json"),
-) -> None:
-    """Emit project context: how to run, validate, and test workflows here."""
-    from readyagents.skills.agents_md import generate_agents_md
-
-    text = generate_agents_md(dest=dest)
-    if as_json:
-        _print_json(_json_envelope("agents-md", ok=True, text=text))
-        return
-    if dest is None:
-        console.print(text)
+register_agents_md(app)
 
 
 register_decide(app)
 
 
-@app.command("packs", rich_help_panel="Extras: Packaging and distribution")
-def packs_cmd(
-    as_json: bool = typer.Option(False, "--json", help="Print JSON instead of a table."),
-    pack: list[str] = typer.Option([], "--pack", help=_PACK_HELP),
-) -> None:
-    """List installed ReadyAgents packs (entry point group readyagents.packs)."""
-    try:
-        found = list(discover_packs())
-        found.extend(_load_extra_packs(pack))
-    except ReadyAgentsError as exc:
-        if as_json:
-            _print_json(
-                _json_envelope(
-                    "packs",
-                    ok=False,
-                    error=type(exc).__name__,
-                    message=str(exc),
-                )
-            )
-            raise typer.Exit(code=1) from exc
-        _fail(exc)
-        return
-    if as_json:
-        _print_json(
-            _json_envelope(
-                "packs",
-                ok=True,
-                packs=[{"name": pack.name, "version": pack.version} for pack in found],
-            )
-        )
-        return
-    if not found:
-        console.print("No packs installed. Core runs without any packs.")
-        console.print("readyagents packs --pack examples/packs/connector_pack.py")
-        return
-    table = Table(title="Installed packs")
-    table.add_column("Name")
-    table.add_column("Version")
-    for pack in found:
-        table.add_row(pack.name, pack.version)
-    console.print(table)
+register_packs(app)
 
 
 register_delegate(app)
@@ -449,16 +281,6 @@ register_lock(app)
 
 
 register_sbom(app)
-
-
-def _load_extra_packs(pack_flags: list[str]) -> list[Any]:
-    """Load --pack / READYAGENTS_PACK modules confined to the workspace."""
-    from readyagents.config import get_settings
-
-    specs = collect_pack_specs(pack_flags)
-    if not specs:
-        return []
-    return load_local_packs(specs, root=get_settings().workspace_path())
 
 
 def main() -> None:

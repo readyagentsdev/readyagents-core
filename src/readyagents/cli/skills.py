@@ -152,3 +152,22 @@ def skills_export(
         _print_json(_json_envelope("skills export", ok=True, path=str(folder)))
         return
     console.print(f"exported {folder}")
+
+
+def agents_md_cmd(
+    dest: Path | None = typer.Option(None, "--out", help="Write AGENTS.md here."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Emit project context: how to run, validate, and test workflows here."""
+    from readyagents.skills.agents_md import generate_agents_md
+
+    text = generate_agents_md(dest=dest)
+    if as_json:
+        _print_json(_json_envelope("agents-md", ok=True, text=text))
+        return
+    if dest is None:
+        console.print(text)
+
+
+def register_agents_md(app: typer.Typer) -> None:
+    app.command("agents-md", rich_help_panel="Extras: Agent capability")(agents_md_cmd)

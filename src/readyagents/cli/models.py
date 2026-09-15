@@ -202,3 +202,98 @@ def models_route_cmd(
         console.print(f"  skipped={', '.join(decision.skipped)}")
     if explain:
         console.print("  explain=true")
+
+
+def optimize_cmd(
+    path: Path = _WORKFLOW_ARG,
+    eval_suite: Path = typer.Option(..., "--eval", help="Eval suite YAML used as the scorer."),
+    node: str | None = typer.Option(None, "--node", help="Prompt-bearing node id."),
+    max_iterations: int = typer.Option(8, "--max-iterations"),
+    max_spend: float | None = typer.Option(None, "--max-spend", help="Generation spend cap (USD)."),
+    max_wall_seconds: float | None = typer.Option(None, "--max-wall-seconds"),
+    min_improvement: float = typer.Option(0.05, "--min-improvement"),
+    n_candidates: int = typer.Option(3, "--candidates"),
+    hold_out: Path | None = typer.Option(
+        None, "--hold-out", help="Held-out eval suite (mandatory)."
+    ),
+    frozen: Path | None = typer.Option(
+        None, "--frozen", help="Frozen fixture suite that must not regress."
+    ),
+    require_approval: bool = typer.Option(False, "--require-approval"),
+    model: str | None = typer.Option(
+        None,
+        "--model",
+        help="Provider for candidate generation and candidate scoring (not baseline replay).",
+    ),
+    resume: bool = typer.Option(True, "--resume/--no-resume"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Reflective prompt optimization. Scoring is eval; generation is the only spend."""
+    from readyagents.config import get_settings
+    from readyagents.errors import OptimizeRefused, OptimizeStopped
+    from readyagents.optimize.loop import optimize_workflow
+
+    settings = get_settings()
+    try:
+        report = optimize_workflow(
+            path,
+            eval_suite,
+            node=node,
+            max_iterations=max_iterations,
+            max_spend=max_spend,
+            max_wall_seconds=max_wall_seconds,
+            min_improvement=min_improvement,
+            candidates=n_candidates,
+            hold_out=hold_out,
+            frozen=frozen,
+            require_approval=require_approval,
+            model=model,
+            settings=settings,
+            resume=resume,
+        )
+    except OptimizeRefused as extra:
+        payload = extra.report.as_dict() if getattr(extra, "report", None) is not None else {}
+        payload.pop("ok", None)
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "optimize",
+                    ok=False,
+                    error="OptimizeRefused",
+                    message=str(extra),
+                    reason=extra.reason,
+                    **payload,
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    except ReadyAgentsError as extra:
+        if as_json:
+            _print_json(
+                _json_envelope(
+                    "optimize",
+                    ok=False,
+                    error=type(extra).__name__,
+                    message=str(extra),
+                )
+            )
+            raise typer.Exit(code=1) from extra
+        _fail(extra)
+        return
+    body = report.as_dict()
+    ok = bool(body.pop("ok", True))
+    if as_json:
+        _print_json(_json_envelope("optimize", ok=ok, **body))
+        return
+    console.print(
+        f"optimize stop={report.stop_reason} promoted={report.promoted} "
+        f"delta={report.delta} spend_usd={report.spend_usd} "
+        f"held_out={report.held_out.get('score')}"
+    )
+    if isinstance(report.stop, OptimizeStopped) and not report.promoted:
+        return
+
+
+def register_optimize(app: typer.Typer) -> None:
+    app.command("optimize", rich_help_panel="Extras: Model and prompt")(optimize_cmd)
