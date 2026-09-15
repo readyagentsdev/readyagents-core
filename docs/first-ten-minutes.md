@@ -1,4 +1,5 @@
 # First ten minutes
+> **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
 No API keys. Current version is **2.0.1** (`readyagents version`). Install from PyPI
 (`pip install readyagentsdev`) or from a clone (`pip install -e .`) as in the
@@ -128,3 +129,7 @@ sandbox.
 - [Getting started](getting-started.md) — more examples, including LLM ones
 - [Workflows](workflows.md) — YAML syntax
 - [CLI](cli.md) — every command
+
+## Scope
+
+- No additional scope limits beyond the tier above.

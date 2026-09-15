@@ -1,4 +1,5 @@
 # Workflow packaging and distribution
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 A ReadyAgents **package** is a signed, review-before-install archive of a
 workflow plus its policy, fixtures, and declared dependencies. This is not a
@@ -110,3 +111,9 @@ refused. ReadyAgents does not host an index.
 
 Conflicts (core version below a declared minimum, name mismatch on upgrade)
 are reported. There is no transitive dependency solver.
+
+## Scope
+
+- Review-before-install archives with policy, fixtures, and signature; signed static index; not a hosted marketplace, not a marketplace.
+- - Optional [workflow packaging](packaging.md) (`readyagents package`) — review-before-install archives with policy, fixtures, and signature; signed static index; not a hosted marketplace
+- Offline wheel set for `pip install --no-index --find-links`.

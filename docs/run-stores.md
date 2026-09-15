@@ -1,4 +1,5 @@
 # Run stores
+> **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
 ReadyAgents writes a run record after each node so you can inspect, resume, and decide later. Opening a store is **command/request driven**. There is no always-on process, watcher, or database server.
 
@@ -125,3 +126,7 @@ New runs then go back to `$READYAGENTS_HOME/runs/`. The SQLite file is left in p
 - [CLI](cli.md)
 - [MCP](mcp.md)
 - [Localhost approval UI](browser-approval-ui.md)
+
+## Scope
+
+- No additional scope limits beyond the tier above.

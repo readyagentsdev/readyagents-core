@@ -1,4 +1,5 @@
 # Streaming
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 Opt-in token and run-event streaming. The stream is a **view over the durable
 path**, not a bypass. Without `--stream`, CLI output, exit codes, and run
@@ -50,3 +51,7 @@ cancel, partial output). ReadyAgents Core does not own audio.
 
 Cancellation mid-stream uses the existing cooperative token and leaves a
 resumable cancelled record, not a phantom succeeded node.
+
+## Scope
+
+- No additional scope limits beyond the tier above.

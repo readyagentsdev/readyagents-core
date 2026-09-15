@@ -1,4 +1,5 @@
 # Getting started
+> **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
 ## Requirements
 
@@ -135,3 +136,7 @@ readyagents validate examples/code_review.yaml
 - [Localhost approval UI](browser-approval-ui.md)
 - [Packs](packs.md) / [Continuous pack](continuous-pack.md) (optional, separate distribution)
 - [CLI](cli.md)
+
+## Scope
+
+- No additional scope limits beyond the tier above.

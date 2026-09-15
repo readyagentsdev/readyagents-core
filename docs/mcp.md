@@ -1,4 +1,5 @@
 # MCP toolkit
+> **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
 ReadyAgents includes an MCP **client** (call other servers from a workflow) and an MCP **server** (expose this toolkit to other agents).
 
@@ -268,3 +269,7 @@ python examples/mcp_http_client.py --path examples/calc_pipeline.yaml
 - Never send provider keys in `/runs` request JSON; use env / pack secret hooks
 - Do not expose the loopback HTTP door to the internet
 - MCP `tasks/update` approvals have the same authority as `readyagents decide`; unsigned (when `READYAGENTS_DECISION_SECRET` is set) or unauthorized decisions are refused, audited, and leave the run paused
+
+## Scope
+
+- No additional scope limits beyond the tier above.

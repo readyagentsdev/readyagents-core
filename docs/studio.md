@@ -1,4 +1,5 @@
 # Workflow studio (`readyagents studio`)
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 Opt-in foreground
 localhost canvas and run inspector. It is not a hosted product, not a
@@ -41,3 +42,8 @@ Reuse of the approvals composition: loopback bind, Host/Origin checks, CSP
 (`script-src 'self'`, no inline script), body and rate limits, DNS-rebinding
 rejection, path containment. Workflow text and run output are untrusted and
 escaped. Do not treat screenshots as less sensitive than an evidence pack.
+
+## Scope
+
+- Loopback canvas and run inspector; YAML on disk stays the source of truth; not a hosted product.
+- - Optional [workflow studio](studio.md) (`readyagents studio`) — loopback canvas and run inspector; YAML on disk stays the source of truth; not a hosted product

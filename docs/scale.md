@@ -1,4 +1,5 @@
 # Scale and batch
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 Opt-in concurrency for many local runs of one workflow. This is **not** a
 distributed worker, a broker, or an always-on daemon. `readyagents batch` is a
@@ -74,3 +75,7 @@ beside it. See `baselines/bench_batch.json`.
 
 No cluster, no message broker, no hosted queue, no always-on worker in core,
 no mandatory async extra, no persistence-format change.
+
+## Scope
+
+- Foreground: one workflow, many JSONL/CSV rows; not a distributed worker; benchmarks are not a marketing claim.

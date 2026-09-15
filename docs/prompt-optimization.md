@@ -1,4 +1,5 @@
 # Prompt optimization
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 `readyagents optimize` evolves a node's prompt against **your own eval
 suite**. It is not a hosted optimizer, not model fine-tuning, and it does
@@ -81,3 +82,8 @@ warning. Deltas are on **your** suite, not a public leaderboard.
 - No hosted optimization service and no telemetry.
 - No automatic adoption without the gate.
 - No extra dependency — stdlib plus the operator's own provider.
+
+## Scope
+
+- Versioned prompts, offline reflective loop, gated promotion; not GEPA/DSPy parity; not a hosted optimizer; YAML that never optimizes is unchanged.
+- - Optional [prompt optimization](prompt-optimization.md) (`readyagents optimize`, `readyagents prompts`) — versioned prompts, offline reflective loop, gated promotion; not GEPA/DSPy parity; YAML that never optimizes is unchanged

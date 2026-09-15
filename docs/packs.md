@@ -1,4 +1,5 @@
 # Packs
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 ReadyAgents is **open-core**. This repository is the free engine. Commercial or extra capability layers are **packs**: installed Python packages that register extra tools, node types, and workflows.
 
@@ -111,3 +112,7 @@ List what is installed (plus any `--pack` / `READYAGENTS_PACK` modules):
 ```bash
 readyagents packs
 ```
+
+## Scope
+
+- Extra node types and tools via Python entry points.

@@ -1,4 +1,5 @@
 # Conversational sessions
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 A session is a
 **sequence of durable runs**, not a socket holding state in memory. One-shot
@@ -70,3 +71,9 @@ Partial input, barge-in, and streaming output are the turn contract an
 optional voice/telephony pack can drive. **Core has no audio, codec, SIP, or
 WebRTC dependency.** No presence, typing indicators, read receipts, or rooms:
 one user, one session, plus an optional human agent.
+
+## Scope
+
+- Turns are durable runs; loopback chat; no audio in core; not a hosted chat product.
+- - Optional [conversational sessions](conversational-sessions.md) (`type: converse`, `readyagents sessions`, `serve chat`) — turns are durable runs; loopback chat; no audio in core; not a hosted chat product
+- Foreground loopback surfaces; stops when the process stops; not a hosted product.

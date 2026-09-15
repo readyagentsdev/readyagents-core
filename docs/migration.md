@@ -1,4 +1,5 @@
 # Migration and importers
+> **Tier:** preview — works, tested, documented; shape may still change. See [stability](stability.md).
 
 `readyagents import`
 translates an **operator-exported** workflow into ReadyAgents YAML plus a
@@ -64,3 +65,8 @@ Overwrite without `--force` is refused.
 After emit, the workflow is schema-validated, `--dry-run` executed, and
 rendered as Mermaid. Hosted runtimes of the source (n8n cloud, Zapier, LangGraph
 platform) are named as unsupported, not faked.
+
+## Scope
+
+- n8n / LangGraph / CrewAI / trigger-action; structural translation plus a fidelity report; never exec source Python; not behavioural equivalence.
+- - Optional [migration importers](migration.md) (`readyagents import`) — n8n / LangGraph / CrewAI / trigger-action; structural translation plus a fidelity report; never exec source Python; not behavioural equivalence

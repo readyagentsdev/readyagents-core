@@ -1,4 +1,5 @@
 # Firewall policy
+> **Tier:** preview — works, tested, documented; shape may still change. See [stability](stability.md).
 
 A declarative file, resolved separately from the workflow so the person who
 governs is not necessarily the person who authors.
@@ -85,3 +86,8 @@ readyagents run examples/policy_gated.yaml --policy examples/readyagents.policy.
 ```
 
 `policy explain` answers which tools each node may call and why.
+
+## Scope
+
+- Taint, tool policy, MCP pinning — defence in depth, not a solution to prompt injection.
+- - Optional agent firewall: taint, tool policy, MCP pinning ([security model](security-model.md), [policy](policy.md)) — defence in depth, not a solution to prompt injection

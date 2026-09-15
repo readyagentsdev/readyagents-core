@@ -1,4 +1,5 @@
 # Security model
+> **Tier:** preview — works, tested, documented; shape may still change. See [stability](stability.md).
 
 This is **defence in depth**, not a solution to prompt injection. An agent
 that reads untrusted text and then acts can still be manipulated. ReadyAgents
@@ -57,3 +58,8 @@ decision files, localhost approval UI). Enterprise HITL (quorum, roles, lazy
 deadlines, delegation) is opt-in and uses that same decision object;
 [approvals.md](approvals.md). `type: a2a` output is untrusted (`source=a2a`);
 see [a2a.md](a2a.md).
+
+## Scope
+
+- Taint, tool policy, MCP pinning — defence in depth, not a solution to prompt injection.
+- - Optional agent firewall: taint, tool policy, MCP pinning ([security model](security-model.md), [policy](policy.md)) — defence in depth, not a solution to prompt injection

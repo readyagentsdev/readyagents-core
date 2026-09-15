@@ -1,4 +1,5 @@
 # Workflows
+> **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
 Workflows are YAML or JSON documents validated with Pydantic. A derived JSON Schema 2020-12 document describes the **file** format for editors (`readyagents schema`, `schemas/workflow-v1.json`). See [authoring.md](authoring.md) for completion setup, the `$schema` / modeline convention, and source-located errors.
 
@@ -418,3 +419,7 @@ readyagents runs replay <run_id>
 | `examples/connector_demo.yaml` | No | Local `--pack` connector (`examples/packs/connector_pack.py`) |
 | `examples/browser_statement.yaml` | No | `type: browser` stub pack (`examples/packs/browser_pack.py`) |
 | `examples/converse_order.yaml` | No | `type: converse` session fixture (`sessions start` / `reply`) |
+
+## Scope
+
+- Pydantic `output_schema` on agent nodes; opt-in local LLM cache.

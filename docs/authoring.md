@@ -1,4 +1,5 @@
 # Authoring workflows
+> **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
 ReadyAgents validates workflow files with Pydantic. The JSON Schema shipped with Core is a **derived authoring aid** — completion, enum hints, and inline squiggles in an editor. It is not a second runtime. `readyagents validate` / `readyagents run` still use the models in `WorkflowSpec`.
 
@@ -96,3 +97,7 @@ If a location cannot be mapped (YAML anchors/aliases, some graph-wide validators
 ## What the schema does not check
 
 Cycle detection, route targets, include graphs, and other whole-document rules stay in Pydantic. A file can look fine in the editor and still fail `readyagents validate`. Packs may add node types and fields; node objects are open (`additionalProperties` is not closed), so a pack field should not draw a false squiggle.
+
+## Scope
+
+- Recorded LLM mocks and a tiny eval harness.

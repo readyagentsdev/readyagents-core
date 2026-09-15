@@ -1,4 +1,5 @@
 # Guardrails and output contracts
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 Opt-in `contract:` on a
 value-producing node. The engine enforces a declared structural schema and
@@ -60,3 +61,8 @@ Rejected content is redacted and truncated in logs, errors, records, and the
 gate prompt.
 
 This feature enforces **declared rules only**.
+
+## Scope
+
+- Declared schema and content rules on value-producing nodes; declared rules, not a safety classifier, not a safety claim.
+- - Optional [output contracts](guardrails.md) (`contract:` on a value-producing node) — declared schema and content rules, not a safety classifier

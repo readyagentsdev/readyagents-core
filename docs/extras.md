@@ -22,6 +22,7 @@ labels, not switches — experimental code runs exactly as it runs today.
 | [Attestation](compliance.md) | `attest` | experimental | Data-residency attestation — technical evidence, not legal compliance. |
 | [Supply-chain trust](supply-chain.md) | `sign`, `verify`, `lock`, `sbom`, `trust` | experimental | Detached signatures, lockfiles and SBOM — signatures prove origin, not safety. |
 | [Approval web UI](approvals.md) | `approvals serve` | stable | Foreground localhost approval page; not a hosted dashboard. |
+| [Approval delegation](approvals.md) | `delegate`, `delegations` | experimental | Time-bounded, single-hop, revocable approval delegation; list or revoke local delegations. |
 
 ## Connectivity
 
@@ -69,6 +70,8 @@ labels, not switches — experimental code runs exactly as it runs today.
 | [Migration importers](migration.md) | `import` | preview | n8n / LangGraph / CrewAI / trigger-action; structural translation plus a fidelity report; never exec source Python; not behavioural equivalence. |
 | [Simulation](simulation.md) | `simulate` | experimental | Declaration-driven cases, honest coverage, dry-run default; not exhaustive, not a hosted simulator. |
 | [Testing helpers](cli.md) | `readyagents.testing` | experimental | Recorded LLM mocks and a tiny eval harness. |
+| [Workflow graph](authoring.md) | `graph` | experimental | Deterministic Mermaid routing (executes nothing). |
+| [Workflow schema](authoring.md) | `schema` | experimental | Print/write/check the generated workflow JSON Schema. |
 
 ## Model and prompt
 

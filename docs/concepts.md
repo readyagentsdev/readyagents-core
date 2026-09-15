@@ -1,4 +1,5 @@
 # Concepts
+> **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
 ReadyAgents Core is a small engine that runs a **graph of nodes**. Each node is typed. State is a JSON-like document that grows as nodes finish.
 
@@ -75,3 +76,7 @@ A local `.py` loads with `--pack PATH`, for example `readyagents packs --pack ex
 ## MCP
 
 MCP is optional. Builtin tools are Python. You do not need Node.js unless you attach an MCP server that requires it.
+
+## Scope
+
+- No additional scope limits beyond the tier above.

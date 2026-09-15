@@ -1,4 +1,5 @@
 # Local models
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 ReadyAgents talks to **OpenAI-compatible** HTTP endpoints. It does not bundle
 weights, start Ollama/vLLM/llama.cpp, or download models.
@@ -34,3 +35,7 @@ Keyless example (no live model): `examples/ollama_local.yaml`.
 - **llama.cpp** server (`--host 127.0.0.1`) is loopback; same keyless path.
 
 See [sovereign.md](sovereign.md).
+
+## Scope
+
+- No additional scope limits beyond the tier above.

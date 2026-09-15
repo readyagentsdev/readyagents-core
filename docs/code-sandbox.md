@@ -1,4 +1,5 @@
 # Sandboxed `type: code`
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 Python only. The default
 `subprocess` tier defends against accident and careless code. It is **not**
@@ -71,3 +72,8 @@ Policy `nodes.<id>.require_approval` on a `source_from` node pauses with the
 instruction.
 
 See [examples/code_reshape.yaml](../examples/code_reshape.yaml).
+
+## Scope
+
+- Subprocess default — accident-grade isolation, not hostile-code-proof; no bundled container runtime.
+- - Optional [sandboxed code](code-sandbox.md) (`type: code`, subprocess default) — accident-grade isolation, not hostile-code-proof; no bundled container runtime

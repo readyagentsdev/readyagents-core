@@ -1,4 +1,5 @@
 # Credential brokering
+> **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
 Without a credentials file, tools see the process environment as they do
 today. With a file, the broker sits on the same tool-dispatch seam as the
@@ -43,3 +44,7 @@ labelled short-lived.
 MCP stdio children already receive a passthrough env, not the full process
 environment. `readyagents.credentials.minimal_child_env` is the helper for a
 minimal declared environment plus explicitly granted values.
+
+## Scope
+
+- No additional scope limits beyond the tier above.

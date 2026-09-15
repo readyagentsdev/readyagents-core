@@ -1,5 +1,99 @@
 # Stability contract (ReadyAgents Core 1.0)
 
+## Maturity tiers
+
+Tiers describe *stability of shape*, not *quality of implementation*. A `preview`
+or `experimental` feature works, is tested, and is documented; the tier only says
+how likely its shape — command names, flags, file formats, node fields — is to
+change. `experimental` code is tested code: the label records unproven use, not
+missing tests.
+
+| Tier | Meaning | Compatibility promise | Honest entry condition |
+| --- | --- | --- | --- |
+| `stable` | Core. Covered by the stability contract and `tests/test_public_api.py`. | Breaking changes only on a major, with a migration note. | Has been used by someone outside the author for a real task. |
+| `preview` | Works, tested, documented. Shape may still change. | May change on a minor, with a changelog entry. | Has an end-to-end test and a doc page; no external user yet. |
+| `experimental` | Shipped and tested, but unproven in use. | May change or move to a pack at any time. | Everything else. |
+
+Nothing built in the 2026-09-09 → 2026-09-12 sprint window is `stable`, regardless
+of test coverage: test coverage proves the code does what the author expected,
+while `stable` claims it does what a stranger expected, and that claim requires a
+stranger. See `docs/extras.md` for the per-feature catalogue; each feature page
+carries a one-line tier banner and a `## Scope` section holding its scope limits.
+
+Promotion is by evidence, not by time and not by polish. A tier moves up when an
+external `I-ran-this` report exists, or the author has used the feature in a real
+job for two weeks — and the changelog entry for the promotion names that
+evidence. No named evidence, no promotion.
+
+## Command tiers
+
+Every one of the 57 top-level commands has exactly one tier. `stable` is the
+pre-sprint core surface; `preview` has an end-to-end test, a doc page, and real
+author use; `experimental` is everything else. Tiers are labels, not switches:
+`experimental` commands run exactly as they run today.
+
+| Command | Tier |
+| --- | --- |
+| `run` | stable |
+| `resume` | stable |
+| `runs` | stable |
+| `new` | stable |
+| `validate` | stable |
+| `eval` | stable |
+| `decide` | stable |
+| `approvals` | stable |
+| `policy` | stable |
+| `spend` | stable |
+| `mcp` | stable |
+| `doctor` | stable |
+| `init` | stable |
+| `version` | stable |
+| `a2a` | preview |
+| `audit` | preview |
+| `connectors` | preview |
+| `env` | preview |
+| `evidence` | preview |
+| `identity` | preview |
+| `import` | preview |
+| `memory` | preview |
+| `agents-md` | experimental |
+| `attest` | experimental |
+| `batch` | experimental |
+| `bench` | experimental |
+| `bundle` | experimental |
+| `delegate` | experimental |
+| `delegations` | experimental |
+| `distill` | experimental |
+| `event` | experimental |
+| `feedback` | experimental |
+| `graph` | experimental |
+| `health` | experimental |
+| `knowledge` | experimental |
+| `lock` | experimental |
+| `models` | experimental |
+| `optimize` | experimental |
+| `package` | experimental |
+| `packs` | experimental |
+| `promote` | experimental |
+| `prompts` | experimental |
+| `registry` | experimental |
+| `rollback` | experimental |
+| `sbom` | experimental |
+| `schema` | experimental |
+| `serve` | experimental |
+| `sessions` | experimental |
+| `sign` | experimental |
+| `simulate` | experimental |
+| `skills` | experimental |
+| `studio` | experimental |
+| `table` | experimental |
+| `triggers` | experimental |
+| `trust` | experimental |
+| `verify` | experimental |
+| `wake` | experimental |
+
+The rest of this document is the 1.0 contract, unchanged.
+
 This document is the public Python API snapshot. Removing a name from
 `readyagents.__all__` without updating this file is a failing test.
 

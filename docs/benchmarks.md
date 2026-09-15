@@ -1,4 +1,5 @@
 # Benchmark harness
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 `readyagents bench run` produces **reproducible offline numbers** for the
 engine and the workflow — not a claim about model intelligence.
@@ -57,3 +58,8 @@ Every JSON result includes hardware, OS, Python, package version, cassette
 digests, `offline` vs `live`, and a `reproduce` command.
 
 This is not a hosted leaderboard and it does not compare other frameworks.
+
+## Scope
+
+- Offline cassettes, labelled engine vs live timing; not a model-quality or competitor ranking, not a quality ranking.
+- - Optional [benchmark harness](benchmarks.md) (`readyagents bench`) — offline cassettes, labelled engine vs live timing; not a model-quality or competitor ranking

@@ -91,7 +91,7 @@ def test_compliance_doc_exists_and_disclaims() -> None:
     paragraphs = [
         _plain(part).strip().lower()
         for part in text.split("\n\n")
-        if part.strip() and not part.strip().startswith("#")
+        if part.strip() and not part.strip().startswith(("#", ">"))
     ]
     assert paragraphs, "docs/compliance.md has no body"
     first = paragraphs[0]

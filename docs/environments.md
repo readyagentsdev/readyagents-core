@@ -1,4 +1,5 @@
 # Environments, versioning, and safe rollout
+> **Tier:** preview — works, tested, documented; shape may still change. See [stability](stability.md).
 
 An environment is a
 **declared configuration bundle** (routing, budget, policy, secret *scope*,
@@ -129,3 +130,9 @@ omitted.
 - Shadow doubles cost; it is not free comparison.
 - Signing proves the pin was produced with a trusted key, not that the agent
   is safe.
+
+## Scope
+
+- Pinned signed releases, gated promote, canary/shadow, lazy rollback; not a hosted deploy.
+- Gated promote copies a source pin onto a target; rollback restores the previous release atomically, never auto-forwards; not a hosted deploy.
+- - Optional [environments and rollout](environments.md) (`readyagents.env.yaml`, `run --env`, `promote`, `rollback`, `env status|history|diff`) — pinned signed releases, gated promote, canary/shadow, lazy rollback; not a hosted deploy

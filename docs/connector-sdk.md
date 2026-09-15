@@ -1,4 +1,5 @@
 # Connector SDK
+> **Tier:** preview — works, tested, documented; shape may still change. See [stability](stability.md).
 
 Write a governed connector by implementing `Connector` with a frozen
 `ConnectorSpec` and a `call(args, ctx)` method. **`ConnectorContext` is the
@@ -36,3 +37,7 @@ Helpers: `iter_cursor_pages`, `iter_token_pages`, `FixtureStore` for offline
 tests. Do not import vendor SDKs into core. Heavy connectors belong in a pack.
 
 See [connectors.md](connectors.md).
+
+## Scope
+
+- No additional scope limits beyond the tier above.

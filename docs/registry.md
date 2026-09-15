@@ -1,4 +1,5 @@
 # Agent registry and fleet governance
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 `readyagents registry`
 builds a **local inventory** from artifacts that already exist: workflows,
@@ -104,3 +105,8 @@ indexed path is gone (a rename/move that has not been re-scanned).
 Registry commands use the existing RBAC hook (`Authorizer.check`). Contacts are
 roles. Exports are confined, warned, and redacted. There is no hosted sync, no
 telemetry, and no automatic model-chosen risk tier.
+
+## Scope
+
+- Inventory from declared roots; derived facts plus declared roles/tier; draft Annex VIII export, not a legal filing (a draft, not a filing); not a hosted registry.
+- - Optional [agent registry](registry.md) (`readyagents registry`) — inventory from declared roots; derived facts plus declared roles/tier; draft Annex VIII export, not a legal filing; not a hosted registry

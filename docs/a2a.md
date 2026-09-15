@@ -1,4 +1,5 @@
 # A2A interoperability
+> **Tier:** preview — works, tested, documented; shape may still change. See [stability](stability.md).
 
 Remote content is
 untrusted. Delegation can exfiltrate. This page describes a served mapping over
@@ -147,3 +148,8 @@ pins are inert without a policy file.
 
 See [policy.md](policy.md), [security-model.md](security-model.md), and
 [SECURITY.md](../SECURITY.md).
+
+## Scope
+
+- 0.3 JSON-RPC projection; remote content untrusted; delegation can exfiltrate; not certification.
+- - Optional [A2A](a2a.md) serve/probe and `type: a2a` delegation (0.3 JSON-RPC projection; remote content untrusted; not certification)
