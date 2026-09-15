@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 from readyagents import __version__
 from readyagents.cli import app
 from readyagents.errors import A2AError, LLMError, MCPError, missing_extra_message
+from readyagents.examples import list_examples
 from readyagents.llm.anthropic_provider import AnthropicProvider
 from readyagents.llm.base import Message
 from readyagents.llm.openai_provider import OpenAIProvider
@@ -81,7 +82,11 @@ def test_getting_started_matches_package() -> None:
     assert f"**{__version__}**" in text
     assert "Current version is **1.0.0**" not in text
     assert "optional Unreleased localhost page" not in text
-    assert "does **not** ship `examples/`" in text
+    assert "does **not** ship `examples/`" not in text
+    assert "ships `examples/` as package data" in text
+    assert "--list-examples" in text
+    assert "--from-example" in text
+    assert len(list_examples()) > 0
     assert "readyagents new my-flow" in text
 
 

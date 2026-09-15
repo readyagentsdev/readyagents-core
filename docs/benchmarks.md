@@ -16,7 +16,7 @@ A repository that never runs bench is unchanged.
 
 ## Offline by default
 
-The shipped suite lives in `examples/bench/`. Each scenario includes a
+In a source checkout the shipped suite lives in `examples/bench/` (the wheel bundles the same files under `readyagents/examples/bench/`, which `bench run` does not resolve — run offline bench from a clone). Each scenario includes a
 **synthetic** cassette. Offline runs use cassette replay, spend `$0`, and
 install a socket guard so they cannot talk to the network.
 

@@ -43,7 +43,7 @@ Agent nodes need a key in `.env` after you install the matching extra.
 
 ## First run (no keys)
 
-The PyPI wheel does **not** ship `examples/`. From any install:
+The PyPI wheel ships `examples/` as package data — `readyagents new --list-examples` lists them and `readyagents new NAME --from-example <name>` copies one into a project; the `examples/...` paths below still need a source checkout, since `run` reads filesystem paths. From any install:
 
 ```bash
 readyagents doctor
@@ -101,10 +101,12 @@ ReadyAgents never ships with vendor keys. You bring your own.
 
 ## LLM examples
 
+From a source checkout (from PyPI, `readyagents new NAME --from-example <name>` first — same names as the `examples/*.yaml` files).
+
 ```bash
 readyagents run examples/research_brief.yaml --input topic="retrieval augmented generation"
 readyagents run examples/support_triage.yaml --input message="I cannot log in"
-readyagents run examples/code_review.yaml --input path=examples/sample_code.py
+readyagents run examples/code_review.yaml --input path=sample_code.py
 ```
 
 `research_brief` is LLM-only by default. To fetch a URL before writing the brief:
@@ -117,7 +119,8 @@ If HTTP is off, the writer still produces a plan + brief from the model alone.
 ## Dry-run
 
 ```bash
-readyagents run examples/research_brief.yaml --dry-run --input topic=test
+readyagents new r --from-example research_brief
+readyagents run r/workflow.yaml --dry-run --input topic=test
 ```
 
 Dry-run interpolates templates and walks the graph. It does not call an LLM or `http_get`.
@@ -125,7 +128,8 @@ Dry-run interpolates templates and walks the graph. It does not call an LLM or `
 ## Validate without running
 
 ```bash
-readyagents validate examples/code_review.yaml
+readyagents new c --from-example code_review
+readyagents validate c/workflow.yaml
 ```
 
 ## Next

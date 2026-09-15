@@ -64,7 +64,7 @@ author use; `experimental` is everything else. Tiers are labels, not switches:
 | `eval` | stable |
 | `decide` | stable |
 | `approvals` | stable |
-| `policy` | stable |
+| `policy` | preview |
 | `spend` | stable |
 | `mcp` | stable |
 | `doctor` | stable |

@@ -5,7 +5,7 @@ ReadyAgents, and nothing in the core path depends on it. Each entry carries a ma
 (see [stability.md](stability.md)) and its own scope note.
 
 Tiers are the H-03 starting assignment: `stable` is the pre-sprint core surface, `preview`
-has an end-to-end test and a doc page, and `experimental` is everything else. Tiers are
+has an end-to-end test, a doc page, and real author use; `experimental` is everything else. Tiers are
 labels, not switches — experimental code runs exactly as it runs today.
 
 ## Governance and audit

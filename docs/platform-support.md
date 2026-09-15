@@ -5,7 +5,7 @@ ReadyAgents Core is tested on **Linux, macOS, and Windows** across **Python 3.11
 CI is the oracle: `ubuntu-latest` runs 3.11–3.14; macOS and Windows run the oldest and newest
 Python (3.11 and 3.14) as of 2026-09-09 to bound runner time. A separate job installs the
 **wheel** (not the clone) on each OS and walks `readyagents new` / `validate` / `run --dry-run` /
-`doctor`.
+`run` / `runs list` / `doctor`, plus `new --list-examples` and `new --from-example` + `run`. A further job runs every README and getting-started command block against that wheel (`scripts/check_doc_commands.py`).
 
 ## What is verified
 
