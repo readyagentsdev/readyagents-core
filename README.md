@@ -11,7 +11,7 @@ This repository is the free core. You keep the provider account and the bill. In
 
 ## 60-second start
 
-Requires **Python 3.11–3.14** on Linux, macOS, or Windows. Current version is **2.0.2**. Install with `pip install readyagentsdev`, or from this clone.
+Requires **Python 3.11–3.14** on Linux, macOS, or Windows. Current version is **2.0.2**. Install with `pip install readyagentsdev`, or from this clone. The `2` versions the [core contract](docs/stability.md#what-the-version-number-means) only; extras carry their own maturity tiers.
 
 ```bash
 pip install readyagentsdev

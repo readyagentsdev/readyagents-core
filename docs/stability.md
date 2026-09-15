@@ -1,4 +1,26 @@
-# Stability contract (ReadyAgents Core 1.0)
+# Stability contract
+
+## What the version number means
+
+The package is `2.0.x`, classified `Development Status :: 4 - Beta`. The major
+covers the **core contract only**: the public Python names, frozen formats, and
+exit codes below. Breaking any of those requires a major bump with a migration
+note; nothing else in a release can force one.
+
+What the major does **not** cover:
+
+- Extras. Every extra carries its own maturity tier (`stable`, `preview`, or
+  `experimental`), and non-`stable` extras may change shape on a minor.
+- The `v1` / `record_version: 1` labels on the frozen formats. Those are
+  *format* versions, independent of the package major; they move only when the
+  format itself breaks.
+- Maturity. `2.x` + `Beta` says the core contract is written down and tested,
+  not that the package is production-proven. Promotion to `Production/Stable`
+  waits on external validation reports, not on time.
+
+Minor releases are additive (new commands, new optional settings, new exported
+names). Patch releases are bug fixes, docs, and additive `--json` keys. No
+release ships without a user-recognizable reason; see `CONTRIBUTING.md`.
 
 ## Maturity tiers
 
@@ -92,7 +114,7 @@ author use; `experimental` is everything else. Tiers are labels, not switches:
 | `verify` | experimental |
 | `wake` | experimental |
 
-The rest of this document is the 1.0 contract, unchanged.
+The rest of this document is the core contract for this major, unchanged.
 
 This document is the public Python API snapshot. Removing a name from
 `readyagents.__all__` without updating this file is a failing test.

@@ -16,7 +16,26 @@ permissions:
   contents: read
 
 jobs:
+  ci-gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - name: Require green CI on the release commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHA="${{ github.sha }}"
+          DATA=$(gh api "repos/${{ github.repository }}/commits/$SHA/check-runs?per_page=100")
+          TOTAL=$(echo "$DATA" | jq '[.check_runs[] | select(.name != "build-and-publish")] | length')
+          GREEN=$(echo "$DATA" | jq '[.check_runs[] | select(.name != "build-and-publish" and .status == "completed" and .conclusion == "success")] | length')
+          echo "CI check runs on $SHA: $GREEN/$TOTAL green (publish job excluded)"
+          if [ "$TOTAL" -eq 0 ]; then echo "refusing to publish: no CI check runs on $SHA"; exit 1; fi
+          if [ "$GREEN" -ne "$TOTAL" ]; then echo "refusing to publish: CI is not green on $SHA"; exit 1; fi
+
   build-and-publish:
+    needs: [ci-gate]
     runs-on: ubuntu-latest
     permissions:
       contents: read
