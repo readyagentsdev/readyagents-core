@@ -106,9 +106,9 @@ Add an `agent` node only after you install an extra
 (`pip install "readyagentsdev[openai]"` or `"readyagentsdev[anthropic]"`; from a
 clone, `pip install -e ".[openai]"`) and put your own key in `.env`.
 
-## Optional (2.0.1 surface)
+## Optional (2.0.2 surface)
 
-**2.0.1** includes connectors, sovereign, memory, and A2A. Keyless examples:
+**2.0.2** includes connectors, sovereign, memory, and A2A. Keyless examples:
 
 ```bash
 readyagents run examples/connector_rest.yaml
