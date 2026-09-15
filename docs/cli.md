@@ -2,6 +2,8 @@
 
 The `readyagents` command is a [Typer](https://typer.tiangolo.com/) app.
 
+Command examples below use `examples/...` paths from a source checkout; from a PyPI install, materialize one first with `readyagents new NAME --from-example <name>` (`new --list-examples` shows all of them).
+
 ```bash
 readyagents --help
 readyagents --version
@@ -19,13 +21,15 @@ readyagents init --dest .env
 
 ## `readyagents new [name]`
 
-Write a starter project: `workflow.yaml`, `README.md`, and `.env.example`. Refuses to overwrite those files if they already exist.
+Write a starter project: `workflow.yaml`, `README.md`, and `.env.example`. Refuses to overwrite those files if they already exist. `--list-examples` lists the shipped example workflows; `--from-example NAME` copies one instead of a template (cannot combine with `--template`).
 
 ```bash
 readyagents new my-flow
 readyagents run my-flow/workflow.yaml
 readyagents new demo --template gated
 readyagents run demo/workflow.yaml --approve gate
+readyagents new --list-examples
+readyagents new f --from-example calc_pipeline
 ```
 
 Templates: `basic`, `approval`, `research` (parallel + approval), `pipeline` (default; calc/json/condition), `review` (read_file + approval), `foreach`, `agent-tools`, `gated`.
@@ -737,12 +741,29 @@ readyagents mcp probe http://127.0.0.1:8765/mcp
 readyagents mcp probe http://127.0.0.1:8765/mcp --json
 ```
 
+## `readyagents serve chat`
+
+Foreground loopback chat endpoint for a `converse` workflow. Not a hosted product, no widget CDN. Loopback by default, token-protected (`READYAGENTS_CHAT_TOKEN`), foreground. Public bind requires `--allow-public-bind` and prints a warning. See [conversational-sessions.md](conversational-sessions.md).
+
+```bash
+readyagents serve chat my-chat/workflow.yaml --port 8795 --widget
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--host` | Bind address (default `127.0.0.1`) |
+| `--port` | Bind port (default `8795`) |
+| `--allow-public-bind` | Allow a non-loopback bind; prints a warning. You own the exposure. |
+| `--token-env` | Env var holding the Bearer [REDACTED] (default `READYAGENTS_CHAT_TOKEN`). No token-value CLI flag. |
+| `--widget` | Serve bundled vanilla widget assets |
+| `--json` | Standard envelope |
+
 ## `readyagents packs`
 
 Lists packs discovered via entry points. Empty when only core is installed. `--json` prints `{ok, packs}` (or `{ok: false, error, message}` if a pack fails to load).
 A local `.py` loads with `--pack PATH`, for example `readyagents packs --pack examples/packs/connector_pack.py`.
 
-The optional Continuous pack is a **separate** executable, `readyagents-continuous`, not a `readyagents` subcommand. See [continuous-pack.md](continuous-pack.md). Core still has no `serve`/`tick` scheduler command.
+The optional Continuous pack is a **separate** executable, `readyagents-continuous`, not a `readyagents` subcommand. See [continuous-pack.md](continuous-pack.md). Core still has no `tick`/scheduler command (`serve` only exposes foreground loopback surfaces such as `serve chat`).
 
 ## `readyagents package build|install|list|show|remove|upgrade|index`
 

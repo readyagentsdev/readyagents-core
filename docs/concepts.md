@@ -70,7 +70,7 @@ Packs may register observers. Events fire after a durable persist and cannot cha
 ## Extension: packs
 
 Core is complete on its own. A pack is an installed Python package that exposes an entry point in group `readyagents.packs`. It can register tools, node types, and bundled workflows. See [packs.md](packs.md).
-A local `.py` loads with `--pack PATH`, for example `readyagents packs --pack examples/packs/connector_pack.py`.
+A local `.py` loads with `--pack PATH`, for example `readyagents packs --pack examples/packs/connector_pack.py` (in a checkout; the wheel carries it under `readyagents/examples/packs/`).
 `--require-signed` verifies that pack **before** import. See [supply-chain.md](supply-chain.md).
 
 ## MCP
