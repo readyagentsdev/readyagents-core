@@ -61,7 +61,16 @@ EXPECTED_EXTRAS_PANELS = frozenset(f"Extras: {h}" for h in EXTRAS_HEADINGS)
 EXPECTED_COMMAND_COUNT = 57
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
-PANEL_HEADER_RE = re.compile(r"\s*╭─\s*(.+?)\s*─")
+# Panel headers in every Rich box style we may render: rounded (macOS/Linux),
+# square (Windows legacy console), and plain-ASCII fallback. The captured
+# group is the panel name; the leading-letter guard keeps bottom borders
+# (``╰──╯`` / ``└──┘`` / ``+---+``) from matching.
+PANEL_HEADER_RES = (
+    re.compile(r"\s*╭─\s*([A-Za-z].*?)\s*─"),
+    re.compile(r"\s*┌─\s*([A-Za-z].*?)\s*─"),
+    re.compile(r"\s*\+-+\s*([A-Za-z].*?)\s*-+\+?\s*$"),
+)
+ROW_BORDER_CHARS = "│|"
 # Command rows start the name in column 1 (``│ name ...``); wrapped help
 # continuation rows are indented further, so they do not match.
 COMMAND_ROW_RE = re.compile(r" (\S+)")
@@ -79,15 +88,19 @@ def parse_panels(text: str) -> tuple[list[str], dict[str, list[str]]]:
     panels: dict[str, list[str]] = {}
     current: str | None = None
     for line in text.splitlines():
-        header = PANEL_HEADER_RE.match(line)
-        if header:
-            current = header.group(1)
+        header_match = None
+        for pattern in PANEL_HEADER_RES:
+            header_match = pattern.match(line)
+            if header_match:
+                break
+        if header_match:
+            current = header_match.group(1).strip()
             panels[current] = []
             order.append(current)
             continue
-        if current is None or not line.startswith("│"):
+        if current is None or not line.startswith(tuple(ROW_BORDER_CHARS)):
             continue
-        parts = line.split("│")
+        parts = re.split(f"[{ROW_BORDER_CHARS}]", line, maxsplit=2)
         if len(parts) < 2:
             continue
         row = COMMAND_ROW_RE.match(parts[1])
@@ -108,9 +121,7 @@ def command_panels(order: list[str]) -> list[str]:
 
 def test_core_panel_exists_first_with_exact_contents():
     order, panels = parse_panels(get_help_text())
-    assert "Core" in panels, (
-        f"No Core panel in --help; panels found: {order}"
-    )
+    assert "Core" in panels, f"No Core panel in --help; panels found: {order}"
     panels_in_order = command_panels(order)
     assert panels_in_order[0] == "Core", (
         f"Core panel must appear first, got order: {panels_in_order}"
@@ -132,13 +143,9 @@ def test_every_command_appears_in_some_panel():
     )
     shown = {cmd for name in order for cmd in panels[name]}
     missing = expected - shown
-    assert not missing, (
-        f"{len(missing)} command(s) hidden from --help: {sorted(missing)}"
-    )
+    assert not missing, f"{len(missing)} command(s) hidden from --help: {sorted(missing)}"
     phantom = shown - expected
-    assert not phantom, (
-        f"--help lists unknown command(s): {sorted(phantom)}"
-    )
+    assert not phantom, f"--help lists unknown command(s): {sorted(phantom)}"
 
 
 def test_no_command_appears_in_two_panels():
@@ -151,9 +158,7 @@ def test_no_command_appears_in_two_panels():
                 duplicates.setdefault(cmd, [seen[cmd]]).append(name)
             else:
                 seen[cmd] = name
-    assert not duplicates, (
-        f"Command(s) listed in multiple panels: {duplicates}"
-    )
+    assert not duplicates, f"Command(s) listed in multiple panels: {duplicates}"
 
 
 def test_extras_panels_match_docs_taxonomy():
