@@ -78,6 +78,17 @@ from readyagents.cli.approvals import approvals_app
 from readyagents.cli.audit import audit_app, register_attest, register_evidence
 from readyagents.cli.bench import bench_app
 from readyagents.cli.connectors import connectors_app
+from readyagents.cli.core import (
+    register_decide,
+    register_doctor,
+    register_eval,
+    register_init,
+    register_new,
+    register_resume,
+    register_spend,
+    register_validate,
+    register_version,
+)
 from readyagents.cli.delegations import delegations_app
 from readyagents.cli.env import env_app
 from readyagents.cli.feedback import feedback_app
@@ -90,6 +101,7 @@ from readyagents.cli.models import models_app
 from readyagents.cli.package import package_app
 from readyagents.cli.policy import policy_app
 from readyagents.cli.prompts import prompts_app
+from readyagents.cli.run import register_run
 from readyagents.cli.runs import runs_app
 from readyagents.cli.serve import serve_app
 from readyagents.cli.sessions import sessions_app
@@ -156,80 +168,13 @@ def _root(
     configure_logging(log_level, fmt=log_format)
 
 
-@app.command(rich_help_panel="Core")
-def version() -> None:
-    """Print the version."""
-    console.print(__version__)
+register_version(app)
 
 
-@app.command("init", rich_help_panel="Core")
-def init_cmd(
-    dest: Path = typer.Option(Path(".env"), "--dest", help="Path to write the env file."),
-) -> None:
-    """Create a local .env."""
-    example = Path(".env.example")
-    if dest.exists():
-        console.print(f"[yellow]{dest} already exists[/yellow] — left unchanged.")
-        _print_next_steps()
-        return
-    if example.is_file():
-        dest.write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
-    else:
-        dest.write_text(_ENV_TEMPLATE, encoding="utf-8")
-    console.print(f"[green]Wrote {dest}[/green] — then the keyless smoke:")
-    _print_next_steps()
+register_init(app)
 
 
-def _print_next_steps() -> None:
-    console.print(
-        Panel(
-            "[bold]Next steps[/bold]\n"
-            "1. Diagnose (no keys):  [cyan]readyagents doctor[/cyan]\n"
-            "2. Scaffold:  [cyan]readyagents new my-flow[/cyan]\n"
-            "3. Smoke the scaffold:  [cyan]readyagents run my-flow/workflow.yaml[/cyan]\n"
-            "4. Edit `.env` and set OPENAI_API_KEY and/or ANTHROPIC_API_KEY\n"
-            "The PyPI wheel does not ship `examples/`. From a clone, "
-            "`readyagents run examples/calc_pipeline.yaml` is the same keyless graph.\n"
-            "See docs/first-ten-minutes.md",
-            title="ReadyAgents",
-        )
-    )
-
-
-@app.command("new", rich_help_panel="Core")
-def new_cmd(
-    name: str = typer.Argument("starter", help="Project / workflow name."),
-    dest: Path | None = typer.Option(
-        None,
-        "--dest",
-        help="Directory to write (defaults to ./<name>).",
-    ),
-    template: str = typer.Option(
-        "pipeline",
-        "--template",
-        "-t",
-        help=f"Starter kind: {', '.join(TEMPLATES)}.",
-    ),
-) -> None:
-    """Scaffold a starter workflow."""
-    target = dest if dest is not None else Path(name)
-    try:
-        written = create_project(target, name=name, template=template)
-    except ReadyAgentsError as exc:
-        _fail(exc)
-        return
-    console.print(f"[green]Created {target.resolve()}[/green]  template={template}")
-    for path in written:
-        console.print(f"  {path.name}")
-    wf = target / "workflow.yaml"
-    if template in {"basic", "pipeline", "foreach"}:
-        console.print(f"Run: [cyan]readyagents run {wf}[/cyan]")
-    elif template == "agent-tools":
-        console.print(f"Run: [cyan]readyagents run {wf} --dry-run[/cyan]")
-    elif template == "research":
-        console.print(f"Run: [cyan]readyagents run {wf} --approve publish[/cyan]")
-    else:
-        console.print(f"Run: [cyan]readyagents run {wf} --approve gate[/cyan]")
+register_new(app)
 
 
 @app.command("import", rich_help_panel="Extras: Authoring")
@@ -315,61 +260,7 @@ def import_cmd(
     console.print("structural translation only — test before use")
 
 
-@app.command(rich_help_panel="Core")
-def validate(
-    path: Path = _WORKFLOW_ARG,
-    as_json: bool = typer.Option(
-        False,
-        "--json",
-        help="Print the workflow summary as JSON on stdout (no tables).",
-    ),
-) -> None:
-    """Schema-validate a workflow."""
-    try:
-        workflow = load_workflow(path)
-    except ReadyAgentsError as exc:
-        if as_json:
-            _print_json(
-                _json_envelope(
-                    "validate",
-                    ok=False,
-                    error=type(exc).__name__,
-                    message=str(exc),
-                    **_problems_fields(exc),
-                )
-            )
-            raise typer.Exit(code=1) from exc
-        _fail(exc)
-    nodes = [
-        {
-            "id": node.id,
-            "type": str(node.type),
-            "next": node.next,
-            "then": node.then,
-            "else": node.else_,
-        }
-        for node in workflow.nodes
-    ]
-    if as_json:
-        _print_json(
-            _json_envelope(
-                "validate",
-                ok=True,
-                name=workflow.name,
-                start=workflow.start,
-                node_count=len(workflow.nodes),
-                nodes=nodes,
-            )
-        )
-        return
-    table = Table(title=f"Valid: {workflow.name}")
-    table.add_column("Node")
-    table.add_column("Type")
-    table.add_column("Next")
-    for node in workflow.nodes:
-        table.add_row(node.id, str(node.type), _node_routing(node))
-    console.print(table)
-    console.print(f"[green]OK[/green] — {len(workflow.nodes)} node(s), start={workflow.start}")
+register_validate(app)
 
 
 @app.command("schema", rich_help_panel="Extras: Authoring")
@@ -428,24 +319,7 @@ def schema_cmd(
         _fail(extra)
 
 
-@app.command("doctor", rich_help_panel="Core")
-def doctor_cmd(
-    as_json: bool = typer.Option(
-        False,
-        "--json",
-        help="Print the diagnostic envelope as JSON (no tables).",
-    ),
-) -> None:
-    """Report platform, extras, workspace."""
-    from readyagents.doctor import format_doctor, run_doctor
-
-    report = run_doctor()
-    if as_json:
-        _print_json(report)
-    else:
-        console.print(format_doctor(report), markup=False)
-    if not report.get("ok"):
-        raise typer.Exit(code=1)
+register_doctor(app)
 
 
 register_attest(app)
@@ -481,56 +355,7 @@ def bundle_cmd(
     console.print(f"wrote {len(payload.get('files') or [])} files under {out}")
 
 
-@app.command("eval", rich_help_panel="Core")
-def eval_cmd(
-    path: Path = typer.Argument(
-        ...,
-        help="Eval suite YAML or JSON file.",
-    ),
-    as_json: bool = typer.Option(
-        False,
-        "--json",
-        help="Print the eval report as JSON on stdout (no tables).",
-    ),
-) -> None:
-    """Score a keyless fixture suite."""
-    try:
-        cases = load_eval_suite(path)
-        report = run_eval(cases)
-    except ReadyAgentsError as extra:
-        if as_json:
-            _print_json(
-                _json_envelope(
-                    "eval",
-                    ok=False,
-                    error=type(extra).__name__,
-                    message=str(extra),
-                )
-            )
-            raise typer.Exit(code=1) from extra
-        _fail(extra)
-    if as_json:
-        _print_json(
-            _json_envelope(
-                "eval",
-                ok=report.ok,
-                passed=report.passed,
-                failed=report.failed,
-                results=[
-                    {"name": row.name, "passed": row.passed, "reason": row.reason}
-                    for row in report.results
-                ],
-            )
-        )
-    else:
-        for row in report.results:
-            if row.passed:
-                console.print(f"[green]PASS[/green] {escape(row.name)}")
-            else:
-                console.print(f"[red]FAIL[/red] {escape(row.name)}: {escape(row.reason)}")
-        console.print(f"passed={report.passed} failed={report.failed}")
-    if not report.ok:
-        raise typer.Exit(code=1)
+register_eval(app)
 
 
 @app.command("optimize", rich_help_panel="Extras: Model and prompt")
@@ -821,314 +646,7 @@ def simulate_cmd(
         raise typer.Exit(code=1)
 
 
-@app.command(rich_help_panel="Core")
-def run(
-    path: Path = _WORKFLOW_ARG,
-    inputs: list[str] = typer.Option(
-        [],
-        "--input",
-        "-i",
-        help="Input as KEY=VALUE (repeatable).",
-    ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        help="Walk the graph without calling an LLM, http_get, or write_file.",
-    ),
-    no_persist: bool = typer.Option(False, "--no-persist", help="Do not write a run record."),
-    approve: list[str] = typer.Option(
-        [],
-        "--approve",
-        help="Approve an approval node by id (repeatable).",
-    ),
-    reject: list[str] = typer.Option(
-        [],
-        "--reject",
-        help="Reject an approval node by id (repeatable).",
-    ),
-    resume: str | None = typer.Option(
-        None,
-        "--resume",
-        help="Resume this run id instead of starting a new run.",
-    ),
-    as_json: bool = typer.Option(
-        False,
-        "--json",
-        help="Print the run record as JSON on stdout (no tables).",
-    ),
-    log_level: str | None = typer.Option(
-        None,
-        "--log-level",
-        help="DEBUG, INFO, WARNING, or ERROR (same as the root flag).",
-    ),
-    log_format: str | None = typer.Option(
-        None,
-        "--log-format",
-        help="text or json (same as the root flag).",
-    ),
-    decision_file: Path | None = typer.Option(
-        None,
-        "--decision-file",
-        help="JSON file injecting approval decisions (not only --approve flags).",
-    ),
-    actor: str | None = typer.Option(
-        None,
-        "--actor",
-        help="Actor id for RBAC hooks (env: READYAGENTS_ACTOR).",
-        envvar="READYAGENTS_ACTOR",
-    ),
-    no_cache: bool = typer.Option(
-        False,
-        "--no-cache",
-        help="Skip the local LLM response cache for this run.",
-    ),
-    pack: list[str] = typer.Option([], "--pack", help=_PACK_HELP),
-    record: bool = typer.Option(
-        False,
-        "--record",
-        help="Write a content-addressed cassette (prompts and completions). Opt-in.",
-        envvar="READYAGENTS_RECORD",
-    ),
-    policy: Path | None = typer.Option(
-        None,
-        "--policy",
-        help="Firewall policy file (env: READYAGENTS_POLICY).",
-        envvar="READYAGENTS_POLICY",
-    ),
-    estimate: bool = typer.Option(
-        False,
-        "--estimate",
-        help="Print a spend range and exit. No node execution, no network.",
-    ),
-    max_spend: float | None = typer.Option(
-        None,
-        "--max-spend",
-        help="Hard USD cap consulted before each model call.",
-    ),
-    max_tokens: int | None = typer.Option(
-        None,
-        "--max-tokens",
-        help="Hard token cap consulted before each model call.",
-    ),
-    label: list[str] = typer.Option(
-        [],
-        "--label",
-        help="Attribution label KEY=VALUE (repeatable). Stored on the run and ledger.",
-    ),
-    override_budget: bool = typer.Option(
-        False,
-        "--override-budget",
-        help="Start even when the preflight estimate exceeds a cap (audited).",
-    ),
-    max_model_calls: int | None = typer.Option(
-        None,
-        "--max-model-calls",
-        help="Runaway guard: maximum LLM complete() attempts.",
-    ),
-    max_run_tool_rounds: int | None = typer.Option(
-        None,
-        "--max-run-tool-rounds",
-        help="Runaway guard: maximum agent tool rounds across the run.",
-    ),
-    max_wall_seconds: float | None = typer.Option(
-        None,
-        "--max-wall-seconds",
-        help="Runaway guard: maximum wall-clock seconds.",
-    ),
-    require_signed: bool = typer.Option(
-        False,
-        "--require-signed",
-        help="Refuse unsigned or untrusted workflow and pack artifacts.",
-    ),
-    frozen: bool = typer.Option(
-        False,
-        "--frozen",
-        help="Refuse to run when readyagents.lock digests do not match.",
-    ),
-    sovereign: bool = typer.Option(
-        False,
-        "--sovereign",
-        help="Refuse non-loopback egress at the socket boundary (env: READYAGENTS_SOVEREIGN).",
-        envvar="READYAGENTS_SOVEREIGN",
-    ),
-    sovereign_allow: list[str] = typer.Option(
-        [],
-        "--sovereign-allow",
-        help="Private endpoint allowlisted under --sovereign (repeatable).",
-    ),
-    stream_flag: bool = typer.Option(
-        False,
-        "--stream",
-        help="Emit incremental run events (tokens, partials, node start/finish).",
-    ),
-    edit: str | None = typer.Option(None, "--edit", help="Edited output for a feedback gate."),
-    rating: int | None = typer.Option(None, "--rating", help="Declared rating on a feedback gate."),
-    feedback_label: str | None = typer.Option(
-        None, "--feedback-label", help="Declared taxonomy label on a feedback gate."
-    ),
-    env: str | None = typer.Option(
-        None,
-        "--env",
-        help="Run the pinned release for this declared environment, not the working copy.",
-    ),
-) -> None:
-    """Execute a workflow."""
-    if log_level or log_format:
-        configure_logging(log_level or "INFO", **({"fmt": log_format} if log_format else {}))
-    persist = not no_persist
-    try:
-        parsed = parse_input_pairs(inputs)
-        decisions = build_decisions(approve, reject)
-        pack_specs = collect_pack_specs(pack)
-        from readyagents.cost.ledger import parse_labels
-
-        labels = parse_labels(label) if label else None
-        feedback = _feedback_payload(list(decisions), edit, rating, feedback_label)
-        if env and resume:
-            raise EnvRefused(
-                "resume a paused run with readyagents resume; --env starts from the pin",
-                reason="resume",
-            )
-        if estimate:
-            if env:
-                from readyagents.env.run import pinned_workflow_for
-
-                path = pinned_workflow_for(env)
-            _emit_estimate(path, inputs=parsed, as_json=as_json)
-            return
-        session = None
-        if stream_flag:
-            from readyagents.workflow.stream import StreamSession
-
-            def _write_stream(line: str) -> None:
-                if as_json:
-                    typer.echo(line, nl=False)
-                else:
-                    err_console.print(line.rstrip("\n"), markup=False)
-
-            session = StreamSession(ndjson=as_json, write=_write_stream)
-        if env:
-            from readyagents.env.run import run_in_environment
-
-            state = run_in_environment(
-                path,
-                env,
-                inputs=parsed,
-                dry_run=dry_run,
-                persist=persist,
-                pack_specs=pack_specs,
-                decisions=decisions,
-                decision_file=decision_file,
-                actor=actor,
-                no_cache=no_cache,
-                record=record,
-                policy=policy,
-                max_spend=max_spend,
-                max_tokens_cap=max_tokens,
-                labels=labels,
-                override_budget=override_budget,
-                max_model_calls=max_model_calls,
-                max_run_tool_rounds=max_run_tool_rounds,
-                max_wall_seconds=max_wall_seconds,
-                require_signed=require_signed,
-                frozen=frozen,
-                sovereign=sovereign,
-                sovereign_allow=sovereign_allow,
-                stream=session,
-                feedback=feedback,
-            )
-        elif resume:
-            state = resume_run(
-                resume,
-                path=path,
-                inputs=parsed or None,
-                dry_run=dry_run,
-                persist=persist,
-                pack_specs=pack_specs,
-                decisions=decisions,
-                decision_file=decision_file,
-                actor=actor,
-                no_cache=no_cache,
-                policy=policy,
-                max_spend=max_spend,
-                max_tokens_cap=max_tokens,
-                labels=labels,
-                override_budget=override_budget,
-                max_model_calls=max_model_calls,
-                max_run_tool_rounds=max_run_tool_rounds,
-                max_wall_seconds=max_wall_seconds,
-                require_signed=require_signed,
-                frozen=frozen,
-                sovereign=sovereign,
-                sovereign_allow=sovereign_allow,
-                stream=session,
-                feedback=feedback,
-            )
-        else:
-            state = run_workflow_file(
-                path,
-                inputs=parsed,
-                dry_run=dry_run,
-                persist=persist,
-                pack_specs=pack_specs,
-                decisions=decisions,
-                decision_file=decision_file,
-                actor=actor,
-                no_cache=no_cache,
-                record=record,
-                policy=policy,
-                max_spend=max_spend,
-                max_tokens_cap=max_tokens,
-                labels=labels,
-                override_budget=override_budget,
-                max_model_calls=max_model_calls,
-                max_run_tool_rounds=max_run_tool_rounds,
-                max_wall_seconds=max_wall_seconds,
-                require_signed=require_signed,
-                frozen=frozen,
-                sovereign=sovereign,
-                sovereign_allow=sovereign_allow,
-                stream=session,
-                feedback=feedback,
-            )
-    except KeyboardInterrupt:
-        if stream_flag and as_json:
-            typer.echo(
-                json.dumps({"event": "run.cancelled", "status": "cancelled"}) + "\n",
-                nl=False,
-            )
-            raise typer.Exit(code=1) from None
-        if as_json:
-            _print_json(_json_envelope("run", ok=False, error="cancelled", status="cancelled"))
-        else:
-            err_console.print("[yellow]cancelled[/yellow]")
-        raise typer.Exit(code=1) from None
-    except EnvRefused as extra:
-        _emit_env_error("run", extra, as_json=as_json)
-    except ReadyAgentsError as extra:
-        if stream_flag and as_json:
-            payload = {
-                "event": "run.finished",
-                "status": (
-                    "paused"
-                    if type(extra).__name__ in {"ApprovalRequired", "ConverseRequired"}
-                    else "failed"
-                ),
-                "error": type(extra).__name__,
-            }
-            rid = getattr(extra, "run_id", None)
-            if rid:
-                payload["run_id"] = rid
-            typer.echo(json.dumps(payload) + "\n", nl=False)
-            if isinstance(extra, (ApprovalRequired, WaitingRequired, ConverseRequired)):
-                raise typer.Exit(code=2) from extra
-            raise typer.Exit(code=1) from extra
-        _emit_run_exception(extra, as_json=as_json, persist=persist, command="run")
-    if stream_flag and as_json:
-        if state.status != "succeeded":
-            raise typer.Exit(code=2 if state.status in {"paused", "waiting"} else 1)
-        return
-    _emit_run(state, as_json=as_json, command="run")
+register_run(app)
 
 
 @app.command("batch", rich_help_panel="Extras: Operations")
@@ -1285,115 +803,7 @@ def batch_cmd(
     _emit_batch(report, as_json=as_json)
 
 
-@app.command("resume", rich_help_panel="Core")
-def resume_cmd(
-    run_id: str = typer.Argument(..., help="Run id (or unique prefix)."),
-    workflow: Path | None = typer.Option(
-        None,
-        "--workflow",
-        help="Workflow file (defaults to the path stored on the run).",
-    ),
-    inputs: list[str] = typer.Option(
-        [],
-        "--input",
-        "-i",
-        help="Override stored inputs as KEY=VALUE (repeatable).",
-    ),
-    dry_run: bool = typer.Option(False, "--dry-run"),
-    no_persist: bool = typer.Option(False, "--no-persist"),
-    approve: list[str] = typer.Option([], "--approve"),
-    reject: list[str] = typer.Option([], "--reject"),
-    as_json: bool = typer.Option(
-        False,
-        "--json",
-        help="Print the run record as JSON on stdout (no tables).",
-    ),
-    decision_file: Path | None = typer.Option(
-        None,
-        "--decision-file",
-        help="JSON file injecting approval decisions.",
-    ),
-    actor: str | None = typer.Option(
-        None,
-        "--actor",
-        envvar="READYAGENTS_ACTOR",
-    ),
-    no_cache: bool = typer.Option(False, "--no-cache"),
-    pack: list[str] = typer.Option([], "--pack", help=_PACK_HELP),
-    policy: Path | None = typer.Option(
-        None,
-        "--policy",
-        help="Firewall policy file (env: READYAGENTS_POLICY).",
-        envvar="READYAGENTS_POLICY",
-    ),
-    max_spend: float | None = typer.Option(None, "--max-spend"),
-    max_tokens: int | None = typer.Option(None, "--max-tokens"),
-    label: list[str] = typer.Option([], "--label"),
-    override_budget: bool = typer.Option(False, "--override-budget"),
-    max_model_calls: int | None = typer.Option(None, "--max-model-calls"),
-    max_run_tool_rounds: int | None = typer.Option(None, "--max-run-tool-rounds"),
-    max_wall_seconds: float | None = typer.Option(None, "--max-wall-seconds"),
-    require_signed: bool = typer.Option(
-        False,
-        "--require-signed",
-        help="Refuse unsigned or untrusted workflow and pack artifacts.",
-    ),
-    frozen: bool = typer.Option(
-        False,
-        "--frozen",
-        help="Refuse to run when readyagents.lock digests do not match.",
-    ),
-    reason: str | None = typer.Option(None, "--reason", help="Reason captured with the vote."),
-    edit: str | None = typer.Option(None, "--edit", help="Edited output for a feedback gate."),
-    rating: int | None = typer.Option(None, "--rating", help="Declared rating on a feedback gate."),
-    feedback_label: str | None = typer.Option(
-        None, "--feedback-label", help="Declared taxonomy label on a feedback gate."
-    ),
-) -> None:
-    """Resume a paused or failed run."""
-    persist = not no_persist
-    try:
-        parsed = parse_input_pairs(inputs)
-        from readyagents.cost.ledger import parse_labels
-
-        labels = parse_labels(label) if label else None
-        decisions = build_decisions(approve, reject)
-        reason_nodes = dict(decisions)
-        if decision_file is not None and reason:
-            reason_nodes.update(load_decision_file(decision_file))
-        state = resume_run(
-            run_id,
-            path=workflow,
-            inputs=parsed or None,
-            dry_run=dry_run,
-            persist=persist,
-            pack_specs=collect_pack_specs(pack),
-            decisions=decisions,
-            decision_file=decision_file,
-            actor=actor,
-            no_cache=no_cache,
-            policy=policy,
-            max_spend=max_spend,
-            max_tokens_cap=max_tokens,
-            labels=labels,
-            override_budget=override_budget,
-            max_model_calls=max_model_calls,
-            max_run_tool_rounds=max_run_tool_rounds,
-            max_wall_seconds=max_wall_seconds,
-            require_signed=require_signed,
-            frozen=frozen,
-            vote_reasons={key: reason for key in reason_nodes} if reason and reason_nodes else None,
-            feedback=_feedback_payload(list(decisions), edit, rating, feedback_label),
-        )
-    except KeyboardInterrupt:
-        if as_json:
-            _print_json(_json_envelope("resume", ok=False, error="cancelled", status="cancelled"))
-        else:
-            err_console.print("[yellow]cancelled[/yellow]")
-        raise typer.Exit(code=1) from None
-    except ReadyAgentsError as extra:
-        _emit_run_exception(extra, as_json=as_json, persist=persist, command="resume")
-    _emit_run(state, as_json=as_json, command="resume")
+register_resume(app)
 
 
 @app.command("wake", rich_help_panel="Extras: Operations")
@@ -1490,103 +900,7 @@ def agents_md_cmd(
         console.print(text)
 
 
-@app.command("decide", rich_help_panel="Core")
-def decide_cmd(
-    run_id: str = typer.Argument(..., help="Paused run id (or unique prefix)."),
-    decision_file: Path | None = typer.Option(
-        None,
-        "--file",
-        "--decision-file",
-        help='JSON payload: {"node": "approve"} or {"node_id", "decision"}.',
-    ),
-    node: str | None = typer.Option(None, "--node", help="Approval node id."),
-    decision: str | None = typer.Option(
-        None,
-        "--decision",
-        help="approve or reject (requires --node).",
-    ),
-    actor: str | None = typer.Option(None, "--actor", envvar="READYAGENTS_ACTOR"),
-    token_file: Path | None = typer.Option(
-        None,
-        "--token-file",
-        help="OIDC/JWT assertion to identify the approver (verified against local trust anchors).",
-    ),
-    trust_anchors: Path | None = typer.Option(
-        None,
-        "--trust-anchors",
-        help="Trust-anchor YAML (env: READYAGENTS_TRUST_ANCHORS).",
-        envvar="READYAGENTS_TRUST_ANCHORS",
-    ),
-    as_json: bool = typer.Option(False, "--json"),
-    no_persist: bool = typer.Option(False, "--no-persist"),
-    pack: list[str] = typer.Option([], "--pack", help=_PACK_HELP),
-    reason: str | None = typer.Option(None, "--reason", help="Reason captured with the vote."),
-    edit: str | None = typer.Option(None, "--edit", help="Edited output for a feedback gate."),
-    rating: int | None = typer.Option(None, "--rating", help="Declared rating on a feedback gate."),
-    feedback_label: str | None = typer.Option(
-        None, "--feedback-label", help="Declared taxonomy label on a feedback gate."
-    ),
-) -> None:
-    """Inject an approval decision.
-
-    This is the core side of a webhook/pack: no always-on HTTP listener.
-    A pack can receive the webhook and call this (or write --file).
-    ``--actor NAME`` remains the default unconfigured path. ``--token-file``
-    identifies the approver; it is separate from HMAC *signing* of the body.
-    """
-    from readyagents.config import get_settings
-    from readyagents.errors import ConfigError
-
-    persist = not no_persist
-    try:
-        decisions: dict[str, str] = {}
-        if decision_file is not None:
-            decisions.update(load_decision_file(decision_file))
-        if node:
-            if not decision:
-                raise ConfigError("--decision is required with --node")
-            decisions[node] = decision.strip().lower()
-        if not decisions:
-            raise ConfigError("Pass --file or --node plus --decision")
-        verified = None
-        resolved_actor = actor
-        if token_file is not None:
-            from readyagents.identity.decide import identify_approver, load_token_file
-            from readyagents.run_store import open_run_store
-
-            settings = get_settings()
-            token = load_token_file(token_file)
-            store = open_run_store(settings)
-            try:
-                paused = store.get(run_id, allow_prefix=True).state
-            finally:
-                closer = getattr(store, "close", None)
-                if callable(closer):
-                    closer()
-            node_id = next(iter(decisions))
-            verified = identify_approver(
-                token,
-                home=settings.home_path(),
-                run_id=paused.run_id,
-                node_id=node_id,
-                decision=str(decisions[node_id]),
-                trust_path=trust_anchors,
-            )
-            resolved_actor = verified.actor
-        state = resume_run(
-            run_id,
-            persist=persist,
-            pack_specs=collect_pack_specs(pack),
-            decisions=decisions,
-            actor=resolved_actor,
-            verified_actor=verified,
-            vote_reasons={key: reason for key in decisions} if reason else None,
-            vote_signature_status="identified" if verified is not None else "unsigned",
-            feedback=_feedback_payload(list(decisions), edit, rating, feedback_label),
-        )
-    except ReadyAgentsError as exc:
-        _emit_run_exception(exc, as_json=as_json, persist=persist, command="decide")
-    _emit_run(state, as_json=as_json, command="decide")
+register_decide(app)
 
 
 @app.command("packs", rich_help_panel="Extras: Packaging and distribution")
@@ -1689,63 +1003,7 @@ def delegate_cmd(
 register_evidence(app)
 
 
-@app.command("spend", rich_help_panel="Core")
-def spend_cmd(
-    since: str | None = typer.Option(None, "--since", help="Include entries on/after YYYY-MM-DD."),
-    by: str = typer.Option(
-        "day",
-        "--by",
-        help="Aggregate by day, workflow, model, actor, or label.",
-    ),
-    as_json: bool = typer.Option(False, "--json", help="Print JSON instead of a table."),
-) -> None:
-    """Aggregate the local spend ledger."""
-    from readyagents.config import get_settings
-    from readyagents.cost.ledger import query_spend
-
-    try:
-        agg = query_spend(get_settings().ledger_dir(), since=since, by=by)
-    except ReadyAgentsError as extra:
-        if as_json:
-            _print_json(
-                _json_envelope(
-                    "spend",
-                    ok=False,
-                    error=type(extra).__name__,
-                    message=str(extra),
-                )
-            )
-            raise typer.Exit(code=1) from extra
-        _fail(extra)
-        return
-    payload = agg.as_dict()
-    if as_json:
-        _print_json(_json_envelope("spend", ok=True, **payload))
-        return
-    total = payload["total"]
-    if not payload["rows"]:
-        console.print("spend: no ledger entries")
-        return
-    table = Table(title=f"Spend by {payload['by']}")
-    table.add_column("key")
-    table.add_column("runs")
-    table.add_column("tokens")
-    table.add_column("cost_usd")
-    table.add_column("cache_savings_usd")
-    for row in payload["rows"]:
-        table.add_row(
-            str(row["key"]),
-            str(row["runs"]),
-            str(row["total_tokens"]),
-            f"{row['cost_usd']:.6f}",
-            f"{row['cache_savings_micros'] / 1_000_000:.6f}",
-        )
-    console.print(table)
-    console.print(
-        f"total runs={total['runs']} tokens={total['total_tokens']} "
-        f"cost_usd={total['cost_usd']:.6f} "
-        f"cache_savings_usd={total['cache_savings_micros'] / 1_000_000:.6f}"
-    )
+register_spend(app)
 
 
 @app.command("studio", rich_help_panel="Extras: Authoring")
@@ -2007,18 +1265,6 @@ def _load_extra_packs(pack_flags: list[str]) -> list[Any]:
     return load_local_packs(specs, root=get_settings().workspace_path())
 
 
-def _node_routing(node: Any) -> str:
-    """Compact then/else/next for the validate table (else was previously dropped)."""
-    bits: list[str] = []
-    if node.then:
-        bits.append(f"then:{node.then}")
-    if node.else_:
-        bits.append(f"else:{node.else_}")
-    if node.next:
-        bits.append(node.next if not bits else f"next:{node.next}")
-    return " ".join(bits)
-
-
 def _emit_batch(report: Any, *, as_json: bool) -> None:
     payload = report.as_dict()
     ok = report.failed == 0 and report.cancelled == 0 and report.skipped == 0
@@ -2049,50 +1295,6 @@ def _emit_batch(report: Any, *, as_json: bool) -> None:
         raise typer.Exit(code=2)
     if not ok:
         raise typer.Exit(code=1)
-
-
-def _emit_estimate(path: Path, *, inputs: dict[str, Any], as_json: bool) -> None:
-    from readyagents.config import get_settings
-    from readyagents.cost.estimate import estimate_workflow_file
-
-    try:
-        result = estimate_workflow_file(
-            path,
-            inputs=inputs or None,
-            default_model=get_settings().default_model,
-        )
-    except ReadyAgentsError as extra:
-        if as_json:
-            _print_json(
-                _json_envelope(
-                    "run",
-                    ok=False,
-                    error=type(extra).__name__,
-                    message=str(extra),
-                    estimate=True,
-                )
-            )
-            raise typer.Exit(code=1) from extra
-        _fail(extra)
-        return
-    payload = result.as_dict()
-    if as_json:
-        _print_json(_json_envelope("run", ok=True, **payload))
-        return
-    floor_usd = payload["floor_cost_usd"]
-    ceil_usd = payload["ceiling_cost_usd"]
-    floor_s = "unpriced" if floor_usd is None else f"${floor_usd:.6f}"
-    ceil_s = "unpriced" if ceil_usd is None else f"${ceil_usd:.6f}"
-    console.print(
-        f"estimate: {result.floor_tokens}–{result.ceiling_tokens} tokens  {floor_s}–{ceil_s}"
-    )
-    if result.unpriced:
-        models = ", ".join(result.unpriced_models) or "unknown"
-        console.print(f"unpriced models (not $0): {models}")
-    console.print("assumptions:")
-    for item in result.assumptions:
-        console.print(f"  - {item}")
-    raise typer.Exit(code=0)
 
 
 def _write_schema_file(dest: Path, text: str, *, force: bool) -> Path:
@@ -2160,15 +1362,6 @@ def _emit_registry_error(command: str, extra: RegistryRefused, *, as_json: bool)
         )
         raise typer.Exit(code=1) from extra
     _fail(extra)
-
-
-_ENV_TEMPLATE = """# ReadyAgents BYOK — fill in your keys. Never commit real keys.
-
-READYAGENTS_DEFAULT_MODEL=openai:gpt-4o-mini
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-# READYAGENTS_ALLOW_HTTP=0
-"""
 
 
 def main() -> None:
