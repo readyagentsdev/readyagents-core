@@ -1,3 +1,30 @@
+# ReadyAgents Core 2.0.2
+
+**HOME bind fix, README core-vs-extras honesty, MCP Registry publish-on-tag.**
+
+Settings no longer bind ambient `$HOME` into the run store (runs stay under
+`./.readyagents/runs` unless `READYAGENTS_HOME` / config says otherwise).
+If you already have runs in `~/runs` from 2.0.1 or earlier, migrate with:
+
+```bash
+mkdir -p .readyagents && mv ~/runs .readyagents/runs
+```
+
+README leads with core; opt-in extras live in docs/extras.md. Tag pushes
+publish `server.json` to the Official MCP Registry via OIDC.
+
+## Try it
+
+```bash
+pip install readyagentsdev==2.0.2
+readyagents version
+readyagents doctor
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
+
+
 # ReadyAgents Core 2.0.1
 
 **Docs honesty: clear stale Unreleased labels for the 2.0.0 surface.**

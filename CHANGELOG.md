@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 2.0.2 — 2026-09-15
+
 ### Fixed
 
 - Run store no longer follows ambient `$HOME`. `Settings` matched the field
@@ -15,6 +17,18 @@ All notable changes to ReadyAgents Core.
   and which source set it (`default` / `READYAGENTS_HOME` / `config file`).
   Existing runs are not moved automatically: if yours are in `~/runs`, move
   them with `mkdir -p .readyagents && mv ~/runs .readyagents/runs`.
+
+### Changed
+
+- README leads with the core install path; the 40+ opt-in extras (teams,
+  studio, browser, knowledge, distillation, registry, environments, …) move
+  to [docs/extras.md](docs/extras.md) with maturity tiers and limits. Core
+  behaviour is unchanged.
+
+### Added
+
+- CI publishes `server.json` to the Official MCP Registry on version tags
+  (`v*`) via OIDC (`publish-mcp.yml`).
 
 ## 2.0.1 — 2026-09-14
 
