@@ -4,6 +4,12 @@
 
 Settings no longer bind ambient `$HOME` into the run store (runs stay under
 `./.readyagents/runs` unless `READYAGENTS_HOME` / config says otherwise).
+If you already have runs in `~/runs` from 2.0.1 or earlier, migrate with:
+
+```bash
+mkdir -p .readyagents && mv ~/runs .readyagents/runs
+```
+
 README leads with core; opt-in extras live in docs/extras.md. Tag pushes
 publish `server.json` to the Official MCP Registry via OIDC.
 
