@@ -174,7 +174,10 @@ def test_extras_panels_match_docs_taxonomy():
 
 def test_no_hidden_commands_in_cli_source():
     """hidden=True deletes a command from --help; H-04 forbids it outright."""
-    cli_source = Path(__file__).resolve().parent.parent / "src" / "readyagents" / "cli.py"
-    text = cli_source.read_text()
-    assert "hidden=True" not in text, "cli.py must not use hidden=True"
-    assert "hidden =" not in text, "cli.py must not set hidden on commands"
+    cli_dir = Path(__file__).resolve().parent.parent / "src" / "readyagents" / "cli"
+    modules = sorted(cli_dir.glob("*.py"))
+    assert modules, "cli package has no modules"
+    for cli_source in modules:
+        text = cli_source.read_text()
+        assert "hidden=True" not in text, f"{cli_source.name} must not use hidden=True"
+        assert "hidden =" not in text, f"{cli_source.name} must not set hidden on commands"
