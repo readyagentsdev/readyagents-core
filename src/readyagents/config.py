@@ -37,6 +37,11 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         populate_by_name=True,
+        # H-01: without a prefix, field names double as env names, so ambient
+        # $HOME populated `home` (and $WORKSPACE would populate `workspace`).
+        # Declared validation_alias entries (incl. legacy OPENAI_API_KEY-style
+        # spellings) still take precedence over the prefix.
+        env_prefix="READYAGENTS_",
     )
 
     openai_api_key: str | None = Field(

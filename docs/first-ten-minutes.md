@@ -32,6 +32,13 @@ Windows: activate with `.venv\Scripts\activate` then the same commands. Attach
 (`calc`, `now`, `json_get`, `list_dir`). The HTML report is local. Nothing is
 uploaded.
 
+Runs are stored under `./.readyagents/runs` in the current directory;
+`readyagents doctor` prints the resolved path and which source set it
+(`default` / `READYAGENTS_HOME` / `config file`). If you ran a version before
+this fix, your old runs may sit in `~/runs` — move them with
+`mkdir -p .readyagents && mv ~/runs .readyagents/runs` (nothing is moved
+automatically).
+
 ## 2. Pause is not a crash
 
 From a clone:

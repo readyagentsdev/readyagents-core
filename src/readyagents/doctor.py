@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import platform
 import socket
 import sqlite3
@@ -94,6 +95,8 @@ def run_doctor() -> dict[str, Any]:
             "path": str(home),
             "writable": home_writable,
             "permissions_enforceable": perm_ok,
+            "runs_dir": str(settings.runs_dir()),
+            "source": _home_source(),
         },
         "filesystem": {
             "case_sensitive": filesystem_case_sensitive(workspace),
@@ -146,6 +149,8 @@ def format_doctor(report: dict[str, Any]) -> str:
         ),
         f"HOME {report['home']['path']} writable={report['home']['writable']} "
         f"permissions_enforceable={report['home']['permissions_enforceable']}",
+        f"Runs {report['home'].get('runs_dir', '?')} "
+        f"source={report['home'].get('source', 'default')}",
         f"Workspace {report['filesystem']['workspace']} "
         f"case_sensitive={report['filesystem']['case_sensitive']}",
         f"Loopback bindable={report['loopback']['bindable']}",
@@ -233,6 +238,29 @@ def _format_code_sandbox(block: dict[str, Any]) -> str:
         f"Code sandbox subprocess=yes resource_module={block.get('resource_module')} "
         f"os_rlimits={rlimits}. {note}"
     ).strip()
+
+
+def _home_source() -> str:
+    """Name what set the run-store location: env var, config file, or default."""
+    for var in os.environ:
+        if var.upper() == "READYAGENTS_HOME":
+            return "READYAGENTS_HOME"
+    cwd = Path.cwd()
+    for name in (".env", ".env-ai"):
+        try:
+            text = (cwd / name).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if stripped.lower().startswith("export "):
+                stripped = stripped[7:].strip()
+            key = stripped.split("=", 1)[0].strip().strip("\"'").upper()
+            if key == "READYAGENTS_HOME":
+                return "config file"
+    return "default"
 
 
 def _can_import(name: str) -> bool:

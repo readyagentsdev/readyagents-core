@@ -4,6 +4,18 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Fixed
+
+- Run store no longer follows ambient `$HOME`. `Settings` matched the field
+  name `home` against the environment, so on every POSIX machine runs were
+  written to `$HOME/runs` instead of `./.readyagents/runs`, leaking runs
+  across projects. Settings are now bound to `READYAGENTS_*` (plus documented
+  legacy spellings such as `OPENAI_API_KEY`); bare `$HOME` and `$WORKSPACE`
+  are ignored. `readyagents doctor` now prints the resolved runs directory
+  and which source set it (`default` / `READYAGENTS_HOME` / `config file`).
+  Existing runs are not moved automatically: if yours are in `~/runs`, move
+  them with `mkdir -p .readyagents && mv ~/runs .readyagents/runs`.
+
 ## 2.0.1 — 2026-09-14
 
 ### Fixed
