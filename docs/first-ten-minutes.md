@@ -4,6 +4,8 @@
 No API keys. Current version is **2.0.2** (`readyagents version`). Install from PyPI
 (`pip install readyagentsdev`) or from a clone (`pip install -e .`) as in the
 [README](../README.md). The wheel ships `examples/`; one road below serves both.
+The `2` versions the [core contract](stability.md#what-the-version-number-means)
+only; extras carry their own maturity tiers.
 
 ## 1. Prove the engine works
 

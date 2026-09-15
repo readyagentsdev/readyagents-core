@@ -51,3 +51,20 @@ Use `readyagents.testing` (`ScriptedLLM`, `RecordedLLM`, `run_workflow_spec`, `r
 1. One focused change per PR
 2. Tests for engine/schema/tool behavior you touch
 3. No generated secrets, no run artifacts under `.readyagents/`
+
+## Release criteria
+
+A release is a user-recognizable event, not a commit with a tag. All three hold
+before any release:
+
+1. **Green CI on the release commit.** The `2.0.0` tag was cut on a commit
+   whose CI had failed; `publish.yml` now refuses to publish unless every CI
+   check run on the tagged commit is green. Never bypass the gate with an
+   empty release commit — fix the red first.
+2. **The release names its audience.** If the changelog entry does not say what
+   a user can now do that they could not before, it is not a release; it is a
+   commit. No release without a reason a user would recognise.
+3. **A major requires an external user.** The major versions the core contract
+   ([stability](docs/stability.md#what-the-version-number-means)); bumping it
+   needs evidence of outside use — an `I-ran-this` report from someone other
+   than the author — the same bar the `stable` tier sets for promotion.
