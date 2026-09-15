@@ -1,4 +1,5 @@
 # Observability
+> **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
 ReadyAgents has a **local observer seam**. It is not an always-on collector, not a hosted APM, and not an audit substitute. Default installs emit no telemetry to the network.
 
@@ -83,3 +84,7 @@ observers = OtelPack(exporter=exporter).register_observers()
 - Not a replacement for the append-only audit JSONL.
 - Not legal compliance or certification (see [compliance.md](compliance.md)).
 - Not encryption, not a SIEM, not a promise that spans arrived anywhere.
+
+## Scope
+
+- No additional scope limits beyond the tier above.

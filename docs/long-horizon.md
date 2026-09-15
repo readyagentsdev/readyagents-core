@@ -1,4 +1,5 @@
 # Long-horizon waits
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 `type: wait` parks a run as **`waiting`** — not `paused` (a human must decide)
 and not `running`. Wake is lazy. Core starts **no timer, watcher, or daemon**.
@@ -68,3 +69,8 @@ node outputs to markers and still replay.
 - A scheduler, timer thread, filesystem watcher, or daemon in core
 - Hosted control-plane state
 - A wake-latency SLA (latency is call frequency)
+
+## Scope
+
+- Lazy wake, no daemon; `waiting` ≠ `paused`; not a scheduler.
+- - Optional [long-horizon waits](long-horizon.md) (`type: wait`, `readyagents wake` / `event`) — lazy wake, no daemon; `waiting` ≠ `paused`; not a scheduler

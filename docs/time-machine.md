@@ -1,4 +1,5 @@
 # Run Time Machine
+> **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
 Every ReadyAgents run already persists after every node. The time machine
 wires that persistence to a content-addressed cassette so a run can be
@@ -74,3 +75,7 @@ or if a usage metric exceeds `max`. `--allow-unsealed` pins the non-empty
 Cassettes are untrusted input: version-checked, size-bounded, never used to
 select a code path. Replay is labelled `replay` / `replayed_from` on the new
 record. Review a frozen fixture before committing it. See SECURITY.md.
+
+## Scope
+
+- No additional scope limits beyond the tier above.

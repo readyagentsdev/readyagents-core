@@ -1,4 +1,5 @@
 # Upgrading 0.x → 1.0
+> **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
 ReadyAgents Core 1.0 is additive. Existing 0.9 workflows, run records, and
 CLI commands keep working.
@@ -29,3 +30,7 @@ completions.
 - `READYAGENTS_CASSETTE_MAX_ENTRY_BYTES` / `READYAGENTS_CASSETTE_MAX_BYTES`
 
 Cassettes live under `$READYAGENTS_HOME/cassettes/`.
+
+## Scope
+
+- No additional scope limits beyond the tier above.

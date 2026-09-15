@@ -1,4 +1,5 @@
 # Memory
+> **Tier:** preview — works, tested, documented; shape may still change. See [stability](stability.md).
 
 Delayed prompt
 injection is the reason memory is dangerous. Scope escape is the breach. This
@@ -97,3 +98,8 @@ SQLite (WAL). Both are local files. No daemon.
 Not a hosted memory service. Not a vector database. Not agent-chosen persist
 (the graph decides write and scope). Not a claim that BM25 equals semantic
 recall. See [policy.md](policy.md) and [SECURITY.md](../SECURITY.md).
+
+## Scope
+
+- Local JSON/SQLite, BM25, TTL/forget — untrusted; delayed injection and scope escape first; not a quality claim.
+- - Optional [memory](memory.md) (`type: memory`, local JSON/SQLite, BM25, TTL/forget) — untrusted; delayed injection and scope escape first; not a quality claim

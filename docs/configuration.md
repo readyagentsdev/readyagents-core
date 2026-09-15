@@ -1,4 +1,5 @@
 # Configuration (BYOK)
+> **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
 ReadyAgents is bring-your-own-key. Nothing in this repository contains LLM credentials.
 
@@ -131,3 +132,7 @@ Workflow YAML may also set `allow_http: true` and `workspace:`. Either the env f
 - `.readyagents/` (run records)
 
 `.env.example` contains placeholders only and is safe to commit.
+
+## Scope
+
+- No additional scope limits beyond the tier above.

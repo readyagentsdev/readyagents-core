@@ -1,4 +1,5 @@
 # Connectors
+> **Tier:** preview — works, tested, documented; shape may still change. See [stability](stability.md).
 
 **The catalog is small by design.** ReadyAgents does not compete on connector
 count. Every connector call is a declared `type: tool` node, subject to policy,
@@ -41,3 +42,7 @@ auth *names*, destinations, determinism, idempotency. No secret values.
 `test` runs the conformance harness offline.
 
 See [connector-sdk.md](connector-sdk.md).
+
+## Scope
+
+- Small governed catalog (`rest`, `sql`, `object_storage`, `message`, `ingest`) — not 500 SaaS.

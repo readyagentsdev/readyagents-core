@@ -1,4 +1,5 @@
 # Cost model
+> **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
 ReadyAgents estimates and caps **your** provider bill. It does not invoice,
 meter a hosted product, or talk to a billing API. **The provider invoice is
@@ -136,3 +137,7 @@ cached usage that was not billed). Those fields appear on the run record,
 - Unpriced is not free.
 - No hosted billing dashboard, no invoice import, no automatic model
   downgrade, no silent prompt trim, no always-on cost daemon.
+
+## Scope
+
+- No additional scope limits beyond the tier above.

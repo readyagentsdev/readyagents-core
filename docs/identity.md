@@ -1,4 +1,5 @@
 # Identity
+> **Tier:** preview — works, tested, documented; shape may still change. See [stability](stability.md).
 
 ReadyAgents **verifies** approver assertions issued elsewhere. It is not an
 identity provider, login page, or OAuth authorization server. It never issues
@@ -69,3 +70,7 @@ Optional. Operator-provided key pair and subject (`READYAGENTS_WORKLOAD_SUBJECT`
 fingerprint — never the private key. When configured, pause-notify webhooks
 (`post_json`) attach a short-lived `Authorization: Bearer` JWT identifying
 this agent. Unconfigured, no outbound identity is attached.
+
+## Scope
+
+- Approver assertions against local trust anchors; workload fingerprint, never the private key.

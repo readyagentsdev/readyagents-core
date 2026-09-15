@@ -1,4 +1,5 @@
 # Model routing
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 Opt-in policy that maps a node, role, or tag to a model using **declared**
 attributes (price table, capability matrix, local vs hosted). Not a hosted
@@ -102,3 +103,8 @@ readyagents models route workflow.yaml --node draft --explain
 uses the same `select_route` function as a real run.
 
 See [configuration](configuration.md) and [cost](cost.md).
+
+## Scope
+
+- Declared policy across providers (Gemini/Bedrock/Vertex extras); not quality inference, not a quality claim; no-policy selection unchanged.
+- - Optional [model routing](model-routing.md) (`routing:`, Gemini/Bedrock/Vertex extras, `readyagents models`) — declared policy, not quality inference; no-policy selection unchanged

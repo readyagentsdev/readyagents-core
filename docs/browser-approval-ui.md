@@ -1,4 +1,5 @@
 # Localhost browser approval UI
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 ReadyAgents can show paused approval nodes in a **foreground localhost page**.
 It is not a hosted dashboard, not a control plane, and not an always-on service.
@@ -82,3 +83,7 @@ loopback/private/metadata destinations; the UI does not punch a hole in SSRF
 pinning.
 
 Walkthrough (keyless): `examples/browser_approval.yaml`.
+
+## Scope
+
+- No additional scope limits beyond the tier above.

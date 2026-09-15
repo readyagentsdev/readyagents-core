@@ -1,4 +1,5 @@
 # Feedback and dataset export
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 Corrections your team already makes — edits, ratings, labels, and weak
 implicit signals — can be exported as a **local** dataset. This is not
@@ -58,3 +59,8 @@ rates with **sample sizes** (`n` / `sample_size`). `significance` is always
 
 Guardrail rejections, contract repairs, refusals, retries, and fallbacks are
 stored as `kind: implicit` with a `signal` field, distinct from human labels.
+
+## Scope
+
+- Consent-gated corrections as eval/sft/dpo; not fine-tuning; not a hosted dataset, not a hosted service.
+- - Optional [feedback export](feedback.md) (`readyagents feedback export|stats`) — consent-gated corrections as eval/sft/dpo; not fine-tuning; not a hosted dataset

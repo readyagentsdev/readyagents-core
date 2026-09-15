@@ -1,4 +1,5 @@
 # Sovereign mode
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 **Technical enforcement and evidence — not legal compliance, certification, or
 accreditation.** In-process socket wrapping is **not** an OS sandbox. A native
@@ -55,3 +56,7 @@ readyagents doctor --json
 Verify `manifest.json` checksums before install (`files[].digest`).
 
 See [local-models.md](local-models.md).
+
+## Scope
+
+- No additional scope limits beyond the tier above.

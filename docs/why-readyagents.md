@@ -1,4 +1,5 @@
 # Why ReadyAgents?
+> **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
 MCP connectivity is not durable orchestration.
 
@@ -62,3 +63,7 @@ That surface is a mapping over the same durable run record (CLI, MCP tasks,
 certification claim. The served card `protocolVersion` is `0.3.0` on the A2A
 well-known path. Remote cards, messages, and artifacts are untrusted.
 Delegation can exfiltrate. See [a2a.md](a2a.md).
+
+## Scope
+
+- No additional scope limits beyond the tier above.

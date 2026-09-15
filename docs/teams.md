@@ -1,4 +1,5 @@
 # Multi-agent teams (`type: team`)
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 Opt-in supervisor plus a
 **closed** declared member set. The engine enforces stop conditions. This does
@@ -57,3 +58,8 @@ recorded team uses the cassette and does not call `complete()`.
 
 A team never widens the workflow's tool or egress permissions. See
 [examples/team_pipeline.yaml](../examples/team_pipeline.yaml).
+
+## Scope
+
+- Closed members, engine-enforced stop; no routing-quality claim, no quality claim.
+- - Optional [multi-agent teams](teams.md) (`type: team`) — closed members, engine-enforced stop, no routing-quality claim

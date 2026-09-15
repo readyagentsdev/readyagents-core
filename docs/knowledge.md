@@ -1,4 +1,5 @@
 # Knowledge pipelines
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 `type: ingest` builds a memory scope from files or directories with a declared
 chunk strategy. Retrieval stays on the shipped memory store (BM25, optional
@@ -106,3 +107,8 @@ get, cite, and list.
 - A vector database or hosted embedder beyond the operator's BYOK path
 - A reranker, crawler, or filesystem watcher
 - A claim that chunking or retrieval is best-in-class or benchmarked
+
+## Scope
+
+- Citations and freshness; not a retrieval-quality claim; plain memory writes unchanged.
+- - Optional [knowledge pipelines](knowledge.md) (`type: ingest`, `readyagents knowledge`) — citations and freshness, not a retrieval-quality claim; plain memory writes unchanged

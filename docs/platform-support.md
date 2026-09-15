@@ -1,4 +1,5 @@
 # Platform support
+> **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
 ReadyAgents Core is tested on **Linux, macOS, and Windows** across **Python 3.11–3.14**.
 CI is the oracle: `ubuntu-latest` runs 3.11–3.14; macOS and Windows run the oldest and newest
@@ -34,3 +35,7 @@ Python (3.11 and 3.14) as of 2026-09-09 to bound runner time. A separate job ins
 Attach `readyagents doctor --json` output to an
 [I-ran-this](https://github.com/readyagentsdev/readyagents-core/issues/new?template=i-ran-this.md)
 issue. That report is read-only: no network, no LLM, no run record.
+
+## Scope
+
+- No additional scope limits beyond the tier above.

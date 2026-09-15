@@ -1,4 +1,5 @@
 # Reliability and self-healing
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 `readyagents health` classifies failures into **deterministic fingerprints**,
 clusters them across the existing run store, and ranks them by impact (count
@@ -72,3 +73,8 @@ of that node. `--yes` is required (diagnostic data). A cluster without a
 fixture prints a `readyagents runs freeze` hint.
 
 This is not a hosted reliability service and it does not change workflow YAML.
+
+## Scope
+
+- Fingerprints and fail-safe gates; not prediction; not a hosted reliability service, not a hosted service.
+- - Optional [self-healing](self-healing.md) (`readyagents health`, `recovery:`) — fingerprints and fail-safe gates; not prediction; not a hosted reliability service

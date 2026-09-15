@@ -1,4 +1,5 @@
 # Event triggers
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 A workflow may declare a `triggers:` block: accepted event shapes, the mapping
 from event to inputs, a required idempotency key and window, a per-trigger
@@ -60,3 +61,8 @@ must not be reverse-proxied onto the public internet without their own
 authn/authz.
 
 A workflow without `triggers:` is unchanged.
+
+## Scope
+
+- Core contract only, no listener in core; at-least-once plus idempotency, not exactly-once; loopback-default webhook.
+- - Optional [event triggers](event-triggers.md) (`triggers:`, `readyagents triggers`) — core contract only, no listener in core; at-least-once plus idempotency, not exactly-once; loopback-default webhook

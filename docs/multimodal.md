@@ -1,4 +1,5 @@
 # Multimodal I/O
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 Typed media parts sit alongside unchanged text. ReadyAgents stores every part
 content-addressed (SHA-256) under the run media directory and references it by
@@ -146,3 +147,8 @@ None of these are in `[all]`. Core installs stay text-only.
 - A bundled OCR or vision model
 - Streaming video analysis
 - A claim that redaction or extraction is complete or accurate
+
+## Scope
+
+- Plumbing and governance for image/pdf/audio extras; not extraction accuracy, not an OCR claim; text-only runs unchanged.
+- - Optional [multimodal I/O](multimodal.md) (`MediaPart`, `type: document`, `type: transcribe`, image/pdf/audio extras) — plumbing and governance, not extraction accuracy; text-only runs unchanged

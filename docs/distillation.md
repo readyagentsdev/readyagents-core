@@ -1,4 +1,5 @@
 # Distillation and local adapters
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 Distillation turns
 consented run corrections into a **small adapter for one node**, evaluates it
@@ -66,3 +67,8 @@ to the incumbent. It does not widen tools or egress.
 When the fixture suite changes, promoted adapters are re-scored and **demoted
 automatically** below threshold with a recorded reason. Spend-before and
 spend-after are `distill_delta` rows in the existing ledger.
+
+## Scope
+
+- Consented hashed splits, pack-owned training, holdout-gated one-node adapters; not a quality claim; core never trains.
+- - Optional [distillation](distillation.md) (`readyagents distill`) — consented hashed splits, pack-owned training, holdout-gated one-node adapters; not a quality claim; core never trains

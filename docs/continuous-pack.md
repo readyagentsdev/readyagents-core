@@ -1,4 +1,5 @@
 # Continuous pack (optional)
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 `readyagents-pack-continuous` is a separately installed Python distribution. ReadyAgents Core remains one-shot: installing or importing Core starts no scheduler, watcher, thread, or listener.
 
@@ -34,3 +35,7 @@ Child runs are `python -m readyagents run <workflow> --json ...` with `shell=Fal
 Webhooks may set allowlisted JSON input keys only. Static job inputs win. `path`, `actor`, `packs`, `workflow`, and `dry_run` cannot be taken from the request.
 
 Compatible with ReadyAgents Core `>=0.9.0`. Examples live in the pack repository, not in Core. Tagging Core does not add a scheduler to Core.
+
+## Scope
+
+- Optional separate distribution, not a Core extra; runs configured workflows from an explicit foreground command; installing Core still starts no scheduler or listener.

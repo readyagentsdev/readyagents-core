@@ -1,4 +1,5 @@
 # Data pipelines
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 `type: table` is a typed tabular value in run state: declared columns, a row
 count, and a content hash. Rows live on disk under the run home, not in the
@@ -90,3 +91,8 @@ same per-item checkpoint.
 - A SQL engine beyond the existing read-only connector
 - Model-generated transform code (that is `type: code`)
 - Unbounded in-memory tables
+
+## Scope
+
+- Deterministic ops and remainder-only classify; not a warehouse; `json_get`/`foreach` defaults unchanged.
+- - Optional [data pipelines](data-pipelines.md) (`type: table`, `type: classify`, `readyagents table`) — deterministic ops and remainder-only classify; not a warehouse; `json_get`/`foreach` defaults unchanged

@@ -1,4 +1,5 @@
 # Simulation and adversarial testing
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 `readyagents simulate` generates candidate inputs from a workflow's **own
 declarations** (`required_inputs`, input defaults, condition expressions,
@@ -58,3 +59,8 @@ Persona cases reserve slots in `--cases` so they are scored rather than
 sliced off by the deterministic suite. Refused in `--sovereign` mode.
 Sending prompts and schemas to a provider is a disclosure — that is why
 this path is opt-in.
+
+## Scope
+
+- Declaration-driven cases, honest coverage, dry-run default; not exhaustive, not a hosted simulator.
+- - Optional [simulation](simulation.md) (`readyagents simulate`) — declaration-driven cases, honest coverage, dry-run default; not exhaustive, not a hosted simulator

@@ -1,4 +1,5 @@
 # Supply-chain trust
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 A signature proves **who published** a workflow or pack, not that the content
 is safe. Policy ([policy.md](policy.md)) is still the control for behaviour.
@@ -137,3 +138,7 @@ share it; it lists what the workflow will execute.
 Each run record's `metadata.supply_chain` holds digests and signature status
 (`unsigned`, `present`, `verified`). The same object is copied onto the
 `run_started` audit event. Signing still does not mean the workflow is safe.
+
+## Scope
+
+- Detached signatures, lockfiles and SBOM — signatures prove origin, not safety.

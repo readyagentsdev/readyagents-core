@@ -1,4 +1,5 @@
 # Enterprise approvals
+> **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
 **Core has no timer, scheduler, cron, or daemon.** A deadline on an approval
 gate is evaluated the next time the run is touched — `resume`, `decide`, or a
@@ -148,3 +149,8 @@ gate. `examples/approval_gate.yaml`, `multi_gate.yaml`, `fanout_gate.yaml`,
 and `composed_gate.yaml` are unchanged.
 
 Walkthroughs: `examples/quorum_gate.yaml`, `examples/expiring_gate.yaml`.
+
+## Scope
+
+- External approval injection (`readyagents decide`) and outbound pause notify.
+- Foreground localhost approval page; not a hosted dashboard.

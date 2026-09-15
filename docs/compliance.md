@@ -1,4 +1,5 @@
 # Compliance evidence (EU AI Act Articles 12, 13, 14)
+> **Tier:** preview — works, tested, documented; shape may still change. See [stability](stability.md).
 
 This document is **evidence** of what ReadyAgents Core records and exports. It is **not** legal compliance, **not** certification, and **not** legal advice. ReadyAgents does not make you compliant with the AI Act, does not guarantee compliance, and is not certified under it. Whether a particular deployment is a high-risk system, and whether these artifacts are sufficient, is an operator and counsel decision.
 
@@ -90,3 +91,10 @@ Article 14 is about designing the system so natural persons can oversee it effec
 - `runs gc` can destroy run records. It is the opposite of a retention guarantee.
 
 For the observer seam and the optional OTel pack, see [observability.md](observability.md). For hash-chain limits, see [SECURITY.md](../SECURITY.md).
+
+## Scope
+
+- Local evidence pack of a run — evidence, not legal compliance or certification; not a compliance certificate.
+- Append-only, hash-chained audit trail; `audit verify` walks the chain.
+- Secrets / RBAC / PII-redaction hooks.
+- Data-residency attestation — technical evidence, not legal compliance.

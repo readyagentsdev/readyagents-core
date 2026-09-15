@@ -1,4 +1,5 @@
 # Agent Skills interop
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 ReadyAgents consumes the open [Agent Skills](https://agentskills.io/specification)
 folder format (`SKILL.md` YAML frontmatter plus Markdown body, optional
@@ -54,3 +55,8 @@ refuses to embed secrets, absolute local paths, or an operator identity.
 `agents-md` emits how to run, validate, and test workflows in this repository.
 
 A workflow without a skill node is unchanged.
+
+## Scope
+
+- Open SKILL.md format; untrusted instructions; sandbox scripts; not a marketplace.
+- - Optional [agent skills](agent-skills.md) (`type: skill`, `readyagents skills` / `agents-md`) — open SKILL.md format; untrusted instructions; sandbox scripts; not a marketplace

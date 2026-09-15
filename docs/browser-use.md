@@ -1,4 +1,5 @@
 # Governed browser use
+> **Tier:** experimental — ships and is tested; shape may change. See [stability](stability.md).
 
 `type: browser` is a
 declared, policed, recorded node. It is not a free-running browser agent.
@@ -97,3 +98,8 @@ browser** or construct a driver.
 
 A live Playwright/Chromium pack is optional and out of tree. Until one is
 installed, a missing driver is a typed `BrowserRefused` (`reason=driver`).
+
+## Scope
+
+- Declared actions, allowlist, taint, offline replay; driver in an optional pack; no CAPTCHA solving; not a free-running browser agent.
+- - Optional [governed browser use](browser-use.md) (`type: browser`) — declared actions, allowlist, taint, offline replay; driver in an optional pack; no CAPTCHA solving; not a free-running browser agent
