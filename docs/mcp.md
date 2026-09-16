@@ -35,7 +35,7 @@ rug-pull that drifted from the lockfile. See [supply-chain.md](supply-chain.md).
 
 ## List a workspace without MCP
 
-Builtin `list_dir` is Python and needs no Node.js and no MCP filesystem server. From a source checkout (from PyPI, [`new --from-example`](cli.md#readyagents-new-name) first):
+Builtin `list_dir` is Python and needs no Node.js and no MCP filesystem server:
 
 ```bash
 readyagents run examples/list_dir.yaml
@@ -150,7 +150,7 @@ Deprecated in 0.10.0; removal no earlier than 1.2.0. Same coordinator as `tasks/
 
 Authenticated JSON API on the same foreground process. Persistence cannot be disabled. The identifier is the full opaque 32-hex `run_id` (no prefixes).
 
-A stdlib example that talks **only** to `/runs` (not MCP JSON-RPC) is `examples/mcp_http_client.py` (in a checkout; shipped in the wheel under `readyagents/examples/`). It does not start the server. HITL reuses `examples/approval_gate.yaml`; there is no separate `async_approval.yaml`.
+A stdlib example that talks **only** to `/runs` (not MCP JSON-RPC) is `examples/mcp_http_client.py`. It does not start the server. HITL reuses `examples/approval_gate.yaml`; there is no separate `async_approval.yaml`.
 
 #### `POST /runs` → `202` after a durable queued/running record
 
@@ -251,7 +251,7 @@ For concurrent local mutations (this door plus CLI `decide` or the localhost app
 pip install "readyagentsdev[mcp]"
 readyagents mcp serve --transport streamable-http --host 127.0.0.1 --port 8765
 
-# terminal 2 (from a source checkout; same token, printed to stderr if generated)
+# terminal 2 (same token; printed to stderr if generated)
 export READYAGENTS_MCP_TOKEN=...
 python examples/mcp_http_client.py
 python examples/mcp_http_client.py --path examples/calc_pipeline.yaml

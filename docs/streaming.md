@@ -5,8 +5,6 @@ Opt-in token and run-event streaming. The stream is a **view over the durable
 path**, not a bypass. Without `--stream`, CLI output, exit codes, and run
 records are unchanged. Core does not capture or play audio.
 
-From a source checkout (from PyPI, [`new --from-example`](cli.md#readyagents-new-name) first):
-
 ```bash
 readyagents run examples/calc_pipeline.yaml --stream
 readyagents run flow.yaml --stream --json

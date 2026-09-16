@@ -10,8 +10,6 @@ Recording is **opt-in**. A cassette holds full prompts and completions.
 
 ## Worked example (no keys)
 
-From a source checkout (from PyPI, [`new --from-example`](cli.md#readyagents-new-name) first):
-
 ```bash
 readyagents run examples/calc_pipeline.yaml --record --json
 readyagents runs replay RUN_ID --offline --json

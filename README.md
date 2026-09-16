@@ -20,16 +20,7 @@ readyagents run my-flow/workflow.yaml
 readyagents runs list
 ```
 
-The wheel ships the example workflows too — no clone needed:
-
-```bash
-readyagents new f --from-example calc_pipeline
-readyagents run f/workflow.yaml
-```
-
-`readyagents new --list-examples` shows all of them.
-
-Or from a clone:
+Or from a clone (adds `examples/`):
 
 ```bash
 git clone https://github.com/readyagentsdev/readyagents-core.git
@@ -88,7 +79,7 @@ flowchart LR
 | Command | Purpose |
 | --- | --- |
 | `readyagents init` | Write `.env` from `.env.example` if missing |
-| `readyagents new [name] [--template basic\|approval\|research\|pipeline\|review\|foreach\|agent-tools\|gated] [--from-example NAME] [--list-examples]` | Scaffold workflow + README + `.env.example` + local JSON Schema, or copy a shipped example |
+| `readyagents new [name] [--template basic\|approval\|research\|pipeline\|review\|foreach\|agent-tools\|gated]` | Scaffold workflow + README + `.env.example` + local JSON Schema |
 | `readyagents import SOURCE PATH [--out DIR] [--explain SOURCE]` | Import n8n / LangGraph / CrewAI / trigger-action exports (structural translation only) |
 | `readyagents validate PATH` | Schema-validate a workflow (source-located errors on failure) |
 | `readyagents schema` | Print/write/check the generated workflow JSON Schema |

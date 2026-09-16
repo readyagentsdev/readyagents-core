@@ -175,7 +175,7 @@ Supported expressions (no Python `eval`):
   else: denied
 ```
 
-The engine **pauses** (CLI exit **2**, status `paused`, `pending_node` set) until you pass an explicit decision. Exit 2 is paused / decision pending, not a crash. It does not block on a TTY. Put **one** gate in front of a risky step (`examples/gated_write.yaml` — in a checkout; `new --from-example gated_write` from PyPI); do not wrap every tool.
+The engine **pauses** (CLI exit **2**, status `paused`, `pending_node` set) until you pass an explicit decision. Exit 2 is paused / decision pending, not a crash. It does not block on a TTY. Put **one** gate in front of a risky step (`examples/gated_write.yaml`); do not wrap every tool.
 
 ```bash
 readyagents run pay.yaml --approve gate
@@ -190,7 +190,7 @@ Optional enterprise fields (all inert unless set): `approvals_required`, `distin
 
 `then` is the approve path; `else` is the reject path. `next` is used when approved if `then` is omitted.
 
-Multiple gates in one graph are allowed. Each needs its own `--approve NODE` (or `--reject`), or an injected JSON decision (`readyagents decide` / `--decision-file`). See `examples/multi_gate.yaml` (in a checkout; `new --from-example multi_gate` from PyPI).
+Multiple gates in one graph are allowed. Each needs its own `--approve NODE` (or `--reject`), or an injected JSON decision (`readyagents decide` / `--decision-file`). See `examples/multi_gate.yaml`.
 
 ## Parallel
 

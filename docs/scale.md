@@ -13,8 +13,6 @@ deadlocks).
 
 ## `readyagents batch`
 
-From a source checkout (from PyPI, [`new --from-example`](cli.md#readyagents-new-name) first):
-
 ```bash
 readyagents batch examples/batch_echo.yaml \
   --input-file examples/batch_rows.jsonl \

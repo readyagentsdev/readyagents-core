@@ -38,8 +38,6 @@ environments:
 Secret **values** (`sk-`, `ghp_`, `AKIA`, PEM blocks, password-like keys) are
 refused at validation. Scopes and paths are allowed.
 
-From a source checkout (from PyPI, [`new --from-example`](cli.md#readyagents-new-name) first):
-
 ```bash
 readyagents env deploy examples/calc_pipeline.yaml --env staging --json
 readyagents run examples/calc_pipeline.yaml --env staging --json --no-persist

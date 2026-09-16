@@ -80,7 +80,7 @@ On the first touch after the deadline:
   eligible set is accepted on that same touch. The next touch while still
   past the deadline fails.
 
-See `examples/expiring_gate.yaml` (keyless; in a checkout, or `new --from-example expiring_gate`).
+See `examples/expiring_gate.yaml` (keyless).
 
 ## Delegation
 
@@ -148,7 +148,7 @@ deny, UI action-token miss) are refused, audited, and leave the run paused.
 gate. `examples/approval_gate.yaml`, `multi_gate.yaml`, `fanout_gate.yaml`,
 and `composed_gate.yaml` are unchanged.
 
-Walkthroughs (in a checkout): `examples/quorum_gate.yaml`, `examples/expiring_gate.yaml`.
+Walkthroughs: `examples/quorum_gate.yaml`, `examples/expiring_gate.yaml`.
 
 ## Scope
 

@@ -2,8 +2,6 @@
 
 The `readyagents` command is a [Typer](https://typer.tiangolo.com/) app.
 
-Command examples below use `examples/...` paths from a source checkout; from a PyPI install, materialize one first with `readyagents new NAME --from-example <name>` (`new --list-examples` shows all of them).
-
 ```bash
 readyagents --help
 readyagents --version
@@ -21,15 +19,13 @@ readyagents init --dest .env
 
 ## `readyagents new [name]`
 
-Write a starter project: `workflow.yaml`, `README.md`, and `.env.example`. Refuses to overwrite those files if they already exist. `--list-examples` lists the shipped example workflows; `--from-example NAME` copies one instead of a template (cannot combine with `--template`).
+Write a starter project: `workflow.yaml`, `README.md`, and `.env.example`. Refuses to overwrite those files if they already exist.
 
 ```bash
 readyagents new my-flow
 readyagents run my-flow/workflow.yaml
 readyagents new demo --template gated
 readyagents run demo/workflow.yaml --approve gate
-readyagents new --list-examples
-readyagents new f --from-example calc_pipeline
 ```
 
 Templates: `basic`, `approval`, `research` (parallel + approval), `pipeline` (default; calc/json/condition), `review` (read_file + approval), `foreach`, `agent-tools`, `gated`.

@@ -23,7 +23,7 @@ Playwright, Chromium, or Selenium dependency. The driver lives in an
   output_key: statement
 ```
 
-From a source checkout (from PyPI, [`new --from-example`](cli.md#readyagents-new-name) the workflow and the pack file first), run the keyless stub fixture:
+Run the keyless stub fixture:
 
 ```bash
 readyagents run examples/browser_statement.yaml --pack examples/packs/browser_pack.py
