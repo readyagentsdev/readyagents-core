@@ -67,7 +67,10 @@ before any release:
 1. **Green CI on the release commit.** The `2.0.0` tag was cut on a commit
    whose CI had failed; `publish.yml` now refuses to publish unless every CI
    check run on the tagged commit is green. Never bypass the gate with an
-   empty release commit — fix the red first.
+   empty release commit — fix the red first. Publish PyPI first
+   (`workflow_dispatch` on `publish.yml` while CI is green), then cut the
+   `v*` tag / GitHub Release so MCP Registry publish can see the PyPI
+   version; rerun MCP publish if it raced.
 2. **The release names its audience.** If the changelog entry does not say what
    a user can now do that they could not before, it is not a release; it is a
    commit. No release without a reason a user would recognise.
