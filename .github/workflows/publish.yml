@@ -28,9 +28,12 @@ jobs:
         run: |
           SHA="${{ github.sha }}"
           DATA=$(gh api "repos/${{ github.repository }}/commits/$SHA/check-runs?per_page=100")
-          TOTAL=$(echo "$DATA" | jq '[.check_runs[] | select(.name != "build-and-publish")] | length')
-          GREEN=$(echo "$DATA" | jq '[.check_runs[] | select(.name != "build-and-publish" and .status == "completed" and .conclusion == "success")] | length')
-          echo "CI check runs on $SHA: $GREEN/$TOTAL green (publish job excluded)"
+          # Exclude this workflow's jobs and MCP Registry publish (tag-push race
+          # before PyPI exists) so only CI check runs gate the release.
+          FILTER='select(.name != "build-and-publish" and .name != "ci-gate" and .name != "publish")'
+          TOTAL=$(echo "$DATA" | jq "[.check_runs[] | $FILTER] | length")
+          GREEN=$(echo "$DATA" | jq "[.check_runs[] | $FILTER | select(.status == \"completed\" and .conclusion == \"success\")] | length")
+          echo "CI check runs on $SHA: $GREEN/$TOTAL green (publish jobs excluded)"
           if [ "$TOTAL" -eq 0 ]; then echo "refusing to publish: no CI check runs on $SHA"; exit 1; fi
           if [ "$GREEN" -ne "$TOTAL" ]; then echo "refusing to publish: CI is not green on $SHA"; exit 1; fi
 
