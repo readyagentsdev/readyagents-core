@@ -171,7 +171,8 @@ def test_approve_and_reject_follow_resume(tmp_settings, tmp_path, backend: str) 
         body=body,
     )
     assert decided.status in {200, 202}, decided.body
-    deadline = 50
+    # decide() resumes on a thread pool; loaded Windows CI needs more than 2.5s.
+    deadline = 200
     for _ in range(deadline):
         stored = store.get(run_id, allow_prefix=False)
         if stored.state.status in {"succeeded", "failed", "cancelled", "paused"}:
@@ -224,7 +225,8 @@ def test_reject_branch(tmp_settings) -> None:
     assert decided.status in {200, 202}, decided.body
     import time
 
-    for _ in range(50):
+    # decide() resumes on a thread pool; loaded Windows CI needs more than 2.5s.
+    for _ in range(200):
         stored = store.get(run_id, allow_prefix=False)
         if stored.state.status == "succeeded":
             break
