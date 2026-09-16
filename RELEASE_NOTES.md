@@ -1,3 +1,27 @@
+# ReadyAgents Core 2.0.3
+
+**Wheel ships examples; CLI help panels; beta classifier + green-CI release tags.**
+
+`pip install readyagentsdev` now includes the example workflows. Scaffold with
+`readyagents new NAME --from-example calc_pipeline` (or `--list-examples`).
+CLI `--help` is grouped into a core panel and themed extras. The package is
+marked Beta; the major covers the core contract only. Tag publishes require
+green CI on the tagged commit.
+
+## Try it
+
+```bash
+pip install readyagentsdev==2.0.3
+readyagents version
+readyagents new f --from-example calc_pipeline
+readyagents run f/workflow.yaml
+readyagents doctor
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
+
+
 # ReadyAgents Core 2.0.2
 
 **HOME bind fix, README core-vs-extras honesty, MCP Registry publish-on-tag.**

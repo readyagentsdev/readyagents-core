@@ -56,8 +56,7 @@ collect time. Old packs without `register_tool_seals` still load.
 
 `type: browser` is a core node. The **driver** (Playwright/Chromium/Selenium or
 the in-process stub) is an optional pack so core stays free of a browser
-engine. See [browser-use.md](browser-use.md). The example stub is
-`examples/packs/browser_pack.py`.
+engine. See [browser-use.md](browser-use.md). The example stub is `examples/packs/browser_pack.py` (in a checkout; shipped in the wheel under `readyagents/examples/packs/`).
 
 ## Discovery
 
@@ -91,9 +90,11 @@ The engine calls `discover_packs()` at run start and merges tools/node handlers.
 
 Packs **compose on top** of core. They must not fork the engine. Always-on / continuous execution, hosted control planes, inbound webhook listeners, and premium connectors belong in packs — not in `readyagents-core`.
 
-An in-tree example connector (local, no network) lives at `examples/packs/connector_pack.py` and registers the `connector_ping` tool. Core’s `readyagents.packs` entry-point group stays empty.
+An in-tree example connector (local, no network) lives at `examples/packs/connector_pack.py` (in a checkout; shipped in the wheel under `readyagents/examples/packs/`) and registers the `connector_ping` tool. Core’s `readyagents.packs` entry-point group stays empty.
 
 Load a pack from a Python file without installing an entry point. The path is confined to the workspace (`READYAGENTS_WORKSPACE` or the current directory). `..`, symlink escapes, and paths such as `/etc/passwd` are refused.
+
+From a source checkout (from PyPI, [`new --from-example`](cli.md#readyagents-new-name) the workflow and the pack file first):
 
 ```bash
 readyagents run examples/connector_demo.yaml --pack examples/packs/connector_pack.py

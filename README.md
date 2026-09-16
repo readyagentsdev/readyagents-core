@@ -11,7 +11,7 @@ This repository is the free core. You keep the provider account and the bill. In
 
 ## 60-second start
 
-Requires **Python 3.11–3.14** on Linux, macOS, or Windows. Current version is **2.0.2**. Install with `pip install readyagentsdev`, or from this clone. The `2` versions the [core contract](docs/stability.md#what-the-version-number-means) only; extras carry their own maturity tiers.
+Requires **Python 3.11–3.14** on Linux, macOS, or Windows. Current version is **2.0.3**. Install with `pip install readyagentsdev`, or from this clone. The `2` versions the [core contract](docs/stability.md#what-the-version-number-means) only; extras carry their own maturity tiers.
 
 ```bash
 pip install readyagentsdev
@@ -20,7 +20,16 @@ readyagents run my-flow/workflow.yaml
 readyagents runs list
 ```
 
-Or from a clone (adds `examples/`):
+The wheel ships the example workflows too — no clone needed:
+
+```bash
+readyagents new f --from-example calc_pipeline
+readyagents run f/workflow.yaml
+```
+
+`readyagents new --list-examples` shows all of them.
+
+Or from a clone:
 
 ```bash
 git clone https://github.com/readyagentsdev/readyagents-core.git
@@ -79,7 +88,7 @@ flowchart LR
 | Command | Purpose |
 | --- | --- |
 | `readyagents init` | Write `.env` from `.env.example` if missing |
-| `readyagents new [name] [--template basic\|approval\|research\|pipeline\|review\|foreach\|agent-tools\|gated]` | Scaffold workflow + README + `.env.example` + local JSON Schema |
+| `readyagents new [name] [--template basic\|approval\|research\|pipeline\|review\|foreach\|agent-tools\|gated] [--from-example NAME] [--list-examples]` | Scaffold workflow + README + `.env.example` + local JSON Schema, or copy a shipped example |
 | `readyagents import SOURCE PATH [--out DIR] [--explain SOURCE]` | Import n8n / LangGraph / CrewAI / trigger-action exports (structural translation only) |
 | `readyagents validate PATH` | Schema-validate a workflow (source-located errors on failure) |
 | `readyagents schema` | Print/write/check the generated workflow JSON Schema |
@@ -223,7 +232,7 @@ flowchart LR
 - [Compliance evidence](docs/compliance.md) (Articles 12–14 mapping; not certification)
 - [Observability](docs/observability.md)
 - [Changelog](CHANGELOG.md)
-- [Release notes 2.0.2](RELEASE_NOTES.md)
+- [Release notes 2.0.3](RELEASE_NOTES.md)
 
 ## Install extras
 

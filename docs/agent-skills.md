@@ -12,6 +12,8 @@ implicit activation.
 
 ## Inbound
 
+From a source checkout (from PyPI, copy the skill folder out of the installed `readyagents/examples/skills/` first — `new --from-example` serves files, not folders):
+
 ```bash
 readyagents skills add examples/skills/house-writing-style
 readyagents skills list
@@ -41,6 +43,8 @@ installed skills like packs; `--frozen` refuses folder drift. A changed
 folder after install is also catalog drift and the node refuses.
 
 ## Outbound
+
+From a source checkout (from PyPI, [`new --from-example`](cli.md#readyagents-new-name) first):
 
 ```bash
 readyagents skills export examples/calc_pipeline.yaml --out ./exported

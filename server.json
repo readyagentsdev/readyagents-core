@@ -7,13 +7,13 @@
     "url": "https://github.com/readyagentsdev/readyagents-core",
     "source": "github"
   },
-  "version": "2.0.2",
+  "version": "2.0.3",
   "packages": [
     {
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "readyagentsdev",
-      "version": "2.0.2",
+      "version": "2.0.3",
       "packageArguments": [
         {
           "type": "positional",

@@ -2,6 +2,8 @@
 
 When an approval node pauses, core writes the run and can POST outbound (`on_pause_url`). Core does **not** listen. ReadyAgents Gate (example: `examples/packs/hitl_gate.py`) accepts **one signed HTTP POST** and maps it to the shipped `readyagents decide` / `resume` path.
 
+From a source checkout (from PyPI, [`new --from-example`](../cli.md#readyagents-new-name) first):
+
 ```bash
 readyagents run examples/approval_gate.yaml          # exit 2, paused
 # POST HMAC-SHA256 body to the Gate handler (header X-ReadyAgents-Signature)

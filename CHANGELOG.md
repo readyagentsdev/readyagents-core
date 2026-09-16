@@ -4,7 +4,35 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
-## 2.0.2 — 2026-09-15
+## 2.0.3 — 2026-09-16
+
+### Added
+
+- Wheel ships `examples/` as package data. `readyagents new --list-examples`
+  and `readyagents new NAME --from-example <name>` make the PyPI path match the
+  clone path (H-06).
+- CLI `--help` groups commands into a core panel and themed extras panels
+  (H-04). `cli.py` is split into the `readyagents.cli` package with a frozen
+  help-surface snapshot (H-05).
+- CI: ten-minute job runs the README path on macOS, Linux, and Windows;
+  docs-commands job runs every README / getting-started block against the
+  built wheel.
+
+### Changed
+
+- Package classifier is `Development Status :: 4 - Beta`. The major versions
+  the core contract only; extras carry their own maturity tiers. Publish on
+  `v*` tags requires green CI on that commit (H-07).
+- Merged topic branches archived as tags (H-08).
+- Docs truth pass: onboarding, platform-support, and related pages match the
+  wheel + checkout roads; `policy` maturity listed as preview.
+
+### Fixed
+
+- Help-panel parser tolerates Windows box-drawing styles; CLI surface snapshot
+  normalizes Path defaults on Windows.
+- Localhost UI decide polls allow 10s on slow Windows CI.
+
 
 ### Fixed
 

@@ -18,6 +18,8 @@ nodes:
     output_key: reply
 ```
 
+From a source checkout (from PyPI, [`new --from-example`](cli.md#readyagents-new-name) first):
+
 ```bash
 readyagents sessions start examples/converse_order.yaml --json
 readyagents sessions reply SESSION --text ORD-9 --json
