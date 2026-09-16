@@ -18,6 +18,7 @@ permissions:
 jobs:
   ci-gate:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       checks: read
@@ -27,14 +28,23 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SHA="${{ github.sha }}"
-          DATA=$(gh api "repos/${{ github.repository }}/commits/$SHA/check-runs?per_page=100")
           # Exclude this workflow's jobs and MCP Registry publish (tag-push race
           # before PyPI exists) so only CI check runs gate the release.
           FILTER='select(.name != "build-and-publish" and .name != "ci-gate" and .name != "publish")'
-          TOTAL=$(echo "$DATA" | jq "[.check_runs[] | $FILTER] | length")
-          GREEN=$(echo "$DATA" | jq "[.check_runs[] | $FILTER | select(.status == \"completed\" and .conclusion == \"success\")] | length")
-          echo "CI check runs on $SHA: $GREEN/$TOTAL green (publish jobs excluded)"
+          # A release can fire while CI is still running: wait for checks to
+          # finish instead of treating a still-running check as not-green.
+          for i in $(seq 1 40); do
+            DATA=$(gh api "repos/${{ github.repository }}/commits/$SHA/check-runs?per_page=100")
+            TOTAL=$(echo "$DATA" | jq "[.check_runs[] | $FILTER] | length")
+            PENDING=$(echo "$DATA" | jq "[.check_runs[] | $FILTER | select(.status != \"completed\")] | length")
+            GREEN=$(echo "$DATA" | jq "[.check_runs[] | $FILTER | select(.status == \"completed\" and .conclusion == \"success\")] | length")
+            echo "CI check runs on $SHA: $GREEN/$TOTAL green, $PENDING pending (publish jobs excluded)"
+            if [ "$TOTAL" -gt 0 ] && [ "$PENDING" -eq 0 ]; then break; fi
+            echo "waiting for CI to settle ($i/40)..."
+            sleep 60
+          done
           if [ "$TOTAL" -eq 0 ]; then echo "refusing to publish: no CI check runs on $SHA"; exit 1; fi
+          if [ "$PENDING" -ne 0 ]; then echo "refusing to publish: $PENDING check(s) still not completed on $SHA"; exit 1; fi
           if [ "$GREEN" -ne "$TOTAL" ]; then echo "refusing to publish: CI is not green on $SHA"; exit 1; fi
 
   build-and-publish:
