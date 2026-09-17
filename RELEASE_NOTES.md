@@ -1,3 +1,21 @@
+# ReadyAgents Core 2.0.4
+
+**Rich markup no longer strips `[mcp]` from install hints.**
+
+Cold `readyagents mcp serve` (and other `_fail` paths) now print
+`pip install 'readyagentsdev[mcp]'` with the brackets intact.
+
+## Try it
+
+```bash
+pip install readyagentsdev==2.0.4
+readyagents version
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
+
+
 # ReadyAgents Core 2.0.3
 
 **Wheel ships examples; CLI help panels; beta classifier + green-CI release tags.**

@@ -4,6 +4,12 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 2.0.4 — 2026-09-17
+
+### Fixed
+
+- Rich no longer strips `[mcp]` from install hints in `_fail`.
+
 ## 2.0.3 — 2026-09-16
 
 ### Added
