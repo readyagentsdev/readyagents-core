@@ -188,7 +188,7 @@ def _emit_run_exception(
 
     if state is not None:
         _print_run(state)
-        err_console.print(f"[red]{type(exc).__name__}:[/red] {exc}")
+        err_console.print(f"[red]{type(exc).__name__}:[/red] {escape(str(exc))}")
         problems = getattr(exc, "problems", None)
         if problems:
             from readyagents.workflow.source_map import render_located_problems
@@ -246,7 +246,7 @@ def _print_run(state: RunState) -> None:
 def _print_paused(exc: ApprovalRequired) -> None:
     if exc.state is not None and isinstance(exc.state, RunState):
         _print_run(exc.state)
-    err_console.print(f"[yellow]{type(exc).__name__}:[/yellow] {exc}")
+    err_console.print(f"[yellow]{type(exc).__name__}:[/yellow] {escape(str(exc))}")
     if exc.prompt:
         console.print(Panel(escape(exc.prompt), title=f"Approval: {exc.node_id}"))
     console.print(f"Resume: [cyan]readyagents resume {exc.run_id} --approve {exc.node_id}[/cyan]")
@@ -285,7 +285,7 @@ def _emit_env_error(command: str, extra: EnvRefused, *, as_json: bool) -> NoRetu
 
 
 def _fail(exc: BaseException) -> NoReturn:
-    err_console.print(f"[red]{type(exc).__name__}:[/red] {exc}")
+    err_console.print(f"[red]{type(exc).__name__}:[/red] {escape(str(exc))}")
     problems = getattr(exc, "problems", None)
     if problems:
         from readyagents.workflow.source_map import render_located_problems
