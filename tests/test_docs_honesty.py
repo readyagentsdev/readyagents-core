@@ -147,3 +147,24 @@ def test_readme_current_version_matches_package() -> None:
     assert f"**{__version__}**" in text
     assert "not on the 1.9.0 tag" not in text
     assert "Release notes 0.8.0" not in text
+
+
+def test_fail_preserves_mcp_brackets_in_rich_markup(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Rich markup must not strip [mcp] from install hints printed via _fail."""
+    from io import StringIO
+
+    import typer
+    from rich.console import Console
+
+    import readyagents.cli._common as common
+
+    buf = StringIO()
+    monkeypatch.setattr(
+        common,
+        "err_console",
+        Console(file=buf, force_terminal=False, no_color=True),
+    )
+    with pytest.raises(typer.Exit) as exit_info:
+        common._fail(MCPError(missing_extra_message("MCP", "mcp")))
+    assert exit_info.value.exit_code == 1
+    assert "readyagentsdev[mcp]" in buf.getvalue()
