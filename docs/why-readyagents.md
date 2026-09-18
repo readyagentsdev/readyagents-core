@@ -8,6 +8,10 @@ workflow execution, plus one design note about how modern MCP asks a question. I
 states plainly what ReadyAgents 2.0.4 does and does not do. Each verdict is about
 our own software only.
 
+## Why not LangGraph HITL / n8n MCP?
+
+If you need **hosted**, always-on MCP recovery or a managed HITL control plane, use those products' hosted surfaces. ReadyAgents **2.0.4** is local persist/resume with an explicit foreground door: an approval pause is exit **2** (not a crash) and continues with `readyagents resume … --approve` — and process death still loses the in-flight executor. The sections below give PARTIAL verdicts on each MCP surface only; they are not a claim that ReadyAgents replaces LangGraph Platform HITL or n8n's MCP Server Trigger end-to-end.
+
 ## LangGraph MCP surface: MCP-exposed runs remain stateless
 
 Sources: [langchain-ai/langgraph issue 8725](https://github.com/langchain-ai/langgraph/issues/8725) and [LangSmith server MCP docs](https://docs.langchain.com/langsmith/server-mcp)

@@ -44,6 +44,8 @@ readyagents run examples/list_dir.yaml --dry-run
 
 ## Client: MCP servers in a workflow
 
+Pasteable third-party plugs (stdio-only, one-shot, not a marketplace): [mcp-plugs.md](mcp-plugs.md).
+
 Optional. A workflow may call a third-party MCP server (that server may be written in any language). ReadyAgents itself does not require Node.js. Prefer builtin `list_dir` / `read_file` / `write_file` unless you need a remote server.
 
 ```yaml
