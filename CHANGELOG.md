@@ -4,6 +4,12 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 2.0.5 — 2026-09-18
+
+### Fixed
+
+- Cold-pip AGENTS.md emit now matches honesty pip-first path shipped on main.
+
 ## 2.0.4 — 2026-09-17
 
 ### Fixed

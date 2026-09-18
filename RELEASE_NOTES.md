@@ -1,3 +1,23 @@
+# ReadyAgents Core 2.0.5
+
+**Cold-pip AGENTS.md emit now matches the honesty pip-first path on main.**
+
+`readyagents agents-md` (and other AGENTS.md emit paths) from a fresh
+`pip install readyagentsdev==2.0.5` now lead with `pip install readyagentsdev`
+and `readyagents new f --from-example calc_pipeline`, not a clone-only HEADER.
+
+## Try it
+
+```bash
+pip install readyagentsdev==2.0.5
+readyagents version
+readyagents agents-md
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
+
+
 # ReadyAgents Core 2.0.4
 
 **Rich markup no longer strips `[mcp]` from install hints.**
