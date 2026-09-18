@@ -200,7 +200,7 @@ flowchart LR
 - [Sovereign mode](docs/sovereign.md) (in-process egress refuse, not an OS sandbox)
 - [Cost / TokenOps](docs/cost.md) (informational vs the provider invoice)
 - [Time machine](docs/time-machine.md) (record / replay / fork / diff / freeze)
-- [MCP](docs/mcp.md)
+- [MCP](docs/mcp.md) · [MCP paste catalog](docs/mcp-plugs.md)
 - [A2A](docs/a2a.md) (untrusted remote content; delegation can exfiltrate; not certification)
 - [Memory](docs/memory.md) (untrusted; delayed injection and scope escape)
 - [Scale and batch](docs/scale.md) (opt-in foreground batch; benchmarks labelled engine vs live)
