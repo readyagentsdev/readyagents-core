@@ -63,6 +63,11 @@ policy deny (the node does not run).
 / `memory.forget`. Memory output is untrusted; `tools.write_file.on_tainted:
 deny` is how a poisoned recall is stopped. See [memory.md](memory.md).
 
+`type: decide` is governed under `deciders.<name>` (for example `jev`, `shim`).
+Rules may `on_tainted: deny` and pin `allow_models` (so an org can allow
+`jev-1.13.0` and refuse `jev-latest`). `default: deny` without a matching
+decider rule refuses the call. See [decisions.md](decisions.md).
+
 `type: a2a` is governed as tool name `a2a`. `default: deny` without a
 `tools.a2a` rule refuses delegation. `tools.a2a.allow_hosts` and
 `egress.allow_hosts` restrict destination hosts. When a policy file exists,

@@ -40,6 +40,13 @@ class NodeRule(_Forbid):
     require_approval: bool = False
 
 
+class DeciderRule(_Forbid):
+    """Allow/deny a System One decider by name; optionally pin model ids."""
+
+    on_tainted: Action = "allow"
+    allow_models: list[str] | None = None
+
+
 class EgressBlock(_Forbid):
     allow_hosts: list[str] | None = None
 
@@ -51,6 +58,7 @@ class Policy(_Forbid):
     tools: dict[str, ToolRule] = Field(default_factory=dict)
     detection: DetectionBlock | None = None
     nodes: dict[str, NodeRule] = Field(default_factory=dict)
+    deciders: dict[str, DeciderRule] = Field(default_factory=dict)
     require_signed: bool = False
     frozen: bool = False
     on_lock_mismatch: Action = "allow"
@@ -62,6 +70,19 @@ class Policy(_Forbid):
             return name, self.tools[name]
         matches: list[tuple[int, str, ToolRule]] = []
         for key, rule in self.tools.items():
+            if _name_matches(key, name):
+                matches.append((len(key), key, rule))
+        if not matches:
+            return "default", None
+        matches.sort(reverse=True)
+        _length, key, rule = matches[0]
+        return key, rule
+
+    def decider_rule(self, name: str) -> tuple[str, DeciderRule | None]:
+        if name in self.deciders:
+            return name, self.deciders[name]
+        matches: list[tuple[int, str, DeciderRule]] = []
+        for key, rule in self.deciders.items():
             if _name_matches(key, name):
                 matches.append((len(key), key, rule))
         if not matches:

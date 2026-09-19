@@ -363,8 +363,11 @@ def run_workflow_file(
                 if str(item).strip()
             ]
     if want_sovereign:
+        from readyagents.decide.node import preflight_sovereign_decide
         from readyagents.sovereign.egress import install_guard
 
+        if not dry_run:
+            preflight_sovereign_decide(workflow, settings=settings)
         guard = install_guard(allow)
     if workflow.mcp_servers and not dry_run and not pending_lock_gate:
         from readyagents.mcp.client import MCPClient

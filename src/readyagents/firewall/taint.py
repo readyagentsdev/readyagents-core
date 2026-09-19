@@ -263,6 +263,23 @@ def note_node_output(state: RunState, node: Any, output: Any) -> None:
         if isinstance(output, dict) and output.get("role") == "human_agent":
             source = "human_agent"
         prov = untrusted(source=source, node_id=node_id)
+    elif kind == "decide":
+        raw_state = getattr(node, "state", None)
+        if isinstance(raw_state, str):
+            prov = provenance_for_template(state, raw_state, node_id=node_id)
+        else:
+            parts = [
+                provenance_for_template(state, text, node_id=node_id)
+                for text in walk_strings(raw_state)
+                if "{{" in str(text)
+            ]
+            prov = (
+                merge(parts, node_id=node_id)
+                if parts
+                else trusted(source="decide", node_id=node_id)
+            )
+        if prov.trust == UNTRUSTED:
+            prov = untrusted(source="decide", node_id=node_id)
     elif kind == "browser":
         url = "browser"
         if isinstance(output, dict):
