@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-09-01T00:00:00Z",
+  "updated_at": "2026-09-19T00:00:00Z",
   "currency": "USD",
   "unit": "per_million_tokens",
   "invoice_authoritative": true,
@@ -36,7 +36,11 @@
     "vertex:gemini-2.0-flash": {"input": 0.10, "output": 0.40},
     "vertex:gemini-1.5-pro": {"input": 1.25, "output": 5.00},
     "ollama:llama3": {"input": 0.00, "output": 0.00},
-    "ollama:llama3.2": {"input": 0.00, "output": 0.00}
+    "ollama:llama3.2": {"input": 0.00, "output": 0.00},
+    "typesafe:jev-1.13.0": {"input": 0.042, "output": 0.0},
+    "jev-1.13.0": {"input": 0.042, "output": 0.0},
+    "typesafe:jev-latest": {"input": 0.042, "output": 0.0},
+    "typesafe:jev-preview": {"input": 0.042, "output": 0.0}
   },
   "prefixes": {
     "openai:": {"input": 2.50, "output": 10.00},

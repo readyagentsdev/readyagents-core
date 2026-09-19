@@ -1,0 +1,11 @@
+{
+  "_provenance": "Synthesised from the published quickstart: noul answers may omit confidence (00-jev-research.md §2).",
+  "model": "jev-1.13.0",
+  "answers": {
+    "is_urgent": {
+      "type": "noul",
+      "noul": 0.01
+    }
+  },
+  "usage": { "input_tokens": 10, "output_tokens": 1 }
+}

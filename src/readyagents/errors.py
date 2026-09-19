@@ -55,6 +55,23 @@ class LLMError(ReadyAgentsError):
     """LLM provider, model, or API-key failure."""
 
 
+class DecideError(ReadyAgentsError):
+    """A decider call failed. Never includes the API key."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status: int | None = None,
+        question_keys: list[str] | None = None,
+        node_id: str | None = None,
+    ) -> None:
+        self.status = status
+        self.question_keys = list(question_keys or [])
+        self.node_id = node_id
+        super().__init__(message)
+
+
 class EgressDenied(ReadyAgentsError):
     """Sovereign mode refused a non-loopback, non-allowlisted connect."""
 

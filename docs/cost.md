@@ -31,6 +31,13 @@ Prices are USD per million tokens. They go stale; when `updated_at` is older
 than `warn_after_days` (default 90) the estimate lists that warning. There is
 no network fetch of prices.
 
+Jev (TypeSafe System One) is listed as `$0.042` per million **input** tokens
+with **output tokens free** (`output: 0.0`). That zero is deliberate, not a
+typo: the vendor does not charge for output. Early vendor pricing is
+subsidised; the table's existing `invoice_authoritative` / `warn_after_days`
+staleness machinery covers it. Do not treat these figures as a ReadyAgents
+measurement.
+
 ## Preflight estimate
 
 ```bash

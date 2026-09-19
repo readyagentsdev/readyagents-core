@@ -1,0 +1,8 @@
+{
+  "_provenance": "Synthesised: requested key absent. Implementation must raise, not default.",
+  "model": "jev-1.13.0",
+  "answers": {
+    "other": { "type": "noul", "noul": 0.5 }
+  },
+  "usage": { "input_tokens": 8, "output_tokens": 1 }
+}

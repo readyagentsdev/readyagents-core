@@ -1,0 +1,9 @@
+{
+  "_provenance": "Synthesised: extra answer key never requested. Implementation must ignore it.",
+  "model": "jev-1.13.0",
+  "answers": {
+    "is_urgent": { "type": "noul", "noul": 0.9, "confidence": 0.8 },
+    "unexpected": { "type": "noul", "noul": 0.1 }
+  },
+  "usage": { "input_tokens": 8, "output_tokens": 1 }
+}

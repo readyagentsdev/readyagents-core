@@ -121,6 +121,12 @@ def run_doctor() -> dict[str, Any]:
             }
         },
         "code_sandbox": _code_sandbox_report(),
+        "keys": {
+            "typesafe": {
+                "configured": bool(settings.typesafe_api_key),
+                "required": False,
+            }
+        },
     }
     if not loopback:
         findings.append(
@@ -168,6 +174,11 @@ def format_doctor(report: dict[str, Any]) -> str:
             f"{report.get('local_models', {}).get('ollama', {}).get('present')}"
         ),
         _format_code_sandbox(report.get("code_sandbox") or {}),
+        (
+            "TypeSafe Jev configured="
+            f"{(report.get('keys') or {}).get('typesafe', {}).get('configured')} "
+            "(informational; decide works keyless via shim)"
+        ),
     ]
     if report["findings"]:
         lines.append("Findings:")
