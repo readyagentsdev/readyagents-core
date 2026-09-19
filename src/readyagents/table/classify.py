@@ -6,10 +6,13 @@ import json
 from typing import Any
 
 from readyagents.errors import TableError, TableRowError
+from readyagents.logging import get_logger
 from readyagents.table.expr import eval_predicate
 from readyagents.table.node import _caps, _record, _replay, resolve_part, store_from
 from readyagents.table.part import Column
 from readyagents.workflow.templates import interpolate
+
+log = get_logger("table.classify")
 
 
 def run_classify_node(node: Any, state: Any, ctx: Any) -> Any:
@@ -26,7 +29,7 @@ def run_classify_node(node: Any, state: Any, ctx: Any) -> Any:
     on_error = str(getattr(node, "on_row_error", None) or "fail").strip().lower()
     if on_error not in {"fail", "skip", "quarantine"}:
         raise TableError("on_row_error must be fail, skip, or quarantine")
-    decided: list[tuple[int, dict[str, Any], str, str]] = []
+    decided: list[tuple[Any, ...]] = []
     remainder: list[tuple[int, dict[str, Any]]] = []
     for index, row in enumerate(store.iter_rows(part.sha256)):
         label = _rule_label(rules, row)
@@ -36,8 +39,15 @@ def run_classify_node(node: Any, state: Any, ctx: Any) -> Any:
             remainder.append((index, row))
     model_calls = 0
     if remainder:
-        if not remainder_spec.get("model") and not getattr(node, "model", None):
-            raise TableError("classify remainder requires model_for_remainder.model")
+        if (
+            not remainder_spec.get("model")
+            and not remainder_spec.get("decider")
+            and not getattr(node, "model", None)
+        ):
+            raise TableError(
+                "classify remainder requires model_for_remainder.model or "
+                "model_for_remainder.decider"
+            )
         labelled, model_calls = _model_remainder(
             remainder,
             node=node,
@@ -54,7 +64,18 @@ def run_classify_node(node: Any, state: Any, ctx: Any) -> Any:
     good: list[dict[str, Any]] = []
     quarantined: list[dict[str, Any]] = []
     skipped = 0
-    for index, row, label, path in decided:
+    on_low = str(remainder_spec.get("on_low_confidence") or "quarantine").strip().lower()
+    for item in decided:
+        index, row, label, path = item[0], item[1], item[2], item[3]
+        extra_reason = item[4] if len(item) > 4 else None
+        if extra_reason == "low_confidence":
+            if on_low == "fail":
+                raise TableRowError(index, column="label", reason="low_confidence")
+            if on_low == "skip":
+                skipped += 1
+                continue
+            quarantined.append({"row": index, "column": "label", "reason": "low_confidence"})
+            continue
         if label is None:
             if on_error == "fail":
                 raise TableRowError(index, reason="unlabelled")
@@ -96,6 +117,7 @@ def run_classify_node(node: Any, state: Any, ctx: Any) -> Any:
         bucket[node.id] = {
             "rule_rows": sum(1 for item in decided if item[3] == "rule"),
             "model_rows": sum(1 for item in decided if item[3] == "model"),
+            "decider_rows": sum(1 for item in decided if item[3] == "decider"),
             "model_calls": model_calls,
             "skipped": skipped,
             "quarantined": len(quarantined),
@@ -122,9 +144,12 @@ def _model_remainder(
     ctx: Any,
     spec: dict[str, Any],
     on_error: str,
-) -> tuple[list[tuple[int, dict[str, Any], str | None, str]], int]:
+) -> tuple[list[tuple[Any, ...]], int]:
     from readyagents.cost.tokens import heuristic_tokens
     from readyagents.llm.base import Message
+
+    if spec.get("decider"):
+        return _decider_remainder(remainder, node=node, ctx=ctx, spec=spec, on_error=on_error)
 
     model = str(spec.get("model") or getattr(node, "model", None) or "")
     batch = max(1, int(spec.get("batch") or 25))
@@ -170,6 +195,96 @@ def _model_remainder(
             if label is None and on_error == "fail":
                 raise TableRowError(idx, column="label", reason="invalid label")
             out.append((idx, row, label, "model"))
+    return out, calls
+
+
+def _decider_remainder(
+    remainder: list[tuple[int, dict[str, Any]]],
+    *,
+    node: Any,
+    ctx: Any,
+    spec: dict[str, Any],
+    on_error: str,
+) -> tuple[list[tuple[Any, ...]], int]:
+    from readyagents.cost.tokens import heuristic_tokens
+    from readyagents.decide.registry import get_decider
+    from readyagents.decide.types import Question
+
+    if spec.get("batch"):
+        log.info(
+            "classify decider remainder ignores batch=%s; one request per row",
+            spec.get("batch"),
+        )
+    criteria_raw = spec.get("criteria")
+    if isinstance(criteria_raw, dict):
+        criteria = {str(k): str(v) for k, v in criteria_raw.items()}
+    else:
+        labels = [str(x) for x in (spec.get("labels") or [])]
+        criteria = {label: label for label in labels}
+    instructions = str(spec.get("instructions") or "Which label this row belongs to")
+    question = Question(type="choice", instructions=instructions, criteria=criteria)
+    questions = {"label": question}
+    min_confidence = spec.get("min_confidence")
+    min_conf = float(min_confidence) if min_confidence is not None else None
+    limits = dict(getattr(node, "limits", None) or {})
+    max_calls = limits.get("max_calls")
+    max_calls_n = int(max_calls) if max_calls is not None else None
+    token = getattr(ctx, "cancellation", None)
+    decider, model_id = get_decider(
+        str(spec.get("decider") or ""),
+        secrets=getattr(ctx, "secrets", None),
+        offline=bool(getattr(ctx, "offline", False)),
+        llm=getattr(ctx, "llm", None),
+        min_confidence=min_conf,
+    )
+    allowed = set(criteria)
+    out: list[tuple[Any, ...]] = []
+    calls = 0
+    for idx, row in remainder:
+        if token is not None:
+            raise_if = getattr(token, "raise_if_requested", None)
+            if callable(raise_if):
+                raise_if()
+        if max_calls_n is not None and calls >= max_calls_n:
+            raise TableError(f"classify decider remainder exceeded max_calls={max_calls_n}")
+        payload = _public_row(row)
+        redactor = getattr(ctx, "redactor", None)
+        if redactor is not None:
+            method = getattr(redactor, "redact", None) or getattr(redactor, "redact_text", None)
+            if callable(method):
+                redacted = method(payload)
+                if isinstance(redacted, dict):
+                    payload = {str(k): v for k, v in redacted.items()}
+        blob = json.dumps(payload, ensure_ascii=False, default=str)
+        tokens = heuristic_tokens(blob + instructions)
+        meter = getattr(ctx, "spend_meter", None)
+        if meter is not None:
+            consult = getattr(meter, "consult_before_call", None)
+            if callable(consult):
+                consult(model_id, prompt_tokens=tokens)
+        decision = decider.decide(state=payload, questions=questions, model=model_id)
+        calls += 1
+        if meter is not None:
+            record = getattr(meter, "record_usage", None)
+            if callable(record):
+                usage = dict(getattr(decision, "usage", None) or {})
+                if not usage:
+                    usage = {"prompt_tokens": tokens, "total_tokens": tokens}
+                record(model_id, usage)
+        answer = decision.answers.get("label")
+        if answer is None:
+            raise TableRowError(idx, column="label", reason="missing answer")
+        if min_conf is not None and (
+            decision.decider == "shim" or answer.effective_confidence() < min_conf
+        ):
+            out.append((idx, row, None, "decider", "low_confidence"))
+            continue
+        label = answer.choice
+        if allowed and label is not None and label not in allowed:
+            label = None
+        if label is None and on_error == "fail":
+            raise TableRowError(idx, column="label", reason="invalid label")
+        out.append((idx, row, label, "decider"))
     return out, calls
 
 

@@ -72,6 +72,40 @@ meter and in `metadata.classify`. `on_row_error` is `fail`, `skip`, or
 
 Rows sent to a model are untrusted (`source=table`).
 
+### Decider remainder
+
+`model_for_remainder` may name a `decider` instead of a `model`. The declared
+label set is the answer space, so a label cannot fall outside it and a
+malformed JSON response cannot leave a whole batch unlabelled. `decider` and
+`model` are mutually exclusive — both at once is a validate-time error.
+
+```yaml
+  model_for_remainder:
+    decider: jev                    # or shim, or jev:jev-1.13.0
+    labels: [refund, dispute, other]
+    instructions: "Which support category this row belongs to"
+    criteria:                       # optional; richer than bare labels
+      refund: "Customer wants money back"
+      dispute: "Customer contests a charge"
+      other: "Anything else"
+    min_confidence: 0.7
+    on_low_confidence: quarantine   # quarantine | skip | fail
+    batch: 25                       # accepted and ignored (one request per row)
+```
+
+The `decision` column is `decider` on this path. Rows below `min_confidence`
+quarantine with `reason="low_confidence"`, distinct from `reason="unlabelled"`.
+The keyless `shim` decider has no calibrated confidence, so a remainder with
+`min_confidence` on the shim always takes the low-confidence path.
+
+One request per remainder row. `limits.max_calls` caps that count (typed
+`TableError`), because a 5,000-row remainder is 5,000 requests against the
+vendor rate limit. `--estimate` counts those calls; the LLM remainder path is
+unchanged.
+
+Classify nodes stay `unsealable` in the cassette. A decider remainder does
+**not** replay offline.
+
 ## CSV injection and inspect
 
 Export prefixes a leading `=`, `+`, `-`, or `@` with `'`. `readyagents table

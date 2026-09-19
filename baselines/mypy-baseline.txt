@@ -206,7 +206,6 @@ src/readyagents/sovereign/egress.py:0: error: Item "IPv4Address" of "IPv4Address
 src/readyagents/sovereign/egress.py:0: note: Error code "assignment" not covered by "type: ignore[method-assign]" comment
 src/readyagents/sovereign/egress.py:0: note: Error code "assignment" not covered by "type: ignore[method-assign]" comment
 src/readyagents/studio/app.py:0: error: Incompatible types in assignment (expression has type "Any | tuple[()]", variable has type "dict_items[Any, Any]")  [assignment]
-src/readyagents/table/classify.py:0: error: Argument 1 to "extend" of "list" has incompatible type "list[tuple[int, dict[str, Any], str | None, str]]"; expected "Iterable[tuple[int, dict[str, Any], str, str]]"  [arg-type]
 src/readyagents/table/expr.py:0: error: "object" not callable  [operator]
 src/readyagents/table/expr.py:0: error: Cannot call function of unknown type  [operator]
 src/readyagents/table/ops.py:0: error: Argument 1 to "sum" has incompatible type "list[Any | None]"; expected "Iterable[bool]"  [arg-type]

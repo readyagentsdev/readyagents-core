@@ -7,6 +7,7 @@ on every CI push. Known errors live in [`mypy-baseline.txt`](mypy-baseline.txt)
 
 Generated with mypy 2.3.1 after the two named N-07 fixes: **220 errors in 74
 files** (the pre-fix measurement was 223 in 75). Do not pad the file to 223.
+Phase 1 classify remainder dropped one resolved `arg-type` (now **219 errors in 73 files**).
 
 `python scripts/typecheck.py` (and the `typecheck` CI job) fails on any error
 that is not in that file. It does not fail on baselined ones. If you fix a
