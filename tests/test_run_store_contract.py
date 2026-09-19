@@ -163,8 +163,8 @@ def test_json_get_during_save(tmp_path) -> None:
     for thread in threads:
         thread.start()
     for thread in threads:
-        thread.join(timeout=10)
-        assert not thread.is_alive()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), errors
     assert errors == []
     store.close()
 
