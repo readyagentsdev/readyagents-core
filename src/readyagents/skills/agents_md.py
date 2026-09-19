@@ -7,14 +7,14 @@ from pathlib import Path
 HEADER = """# AGENTS.md
 
 This is a ReadyAgents Core repository: a local one-shot YAML/JSON agent workflow
-engine. Current **2.0.4** — soft path is `pip install readyagentsdev`, then
+engine. Current **2.0.6** — soft path is `pip install readyagentsdev`, then
 `readyagents new f --from-example calc_pipeline`. Always-on packs are optional
 and not required to run or validate workflows.
 
 ## Run
 
 ```sh
-# PyPI soft path (Current 2.0.4)
+# PyPI soft path (Current 2.0.6)
 pip install readyagentsdev
 readyagents new f --from-example calc_pipeline
 readyagents run f/workflow.yaml

@@ -1,7 +1,7 @@
 # First ten minutes
 > **Tier:** stable — core, covered by the stability contract. See [stability](stability.md).
 
-No API keys. Current version is **2.0.5** (`readyagents version`). Install from PyPI
+No API keys. Current version is **2.0.6** (`readyagents version`). Install from PyPI
 (`pip install readyagentsdev`) or from a clone (`pip install -e .`) as in the
 [README](../README.md). The wheel ships `examples/`; one road below serves both.
 The `2` versions the [core contract](stability.md#what-the-version-number-means)
@@ -144,9 +144,9 @@ Same pattern for `composed_gate` (add `--approve gate`).
 
 Full syntax: [workflows.md](workflows.md). Gate mechanics: [approvals.md](approvals.md).
 
-## Optional (2.0.5 surface)
+## Optional (2.0.6 surface)
 
-**2.0.5** includes connectors, sovereign, memory, and A2A. Keyless examples
+**2.0.6** includes connectors, sovereign, memory, and A2A. Keyless examples
 (each materialized first, same as above):
 
 ```bash

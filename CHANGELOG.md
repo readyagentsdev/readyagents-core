@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 2.0.6 — 2026-09-19
+
 ### Fixed
 
 - `readyagents new --from-example` recursively copies `type: include` `path:` children beside

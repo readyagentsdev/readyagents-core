@@ -9,7 +9,7 @@
 
 ## Install
 
-Current version is **2.0.5**. Preferred install is from PyPI:
+Current version is **2.0.6**. Preferred install is from PyPI:
 
 ```bash
 python -m venv .venv

@@ -1,3 +1,23 @@
+# ReadyAgents Core 2.0.6
+
+**`readyagents new --from-example` recursively materializes `type: include` children.**
+
+Pip-road `include_demo` and `composed_gate` now copy nested YAML beside the parent
+(with cycle, path-escape, and depth-8 guards). Composition tour docs use
+`--from-example` instead of clone-only instructions.
+
+## Try it
+
+```bash
+pip install readyagentsdev==2.0.6
+readyagents new /tmp/t1 --from-example include_demo && readyagents run /tmp/t1/workflow.yaml
+readyagents new /tmp/t2 --from-example composed_gate && readyagents run /tmp/t2/workflow.yaml --approve gate
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
+
+
 # ReadyAgents Core 2.0.5
 
 **Cold-pip AGENTS.md emit now matches the honesty pip-first path on main.**
