@@ -7,11 +7,16 @@ All notable changes to ReadyAgents Core.
 ### Added
 
 - Decider protocol (`readyagents.decide`) with an optional TypeSafe Jev HTTP client and a
-  keyless shim for local/dev (#7). Not a workflow `type: decide` node yet; not a general
-  LLM provider. The shim is an explicit non-Jev stand-in when `TYPESAFE_API_KEY` is unset.
-  Ledger prices for `jev-*` are estimates only.
+  keyless shim for local/dev (#7). Not a general LLM provider. The shim is an explicit
+  non-Jev stand-in when `TYPESAFE_API_KEY` is unset. Ledger prices for `jev-*` are
+  estimates only. (`shim` ≠ `jev`.)
 - Classify remainder can use a Decider (`model_for_remainder.decider`) instead of an LLM
-  (#8 / Phase 1). Still no workflow `type: decide` node (that is Phase 2 / #9).
+  (#8 / Phase 1).
+- Workflow `type: decide` (experimental): typed questions, confidence-gated routing, and
+  sealed cassette replay (#9 / Phase 2). Not a general LLM node. Keyless `shim` keeps
+  the workflow format runnable; it is not calibrated like `jev`. See `docs/decisions.md`
+  (experimental tier; CLI `readyagents decide` is external approval injection, not this
+  YAML type).
 
 ## 2.0.6 — 2026-09-19
 

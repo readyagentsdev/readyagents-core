@@ -49,7 +49,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 ## What it does
 
 - Define agent workflows as YAML or JSON (nodes + edges)
-- Run **agent**, **tool**, **condition**, **transform**, **approval**, **parallel**, **include**, and **foreach** nodes. Agent nodes may declare a `tools:` allowlist for a bounded tool-use loop.
+- Run **agent**, **tool**, **condition**, **transform**, **approval**, **parallel**, **include**, **foreach**, and **decide** nodes. Agent nodes may declare a `tools:` allowlist for a bounded tool-use loop. `type: decide` is experimental; see [docs/decisions.md](docs/decisions.md).
 - Persist after every node and **resume** a paused or failed run from the last successful node
 - Inspect past runs: `readyagents runs list` / `show` / `replay` / `fork` / `diff` / `freeze` / `report` (local HTML)
 - Scaffold a starter: `readyagents new my-flow` (`basic`, `approval`, `research`, `pipeline`, `review`, `foreach`, `agent-tools`, `gated`)

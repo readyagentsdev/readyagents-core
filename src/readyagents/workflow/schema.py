@@ -52,6 +52,7 @@ class NodeType(StrEnum):
     skill = "skill"
     browser = "browser"
     converse = "converse"
+    decide = "decide"
 
 
 class RetrySpec(BaseModel):
@@ -476,7 +477,7 @@ class NodeSpec(BaseModel):
         description=(
             "Node kind. Built-ins: agent, tool, condition, transform, approval, "
             "parallel, include, foreach, a2a, memory, code, team, document, "
-            "transcribe, ingest, table, classify, wait, skill, browser, converse. "
+            "transcribe, ingest, table, classify, wait, skill, browser, converse, decide. "
             "Packs may add types."
         )
     )
@@ -961,6 +962,47 @@ class NodeSpec(BaseModel):
         default=None,
         description="converse handoff history: full_history (default for human_agent).",
     )
+    decider: str | None = Field(
+        default=None,
+        description=(
+            "Decider ref for type: decide (jev, shim, jev:jev-1.13.0). "
+            "Omitted uses shim when no TypeSafe key."
+        ),
+    )
+    state: Any | None = Field(
+        default=None,
+        description=(
+            "Material to judge for type: decide. String, mapping, or list; templates allowed."
+        ),
+    )
+    questions: dict[str, Any] | None = Field(
+        default=None,
+        description="Typed questions for type: decide: {id: {type, instructions, criteria}}.",
+    )
+    min_confidence: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Quality-control margin threshold for type: decide. Not a security control.",
+    )
+    on_low_confidence: str | None = Field(
+        default=None,
+        description="Successor node id, or fail, when a decide answer is below min_confidence.",
+    )
+    route_on: str | None = Field(
+        default=None,
+        description="Question key to branch on for type: decide.",
+    )
+    routes: dict[str, str] | None = Field(
+        default=None,
+        description="choice routing: {criteria_key: node_id} for type: decide.",
+    )
+    threshold: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="noul routing threshold for type: decide (default 0.5 at runtime).",
+    )
 
     @field_validator("for_file", mode="before")
     @classmethod
@@ -1189,6 +1231,8 @@ class NodeSpec(BaseModel):
                 raise ValueError(
                     f"Node '{self.id}': model_for_remainder cannot set both 'decider' and 'model'"
                 )
+        if t == NodeType.decide.value:
+            _validate_decide_node(self)
         if self.media and t != NodeType.agent.value:
             raise ValueError(f"Node '{self.id}': 'media' is only valid on agent nodes")
         if self.render is not None and t != NodeType.document.value:
@@ -1238,6 +1282,69 @@ class NodeSpec(BaseModel):
                 raise ValueError(f"Node '{self.id}': command notify requires command")
             if spec.kind == "webhook" and not spec.url:
                 raise ValueError(f"Node '{self.id}': webhook notify requires url")
+
+
+def _successor_refs(node: NodeSpec) -> list[str | None]:
+    refs: list[str | None] = [node.next, node.then, node.else_]
+    if str(node.type) != NodeType.decide.value:
+        return refs
+    if isinstance(node.default, str) and node.default.strip():
+        refs.append(node.default.strip())
+    low = (node.on_low_confidence or "").strip()
+    if low and low != "fail":
+        refs.append(low)
+    for dest in dict(node.routes or {}).values():
+        if dest:
+            refs.append(str(dest))
+    return refs
+
+
+def _validate_decide_node(node: NodeSpec) -> None:
+    from readyagents.decide.base import questions_from_mapping
+    from readyagents.errors import DecideError
+
+    if not node.questions:
+        raise ValueError(f"Node '{node.id}': decide nodes require 'questions'")
+    if node.state is None:
+        raise ValueError(f"Node '{node.id}': decide nodes require 'state'")
+    try:
+        questions = questions_from_mapping(node.questions)
+    except DecideError as extra:
+        raise ValueError(f"Node '{node.id}': {extra}") from extra
+    route_on = (node.route_on or "").strip() or None
+    routes = dict(node.routes or {})
+    has_then_else = bool(node.then or node.else_)
+    if routes and has_then_else:
+        raise ValueError(f"Node '{node.id}': routes and then/else are mutually exclusive")
+    if node.on_low_confidence and node.min_confidence is None:
+        raise ValueError(f"Node '{node.id}': on_low_confidence requires min_confidence")
+    if node.threshold is not None and not route_on:
+        raise ValueError(f"Node '{node.id}': threshold requires route_on")
+    if route_on:
+        if route_on not in questions:
+            raise ValueError(f"Node '{node.id}': route_on '{route_on}' is not a question")
+        question = questions[route_on]
+        if question.type == "score":
+            raise ValueError(f"Node '{node.id}': score questions are not directly routable")
+        if question.type == "choice":
+            if not routes:
+                raise ValueError(f"Node '{node.id}': choice route_on requires routes")
+            criteria = set(question.criteria) if isinstance(question.criteria, dict) else set()
+            extra_keys = set(routes) - criteria
+            if extra_keys:
+                raise ValueError(
+                    f"Node '{node.id}': routes keys {sorted(extra_keys)} are not "
+                    f"criteria of '{route_on}'"
+                )
+        if question.type == "noul":
+            if routes:
+                raise ValueError(f"Node '{node.id}': noul route_on uses then/else, not routes")
+            if not has_then_else:
+                raise ValueError(f"Node '{node.id}': noul route_on requires then and/or else")
+        if node.threshold is not None and question.type != "noul":
+            raise ValueError(f"Node '{node.id}': threshold requires a noul route_on")
+    elif routes:
+        raise ValueError(f"Node '{node.id}': routes requires route_on")
 
 
 class TriggerAcceptsSpec(BaseModel):
@@ -1503,7 +1610,7 @@ class WorkflowSpec(BaseModel):
             raise ValueError(f"start node '{start}' does not exist")
         self.start = start
         for node in self.nodes:
-            for ref in (node.next, node.then, node.else_):
+            for ref in _successor_refs(node):
                 if ref is not None and ref not in known:
                     raise ValueError(f"Node '{node.id}' references unknown node '{ref}'")
             if node.branches:
@@ -1524,7 +1631,7 @@ class WorkflowSpec(BaseModel):
     def _assert_acyclic(self) -> None:
         graph: dict[str, list[str]] = {node.id: [] for node in self.nodes}
         for node in self.nodes:
-            for ref in (node.next, node.then, node.else_):
+            for ref in _successor_refs(node):
                 if ref is not None:
                     graph[node.id].append(ref)
         for edge in self.edges:

@@ -1,0 +1,68 @@
+name: decide_triage
+version: "1"
+description: >
+  Typed triage with a System One decider, then a confidence-gated human gate.
+  Keyless dry-run: readyagents run examples/decide_triage.yaml --dry-run
+  With a TypeSafe key, set decider: jev on the triage node.
+
+inputs:
+  message: >
+    Hi, our production checkout has been returning 500s for 20 minutes.
+    Customers cannot pay. Please escalate.
+
+start: triage
+nodes:
+  - id: triage
+    type: decide
+    state: "{{message}}"
+    questions:
+      department:
+        type: choice
+        instructions: "Which team should handle this"
+        criteria:
+          billing: "Payment or subscription issues"
+          technical: "Bugs or integration problems"
+          sales: "Pricing or account questions"
+      is_urgent:
+        type: noul
+        instructions: "The message conveys urgency or time-sensitivity"
+    output_key: triage
+    min_confidence: 0.85
+    on_low_confidence: human_review
+    route_on: department
+    routes:
+      billing: billing_queue
+      technical: page_oncall
+      sales: sales_inbox
+    default: human_review
+
+  - id: human_review
+    type: approval
+    prompt: >
+      Decider was not confident ({{triage.low_confidence}}).
+      Message: {{message}}
+      Route this ticket manually.
+    next: done
+
+  - id: page_oncall
+    type: transform
+    template: "PAGE oncall — urgency {{triage.answers.is_urgent.value}}"
+    output_key: summary
+    next: done
+
+  - id: billing_queue
+    type: transform
+    template: "Billing queue — {{triage.answers.department.value}}"
+    output_key: summary
+    next: done
+
+  - id: sales_inbox
+    type: transform
+    template: "Sales inbox — {{triage.answers.department.value}}"
+    output_key: summary
+    next: done
+
+  - id: done
+    type: transform
+    template: "triage complete: {{summary}}"
+    output_key: result

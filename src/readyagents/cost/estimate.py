@@ -209,6 +209,9 @@ def _emit_node(
     if kind == NodeType.classify.value:
         into.extend(_classify_decider_calls(node, state, assume=assume, measured=measured))
         return
+    if kind == NodeType.decide.value:
+        into.extend(_decide_calls(node, state, measured=measured))
+        return
     if kind == NodeType.parallel.value:
         for branch in node.branches or []:
             _emit_node(
@@ -304,6 +307,47 @@ def _agent_calls(
         "measured": prompt_measured or sys_measured,
     }
     return [row]
+
+
+def _decide_calls(
+    node: NodeSpec,
+    state: RunState,
+    *,
+    measured: dict[str, bool],
+) -> list[dict[str, Any]]:
+    from readyagents.cost.tokens import heuristic_tokens
+    from readyagents.workflow.templates import interpolate, interpolate_value
+
+    ns = state.mapping()
+    raw: Any = getattr(node, "state", None)
+    judged: Any = raw
+    try:
+        if isinstance(raw, str):
+            judged = interpolate(raw, ns)
+        elif isinstance(raw, (dict, list)):
+            judged = interpolate_value(raw, ns)
+    except (TemplateError, WorkflowError):
+        judged = raw
+    prompt = heuristic_tokens(
+        json.dumps(judged, default=str) + json.dumps(node.questions or {}, default=str)
+    )
+    ref = str(getattr(node, "decider", None) or "")
+    if ref in {"", "jev"}:
+        model = "jev-1.13.0"
+    elif ":" in ref:
+        model = ref.split(":", 1)[-1] or ref
+    else:
+        model = ref
+    return [
+        {
+            "node_id": node.id,
+            "model": model,
+            "prompt_tokens": prompt,
+            "completion_tokens": 0,
+            "multiplier": 1,
+            "measured": False,
+        }
+    ]
 
 
 def _classify_decider_calls(
