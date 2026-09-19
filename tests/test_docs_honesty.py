@@ -149,6 +149,21 @@ def test_readme_current_version_matches_package() -> None:
     assert "Release notes 0.8.0" not in text
 
 
+def test_public_ask_is_i_ran_this_not_a_star() -> None:
+    """Docs surfaces request evidence, not a GitHub star."""
+    star_ask = "a star helps other people find it"
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert (
+        "Tried it? Open an [I-ran-this](https://github.com/readyagentsdev/readyagents-core/issues/new?template=i-ran-this.md) issue. We are not launching. We are listening."
+        in readme
+    )
+    assert star_ask not in readme
+    notes = (ROOT / "RELEASE_NOTES.md").read_text(encoding="utf-8")
+    assert star_ask not in notes
+    for path in (ROOT / "docs").rglob("*.md"):
+        assert star_ask not in path.read_text(encoding="utf-8"), path
+
+
 def test_fail_preserves_mcp_brackets_in_rich_markup(monkeypatch: pytest.MonkeyPatch) -> None:
     """Rich markup must not strip [mcp] from install hints printed via _fail."""
     from io import StringIO
