@@ -149,6 +149,38 @@ def test_readme_current_version_matches_package() -> None:
     assert "Release notes 0.8.0" not in text
 
 
+def test_changelog_unreleased_empty_and_has_2_0_4_heading() -> None:
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    after = text.split("## Unreleased", 1)[1]
+    nxt = after.find("\n## ")
+    assert nxt != -1
+    assert after[:nxt].strip() == ""
+    assert re.search(r"^## 2\.0\.4 — \d{4}-\d{2}-\d{2}$", text, re.M)
+
+
+def test_release_notes_2_0_4_house_shape_and_readme_link() -> None:
+    notes = (ROOT / "RELEASE_NOTES.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "# ReadyAgents Core 2.0.4" in notes
+    section = notes.split("# ReadyAgents Core 2.0.4", 1)[1].split("# ReadyAgents Core", 1)[0]
+    assert "## Try it" in section
+    assert "pip install readyagentsdev==2.0.4" in section
+    first = re.search(r"^# ReadyAgents Core ([0-9.]+)$", notes, re.M)
+    linked = re.search(r"\[Release notes ([0-9.]+)\]\(RELEASE_NOTES\.md\)", readme)
+    assert first is not None and linked is not None
+    assert linked.group(1) == first.group(1)
+
+
+def test_contributing_release_criteria_names_honesty_reverify() -> None:
+    text = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    section = text.split("## Release criteria", 1)[1]
+    assert "why-readyagents.md" in section
+    assert '"as of"' in section or "as of" in section
+    assert "MCP paste catalog" in section
+    assert "host config shapes" in section
+    assert "verification dates" in section
+
+
 def test_fail_preserves_mcp_brackets_in_rich_markup(monkeypatch: pytest.MonkeyPatch) -> None:
     """Rich markup must not strip [mcp] from install hints printed via _fail."""
     from io import StringIO

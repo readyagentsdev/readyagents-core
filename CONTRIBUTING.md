@@ -78,3 +78,11 @@ before any release:
    ([stability](docs/stability.md#what-the-version-number-means)); bumping it
    needs evidence of outside use — an `I-ran-this` report from someone other
    than the author — the same bar the `stable` tier sets for promotion.
+
+Standing honesty re-verify (every release; not a build step):
+
+- Re-verify the external quotes on [docs/why-readyagents.md](docs/why-readyagents.md)
+  and refresh the "as of" dates.
+- Re-verify the MCP paste catalog host config shapes and refresh their
+  verification dates ([docs/mcp-catalog.md](docs/mcp-catalog.md) when it exists,
+  otherwise [docs/mcp-plugs.md](docs/mcp-plugs.md)).
