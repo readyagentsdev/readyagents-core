@@ -113,3 +113,105 @@ def test_new_from_example_unknown_errors(tmp_path: Path, monkeypatch) -> None:
     result = runner.invoke(app, ["new", "f", "--from-example", "does-not-exist"])
     assert result.exit_code != 0
     assert "Unknown example" in result.output
+
+def test_materialize_include_demo_copies_child_and_runs(tmp_path: Path, monkeypatch) -> None:
+    """Pip-road: include_demo materializes parent + child and runs keyless."""
+    clear_settings_cache()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("READYAGENTS_HOME", str(tmp_path / ".readyagents"))
+    created = runner.invoke(app, ["new", "inc", "--from-example", "include_demo"])
+    assert created.exit_code == 0, created.output
+    assert (tmp_path / "inc" / "workflow.yaml").is_file()
+    assert (tmp_path / "inc" / "included_min.yaml").is_file()
+    run = runner.invoke(app, ["run", "inc/workflow.yaml", "--input", "n=5"])
+    assert run.exit_code == 0, run.output
+    assert "include_demo ok: 15" in run.output
+    assert "succeeded" in run.output
+
+
+def test_materialize_composed_gate_copies_child_and_runs(tmp_path: Path, monkeypatch) -> None:
+    """Pip-road: composed_gate materializes include child and runs with --approve."""
+    clear_settings_cache()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("READYAGENTS_HOME", str(tmp_path / ".readyagents"))
+    created = runner.invoke(app, ["new", "cg", "--from-example", "composed_gate"])
+    assert created.exit_code == 0, created.output
+    assert (tmp_path / "cg" / "included_min.yaml").is_file()
+    run = runner.invoke(app, ["run", "cg/workflow.yaml", "--approve", "gate"])
+    assert run.exit_code == 0, run.output
+    assert "composed_gate ok:" in run.output
+    assert "succeeded" in run.output
+
+
+def test_copy_include_tree_refuses_cycle(tmp_path: Path) -> None:
+    from readyagents.errors import TrustError
+    from readyagents.examples import copy_include_tree
+
+    root = tmp_path / "ex"
+    root.mkdir()
+    (root / "loop.yaml").write_text(
+        "name: loop\nnodes:\n  - id: again\n    type: include\n    path: loop.yaml\n",
+        encoding="utf-8",
+    )
+    dest = tmp_path / "out"
+    dest.mkdir()
+    (dest / "workflow.yaml").write_bytes((root / "loop.yaml").read_bytes())
+    with pytest.raises(TrustError, match="include cycle") as exc:
+        copy_include_tree(
+            parent_rel="loop.yaml",
+            parent_content=(root / "loop.yaml").read_bytes(),
+            examples_root=root,
+            dest=dest,
+        )
+    assert exc.value.reason == "cycle"
+
+
+def test_copy_include_tree_refuses_escape(tmp_path: Path) -> None:
+    from readyagents.errors import TrustError
+    from readyagents.examples import copy_include_tree
+
+    root = tmp_path / "ex"
+    root.mkdir()
+    (tmp_path / "outside.yaml").write_text(
+        "name: leaked\nnodes:\n  - id: t\n    type: transform\n    template: x\n",
+        encoding="utf-8",
+    )
+    (root / "parent.yaml").write_text(
+        "name: parent\nnodes:\n  - id: c\n    type: include\n    path: ../outside.yaml\n",
+        encoding="utf-8",
+    )
+    dest = tmp_path / "out"
+    dest.mkdir()
+    with pytest.raises(TrustError, match="escapes") as exc:
+        copy_include_tree(
+            parent_rel="parent.yaml",
+            parent_content=(root / "parent.yaml").read_bytes(),
+            examples_root=root,
+            dest=dest,
+        )
+    assert exc.value.reason == "escape"
+
+
+def test_copy_include_tree_refuses_depth(tmp_path: Path) -> None:
+    from readyagents.errors import TrustError
+    from readyagents.examples import _MAX_INCLUDE_DEPTH, copy_include_tree
+
+    root = tmp_path / "ex"
+    root.mkdir()
+    for i in range(_MAX_INCLUDE_DEPTH + 1):
+        nxt = f"d{i + 1}.yaml" if i < _MAX_INCLUDE_DEPTH else None
+        if nxt:
+            body = f"name: d{i}\nnodes:\n  - id: c\n    type: include\n    path: {nxt}\n"
+        else:
+            body = "name: leaf\nnodes:\n  - id: t\n    type: transform\n    template: ok\n"
+        (root / f"d{i}.yaml").write_text(body, encoding="utf-8")
+    dest = tmp_path / "out"
+    dest.mkdir()
+    with pytest.raises(TrustError, match="include depth exceeded") as exc:
+        copy_include_tree(
+            parent_rel="d0.yaml",
+            parent_content=(root / "d0.yaml").read_bytes(),
+            examples_root=root,
+            dest=dest,
+        )
+    assert exc.value.reason == "depth"

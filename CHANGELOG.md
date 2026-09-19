@@ -4,10 +4,16 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
-### Added
+### Fixed
 
-- First ten minutes §4 Compose: `foreach`, parallel + approval, and `graph_complex` on the pip
-  road; `include` is shown from a clone because `new --from-example` copies a single file.
+- `readyagents new --from-example` recursively copies `type: include` `path:` children beside
+  the parent (cycle, path-escape, and depth-8 guards aligned with the loader), so pip-road
+  `include_demo` and `composed_gate` are runnable without a clone.
+
+### Changed
+
+- First ten minutes §4 include beat and related docs now use `--from-example` instead of
+  clone-only instructions.
 
 ## 2.0.5 — 2026-09-18
 

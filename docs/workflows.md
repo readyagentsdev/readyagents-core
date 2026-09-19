@@ -225,7 +225,7 @@ Templates can use `{{parts.left}}`. Max 8 worker threads. Resume skips branches 
   output_key: nested
 ```
 
-Includes are depth-limited (8) so cycles fail with a typed error. Nested runs do not write their own run records; child progress is stored on the parent so resume does not re-run successful child nodes. The `path` is resolved relative to the parent workflow file and must stay under that directory (no `..` or absolute escapes). `readyagents new --from-example` copies a single file, so an `include`-based example needs its child file copied beside it, or a source checkout.
+Includes are depth-limited (8) so cycles fail with a typed error. Nested runs do not write their own run records; child progress is stored on the parent so resume does not re-run successful child nodes. The `path` is resolved relative to the parent workflow file and must stay under that directory (no `..` or absolute escapes). `readyagents new --from-example` copies the parent and recursively copies each `type: include` `path:` child beside it (same cycle / escape / depth guards as the loader).
 
 ## Foreach (sequential map)
 
@@ -404,8 +404,8 @@ readyagents runs replay <run_id>
 | `examples/gated_write.yaml` | No | calc → one approval → write_file; pause does not create the file |
 | `examples/multi_gate.yaml` | No | Two sequential approval gates |
 | `examples/fanout_gate.yaml` | No | Parallel fan-out + approval |
-| `examples/include_demo.yaml` | No | Sub-workflow `include` (clone; `--from-example` copies one file) |
-| `examples/composed_gate.yaml` | No | Include + parallel + approval (clone) |
+| `examples/include_demo.yaml` | No | Sub-workflow `include` (`new --from-example include_demo`) |
+| `examples/composed_gate.yaml` | No | Include + parallel + approval (`new --from-example composed_gate`) |
 | `examples/research_brief.yaml` | Yes | Optional HTTP fetch |
 | `examples/support_triage.yaml` | Yes | JSON classify then branch |
 | `examples/code_review.yaml` | Yes | Builtin `read_file` + review |

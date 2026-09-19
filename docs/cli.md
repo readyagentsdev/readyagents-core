@@ -21,7 +21,7 @@ readyagents init --dest .env
 
 ## `readyagents new [name]`
 
-Write a starter project: `workflow.yaml`, `README.md`, and `.env.example`. Refuses to overwrite those files if they already exist. `--list-examples` lists the shipped example workflows; `--from-example NAME` copies one instead of a template (cannot combine with `--template`).
+Write a starter project: `workflow.yaml`, `README.md`, and `.env.example`. Refuses to overwrite those files if they already exist. `--list-examples` lists the shipped example workflows; `--from-example NAME` copies one example (and its `include` children) instead of a template (cannot combine with `--template`).
 
 ```bash
 readyagents new my-flow

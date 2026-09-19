@@ -84,20 +84,18 @@ def test_first_ten_compose_tour_is_pip_honest() -> None:
     assert "tour-each" in section4 and "--from-example foreach_calc" in section4
     assert "tour-fan" in section4 and "--from-example fanout_gate" in section4
     assert "tour-all" in section4 and "--from-example graph_complex" in section4
+    assert "tour-inc" in section4 and "--from-example include_demo" in section4
     assert "{'results': [2, 4]}" in section4
     assert "fanout_gate ok: 42" in section4 or "fanout_gate ok:" in section4
-    assert "--from-example include_demo" not in text
-    assert "--from-example composed_gate" not in text
-    assert "readyagents run examples/include_demo.yaml" in section4
-    assert "clone" in section4.lower()
-    assert "copies one file" in section4 or "copies a single file" in section4
-    assert "clone is never required for the rest of this page" not in text
+    assert "include_demo ok: 15" in section4
+    assert "readyagents run examples/include_demo.yaml" not in section4
+    assert "copies one file" not in section4 and "copies a single file" not in section4
     workflows = (ROOT / "docs" / "workflows.md").read_text(encoding="utf-8")
     assert "--from-example" in workflows
-    assert "single file" in workflows
+    assert "recursively copies" in workflows
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "include_demo.yaml` | Sub-workflow `include` (clone)" in readme
-    assert "composed_gate.yaml` | Include + parallel + approval (clone)" in readme
+    assert "include_demo.yaml` | Sub-workflow `include` (`new --from-example`)" in readme
+    assert "composed_gate.yaml` | Include + parallel + approval (`new --from-example`)" in readme
 
 
 def test_getting_started_matches_package() -> None:
