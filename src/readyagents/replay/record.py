@@ -28,6 +28,7 @@ def known_secret_values(settings: Any, secrets: Any = None) -> list[str]:
         "aws_secret_access_key",
         "aws_session_token",
         "vertex_project",
+        "typesafe_api_key",
         "decision_secret",
     ):
         value = getattr(settings, attr, None) if settings is not None else None

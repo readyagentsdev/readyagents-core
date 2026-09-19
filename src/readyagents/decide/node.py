@@ -66,7 +66,7 @@ def run_decide_node(node: Any, state: Any, ctx: Any) -> Any:
         if callable(raise_if):
             raise_if(run_id=getattr(state, "run_id", None))
 
-    judged = _redact_state(judged, ctx)
+    vendor_state = _redact_state(judged, ctx)
 
     decider, model_id = get_decider(
         model_hint or None,
@@ -77,14 +77,14 @@ def run_decide_node(node: Any, state: Any, ctx: Any) -> Any:
     )
     _enforce_decider_policy(ctx, node, state, decider.name, model_id)
 
-    blob = json.dumps(judged, ensure_ascii=False, default=str)
+    blob = json.dumps(vendor_state, ensure_ascii=False, default=str)
     tokens = heuristic_tokens(blob + json.dumps({k: q.wire() for k, q in questions.items()}))
     meter = getattr(ctx, "spend_meter", None)
     if meter is not None:
         consult = getattr(meter, "consult_before_call", None)
         if callable(consult):
             consult(model_id, prompt_tokens=tokens)
-    decision = decider.decide(state=judged, questions=questions, model=model_id)
+    decision = decider.decide(state=vendor_state, questions=questions, model=model_id)
     if meter is not None:
         record_usage = getattr(meter, "record_usage", None)
         if callable(record_usage):
@@ -191,12 +191,7 @@ def _enforce_decider_policy(
                 f"decider model '{model_id}' is not allowed",
                 rule=rule_id,
             )
-    raw = getattr(node, "state", None)
-    tainted = False
-    if isinstance(raw, str):
-        from readyagents.firewall.taint import UNTRUSTED, provenance_for_template
-
-        tainted = provenance_for_template(state, raw, node_id=node.id).trust == UNTRUSTED
+    tainted = _state_is_tainted(node, state)
     action = getattr(rule, "on_tainted", "allow") if rule is not None else "allow"
     if tainted and action == "deny":
         raise PolicyDenied(node.id, "tainted state cannot use this decider", rule=rule_id)
@@ -270,6 +265,21 @@ def _route(
         nxt = node.then if matched else node.else_
         return nxt, "then" if matched else "else", low
     return getattr(node, "next", None), "next", low
+
+
+def _state_is_tainted(node: Any, state: Any) -> bool:
+    from readyagents.firewall.taint import UNTRUSTED, provenance_for_template, walk_strings
+
+    raw = getattr(node, "state", None)
+    texts: list[str]
+    if isinstance(raw, str):
+        texts = [raw]
+    else:
+        texts = [text for text in walk_strings(raw) if "{{" in str(text)]
+    return any(
+        provenance_for_template(state, text, node_id=getattr(node, "id", None)).trust == UNTRUSTED
+        for text in texts
+    )
 
 
 def _render_state(raw: Any, run_state: Any) -> Any:

@@ -856,3 +856,89 @@ def test_decide_example_validates_and_dry_runs() -> None:
     assert d1.exit_code == 0, d1.stdout + d1.stderr
     d2 = runner.invoke(app, ["run", path, "--dry-run", "--no-persist"])
     assert d2.exit_code == 0, d2.stdout + d2.stderr
+
+
+def test_redactor_applies_to_vendor_body_not_cassette_digest(
+    tmp_settings, tmp_path: Path, monkeypatch
+) -> None:
+    """ctx.redactor mutates the request body; record/replay digest the pre-redact state."""
+    from readyagents.policy import REDACTED, Redactor
+    from readyagents.replay.cassette import Cassette
+    from readyagents.testing.helpers import run_workflow_spec
+
+    email = "ada@x.test"
+    captured: dict[str, Any] = {}
+
+    def exchange(url, *, method, body, headers, timeout):
+        captured["body"] = json.loads(body.decode("utf-8"))
+        payload = {
+            "model": "jev-1.13.0",
+            "answers": {
+                "department": {"type": "choice", "choice": "technical", "confidence": 0.9},
+                "is_urgent": {"type": "noul", "noul": 0.99, "confidence": 0.98},
+            },
+            "usage": {"input_tokens": 8, "output_tokens": 1},
+        }
+        return 200, json.dumps(payload).encode("utf-8"), {}
+
+    jev = JevDecider(SECRET, sleep=lambda _s: None)
+    monkeypatch.setattr("readyagents.decide.node.get_decider", lambda *a, **k: (jev, "jev-1.13.0"))
+    spec = _triage_spec()
+    spec["inputs"]["message"] = f"checkout is down, ping {email}"
+    tape = Cassette.new(run_id="r1", workflow="triage")
+    token = use_transport(exchange)
+    try:
+        first = run_workflow_spec(
+            spec,
+            pin_home=tmp_settings.home_path(),
+            workflow_dir=tmp_path,
+            cassette=tape,
+            recording=True,
+            redactor=Redactor(),
+        )
+    finally:
+        reset_transport(token)
+    assert first.output_keys["summary"] == "page"
+    sent = json.dumps(captured["body"])
+    assert email not in sent
+    assert REDACTED in sent
+
+    path = tmp_path / "c.json"
+    tape.save(path, root=tmp_path)
+    assert email not in path.read_text(encoding="utf-8")
+
+    def boom(*_a, **_k):
+        raise AssertionError("offline replay must not construct a decider")
+
+    monkeypatch.setattr("readyagents.decide.node.get_decider", boom)
+    loaded = Cassette.load(path)
+    second = run_workflow_spec(
+        spec,
+        pin_home=tmp_settings.home_path(),
+        workflow_dir=tmp_path,
+        cassette=loaded,
+        offline=True,
+        redactor=Redactor(),
+    )
+    assert second.output_keys["summary"] == "page"
+
+
+def test_decide_cancellation_before_call(tmp_settings, tmp_path: Path, monkeypatch) -> None:
+    from readyagents.errors import CancellationRequested
+    from readyagents.testing.helpers import run_workflow_spec
+    from readyagents.workflow.cancellation import CancellationToken
+
+    token = CancellationToken()
+    token.request(reason="stop")
+
+    def getter(*_a, **_k):
+        raise AssertionError("cancellation must run before constructing a decider")
+
+    monkeypatch.setattr("readyagents.decide.node.get_decider", getter)
+    with pytest.raises(CancellationRequested):
+        run_workflow_spec(
+            _triage_spec(),
+            pin_home=tmp_settings.home_path(),
+            workflow_dir=tmp_path,
+            cancellation=token,
+        )
