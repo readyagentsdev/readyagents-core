@@ -38,6 +38,7 @@ labels, not switches — experimental code runs exactly as it runs today.
 | [Memory](memory.md) | `memory`, `type: memory` | preview | Local JSON/SQLite, BM25, TTL/forget — untrusted; delayed injection and scope escape first; not a quality claim. |
 | [Knowledge pipelines](knowledge.md) | `knowledge`, `type: ingest` | experimental | Citations and freshness; not a retrieval-quality claim; plain memory writes unchanged. |
 | [Data pipelines](data-pipelines.md) | `table`, `type: table`, `type: classify` | experimental | Deterministic ops and remainder-only classify; not a warehouse; `json_get`/`foreach` defaults unchanged. |
+| [Typed decisions](decisions.md) | `type: decide` | experimental | System One deciders (TypeSafe Jev) for typed, confidence-gated branching; a keyless `shim` keeps workflows runnable without a vendor key. Confidence is a calibration margin, not a correctness or safety guarantee. Unrelated to the CLI verb `readyagents decide` (external approval injection). |
 | [Multimodal I/O](multimodal.md) | `type: document`, `type: transcribe` | experimental | Plumbing and governance for image/pdf/audio extras; not extraction accuracy, not an OCR claim; text-only runs unchanged. |
 
 ## Agent capability

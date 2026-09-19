@@ -574,14 +574,25 @@ def _execute_with_policy(node: NodeSpec, state: RunState, ctx: ExecutionContext)
 def _uses_explicit_routing(workflow: WorkflowSpec) -> bool:
     if workflow.edges:
         return True
-    return any(n.next or n.then or n.else_ for n in workflow.nodes)
+    return any(
+        n.next
+        or n.then
+        or n.else_
+        or (str(n.type) == NodeType.decide.value and (n.routes or n.route_on))
+        for n in workflow.nodes
+    )
 
 
 def _next_node(workflow: WorkflowSpec, node: NodeSpec, state: RunState) -> str | None:
     nxt = (state.metadata or {}).pop("quarantine_next", None)
     if isinstance(nxt, str) and nxt.strip():
         return nxt.strip()
-    if str(node.type) in {NodeType.condition.value, NodeType.approval.value, NodeType.wait.value}:
+    if str(node.type) in {
+        NodeType.condition.value,
+        NodeType.approval.value,
+        NodeType.wait.value,
+        NodeType.decide.value,
+    }:
         output = state.node_outputs.get(node.id) or {}
         nxt = output.get("next") if isinstance(output, dict) else None
         return nxt

@@ -135,6 +135,7 @@ packages = ["src/readyagents"]
 "examples/connectors/support.yaml" = "readyagents/examples/connectors/support.yaml"
 "examples/contract_reshape.yaml" = "readyagents/examples/contract_reshape.yaml"
 "examples/converse_order.yaml" = "readyagents/examples/converse_order.yaml"
+"examples/decide_triage.yaml" = "readyagents/examples/decide_triage.yaml"
 "examples/document_pages.yaml" = "readyagents/examples/document_pages.yaml"
 "examples/env/echo.yaml" = "readyagents/examples/env/echo.yaml"
 "examples/env/readyagents.env.yaml" = "readyagents/examples/env/readyagents.env.yaml"

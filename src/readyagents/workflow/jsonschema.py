@@ -168,6 +168,24 @@ NODE_TYPE_FIELDS: dict[NodeType, tuple[str, ...]] = {
     NodeType.skill: ("skill", "inputs", "script", "limits", "contract"),
     NodeType.browser: ("allow", "credentials", "session", "limits", "actions"),
     NodeType.converse: ("say", "expect", "mode", "roles", "history", "then", "next"),
+    NodeType.decide: (
+        "decider",
+        "state",
+        "questions",
+        "min_confidence",
+        "on_low_confidence",
+        "route_on",
+        "routes",
+        "threshold",
+        "then",
+        "else",
+        "next",
+        "default",
+        "output_key",
+        "model",
+        "limits",
+        "contract",
+    ),
 }
 
 NODE_TYPE_REQUIRED: dict[NodeType, tuple[str, ...]] = {
@@ -190,6 +208,7 @@ NODE_TYPE_REQUIRED: dict[NodeType, tuple[str, ...]] = {
     NodeType.skill: ("skill",),
     NodeType.browser: ("allow", "actions"),
     NodeType.converse: ("say",),
+    NodeType.decide: ("questions", "state"),
 }
 
 _PYTHON_ONLY_ALIASES: Final[tuple[str, ...]] = ("else_", "from_", "call_inputs")

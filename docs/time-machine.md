@@ -22,6 +22,11 @@ readyagents eval frozen-calc/case.yaml
 `--out` must stay under the workspace (usually the current directory). An absolute
 path such as `/tmp/frozen-calc` is refused.
 
+`type: decide` is **sealed**. Recording is required before `--offline` replay.
+The cassette stores answers (and the answering model / decider), not the
+successor, so editing `routes:` or `min_confidence` and replaying takes the
+new branch. See [decisions.md](decisions.md).
+
 `calc_pipeline` has no LLM. The cassette still exists so `--offline` has a
 file to load. Pure builtins (`calc`, `json_get`, `json_set`, `json_merge`) are
 **recomputed**. `now` is **sealed** when recorded. Freeze does not need

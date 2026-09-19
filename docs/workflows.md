@@ -59,7 +59,7 @@ Many rows of one workflow: [scale.md](scale.md) (`readyagents batch`, opt-in, fo
 | Field | Meaning |
 | --- | --- |
 | `id` | Unique id |
-| `type` | `agent` \| `tool` \| `condition` \| `transform` \| `approval` \| `parallel` \| `include` \| `foreach` \| `a2a` \| `memory` \| `code` \| `team` \| `document` \| `transcribe` \| `ingest` \| `table` \| `classify` \| `wait` \| `skill` \| `browser` \| `converse` |
+| `type` | `agent` \| `tool` \| `condition` \| `transform` \| `approval` \| `parallel` \| `include` \| `foreach` \| `a2a` \| `memory` \| `code` \| `team` \| `document` \| `transcribe` \| `ingest` \| `table` \| `classify` \| `wait` \| `skill` \| `browser` \| `converse` \| `decide` |
 | `next` | Default successor if no edges |
 | `output_key` | Alias for templates (`{{brief}}` instead of `{{write}}`) |
 | `timeout_seconds` | Soft timeout |

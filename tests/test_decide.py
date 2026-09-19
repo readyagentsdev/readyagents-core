@@ -460,3 +460,399 @@ def test_decider_conformance(decider_name: str) -> None:
             ShimDecider(ScriptedLLM()).decide(state=state, questions={}, model="x")
         else:
             FakeDecider().decide(state=state, questions={}, model="fake")
+
+
+def _triage_spec(**extra):
+    node = {
+        "id": "triage",
+        "type": "decide",
+        "state": "{{message}}",
+        "questions": {
+            "department": {
+                "type": "choice",
+                "instructions": "Which team",
+                "criteria": {
+                    "billing": "pay",
+                    "technical": "bugs",
+                    "sales": "price",
+                },
+            },
+            "is_urgent": {"type": "noul", "instructions": "urgent?"},
+        },
+        "output_key": "triage",
+        "route_on": "department",
+        "routes": {
+            "billing": "billing_queue",
+            "technical": "page_oncall",
+            "sales": "sales_inbox",
+        },
+        "default": "human_review",
+    }
+    node.update(extra)
+    return {
+        "name": "triage",
+        "inputs": {"message": "checkout is down"},
+        "start": "triage",
+        "nodes": [
+            node,
+            {
+                "id": "human_review",
+                "type": "transform",
+                "template": "human",
+                "output_key": "summary",
+            },
+            {"id": "page_oncall", "type": "transform", "template": "page", "output_key": "summary"},
+            {
+                "id": "billing_queue",
+                "type": "transform",
+                "template": "bill",
+                "output_key": "summary",
+            },
+            {
+                "id": "sales_inbox",
+                "type": "transform",
+                "template": "sales",
+                "output_key": "summary",
+            },
+            {"id": "done", "type": "transform", "template": "{{summary}}", "output_key": "result"},
+        ],
+    }
+
+
+def _patch_decider(monkeypatch, decision: Decision) -> None:
+    fake = FakeDecider()
+    fake.enqueue(decision)
+
+    def getter(ref=None, **kwargs):
+        return fake, decision.model
+
+    monkeypatch.setattr("readyagents.decide.node.get_decider", getter)
+
+
+def test_decide_dry_run_no_call_zero_spend(tmp_settings, tmp_path: Path) -> None:
+    meter = __import__("readyagents.cost.meter", fromlist=["SpendMeter"]).SpendMeter()
+    fake = FakeDecider()
+
+    def getter(**kwargs):
+        raise AssertionError("dry-run must not construct a decider")
+
+    import readyagents.decide.node as node_mod
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(node_mod, "get_decider", getter)
+    try:
+        from readyagents.testing.helpers import run_workflow_spec
+
+        state = run_workflow_spec(
+            _triage_spec(),
+            pin_home=tmp_settings.home_path(),
+            workflow_dir=tmp_path,
+            dry_run=True,
+            spend_meter=meter,
+        )
+    finally:
+        monkeypatch.undo()
+    assert state.status == "succeeded"
+    assert meter.model_calls == 0
+    assert fake.calls == []
+
+
+def test_decide_routes_choice_and_default(tmp_settings, tmp_path: Path, monkeypatch) -> None:
+    from readyagents.testing.helpers import run_workflow_spec
+
+    decision = Decision(
+        answers={
+            "department": Answer(type="choice", choice="technical", confidence=0.9),
+            "is_urgent": Answer(type="noul", noul=0.99, confidence=0.98),
+        },
+        model="fake",
+        decider="fake",
+        usage={"prompt_tokens": 4, "completion_tokens": 0, "total_tokens": 4},
+    )
+    _patch_decider(monkeypatch, decision)
+    meter = __import__("readyagents.cost.meter", fromlist=["SpendMeter"]).SpendMeter()
+    state = run_workflow_spec(
+        _triage_spec(),
+        pin_home=tmp_settings.home_path(),
+        workflow_dir=tmp_path,
+        spend_meter=meter,
+    )
+    assert state.status == "succeeded"
+    assert state.output_keys["summary"] == "page"
+    assert state.node_outputs["triage"]["routed"] == "page_oncall"
+    assert state.node_outputs["triage"]["answers"]["department"]["value"] == "technical"
+    assert meter.model_calls == 1
+
+    _patch_decider(
+        monkeypatch,
+        Decision(
+            answers={
+                "department": Answer(type="choice", choice="legal", confidence=0.9),
+                "is_urgent": Answer(type="noul", noul=0.1, confidence=0.8),
+            },
+            model="fake",
+            decider="fake",
+        ),
+    )
+    # choice "legal" is invalid at the Decider boundary; FakeDecider default
+    # would still be in-space. Here we inject an out-of-space answer to hit default.
+    state = run_workflow_spec(
+        _triage_spec(),
+        pin_home=tmp_settings.home_path(),
+        workflow_dir=tmp_path,
+    )
+    assert state.output_keys["summary"] == "human"
+
+
+def test_decide_noul_then_else(tmp_settings, tmp_path: Path, monkeypatch) -> None:
+    from readyagents.testing.helpers import run_workflow_spec
+
+    spec = {
+        "name": "noul",
+        "start": "gate",
+        "nodes": [
+            {
+                "id": "gate",
+                "type": "decide",
+                "state": "urgent ping",
+                "questions": {"is_urgent": {"type": "noul", "instructions": "urgent?"}},
+                "route_on": "is_urgent",
+                "threshold": 0.9,
+                "then": "hot",
+                "else": "cold",
+                "output_key": "d",
+            },
+            {"id": "hot", "type": "transform", "template": "HOT", "output_key": "out"},
+            {"id": "cold", "type": "transform", "template": "COLD", "output_key": "out"},
+        ],
+    }
+    _patch_decider(
+        monkeypatch,
+        Decision(
+            answers={"is_urgent": Answer(type="noul", noul=0.95, confidence=0.9)},
+            model="fake",
+            decider="fake",
+        ),
+    )
+    state = run_workflow_spec(spec, pin_home=tmp_settings.home_path(), workflow_dir=tmp_path)
+    assert state.output_keys["out"] == "HOT"
+    _patch_decider(
+        monkeypatch,
+        Decision(
+            answers={"is_urgent": Answer(type="noul", noul=0.1, confidence=0.8)},
+            model="fake",
+            decider="fake",
+        ),
+    )
+    state = run_workflow_spec(spec, pin_home=tmp_settings.home_path(), workflow_dir=tmp_path)
+    assert state.output_keys["out"] == "COLD"
+
+
+def test_decide_min_confidence_and_fail(tmp_settings, tmp_path: Path, monkeypatch) -> None:
+    from readyagents.errors import NodeError
+    from readyagents.testing.helpers import run_workflow_spec
+
+    spec = _triage_spec(min_confidence=0.85, on_low_confidence="human_review")
+    _patch_decider(
+        monkeypatch,
+        Decision(
+            answers={
+                "department": Answer(type="choice", choice="billing", confidence=0.4),
+                "is_urgent": Answer(type="noul", noul=0.99, confidence=0.98),
+            },
+            model="fake",
+            decider="fake",
+        ),
+    )
+    state = run_workflow_spec(spec, pin_home=tmp_settings.home_path(), workflow_dir=tmp_path)
+    assert state.output_keys["summary"] == "human"
+    assert state.node_outputs["triage"]["low_confidence"] == ["department"]
+
+    fail_spec = _triage_spec(min_confidence=0.85, on_low_confidence="fail")
+    _patch_decider(
+        monkeypatch,
+        Decision(
+            answers={
+                "department": Answer(type="choice", choice="billing", confidence=0.4),
+                "is_urgent": Answer(type="noul", noul=0.99, confidence=0.98),
+            },
+            model="fake",
+            decider="fake",
+        ),
+    )
+    with pytest.raises((DecideError, NodeError), match="confidence below"):
+        run_workflow_spec(fail_spec, pin_home=tmp_settings.home_path(), workflow_dir=tmp_path)
+
+
+def test_shim_min_confidence_always_low(tmp_settings, tmp_path: Path) -> None:
+    from readyagents.testing.helpers import run_workflow_spec
+
+    llm = ScriptedLLM().enqueue('{"department": "technical", "is_urgent": 0.99}')
+    spec = _triage_spec(decider="shim", min_confidence=0.01, on_low_confidence="human_review")
+    state = run_workflow_spec(
+        spec, pin_home=tmp_settings.home_path(), workflow_dir=tmp_path, llm=llm
+    )
+    assert state.output_keys["summary"] == "human"
+    assert set(state.node_outputs["triage"]["low_confidence"]) >= {"department", "is_urgent"}
+
+
+def test_decide_schema_validate_errors() -> None:
+    from pydantic import ValidationError
+
+    from readyagents.workflow.schema import WorkflowSpec
+
+    def boom(nodes):
+        WorkflowSpec.model_validate({"name": "x", "nodes": nodes})
+
+    with pytest.raises(ValidationError, match="require 'questions'"):
+        boom([{"id": "n", "type": "decide", "state": "x"}])
+    with pytest.raises(ValidationError, match="require 'state'"):
+        boom(
+            [
+                {
+                    "id": "n",
+                    "type": "decide",
+                    "questions": {"q": {"type": "noul", "instructions": "t"}},
+                }
+            ]
+        )
+    with pytest.raises(ValidationError, match="not a question"):
+        boom(
+            [
+                {
+                    "id": "n",
+                    "type": "decide",
+                    "state": "x",
+                    "questions": {"q": {"type": "noul", "instructions": "t"}},
+                    "route_on": "missing",
+                    "then": "n",
+                    "else": "n",
+                }
+            ]
+        )
+    with pytest.raises(ValidationError, match="mutually exclusive"):
+        boom(
+            [
+                {
+                    "id": "n",
+                    "type": "decide",
+                    "state": "x",
+                    "questions": {
+                        "q": {
+                            "type": "choice",
+                            "instructions": "t",
+                            "criteria": {"a": "A", "b": "B"},
+                        }
+                    },
+                    "route_on": "q",
+                    "routes": {"a": "n"},
+                    "then": "n",
+                }
+            ]
+        )
+    with pytest.raises(ValidationError, match="on_low_confidence requires min_confidence"):
+        boom(
+            [
+                {
+                    "id": "n",
+                    "type": "decide",
+                    "state": "x",
+                    "questions": {"q": {"type": "noul", "instructions": "t"}},
+                    "on_low_confidence": "n",
+                }
+            ]
+        )
+    with pytest.raises(ValidationError, match="not criteria"):
+        boom(
+            [
+                {
+                    "id": "n",
+                    "type": "decide",
+                    "state": "x",
+                    "questions": {
+                        "q": {
+                            "type": "choice",
+                            "instructions": "t",
+                            "criteria": {"a": "A", "b": "B"},
+                        }
+                    },
+                    "route_on": "q",
+                    "routes": {"nope": "n"},
+                    "default": "n",
+                }
+            ]
+        )
+
+
+def test_replay_edited_routes_and_raised_min_confidence(
+    tmp_settings, tmp_path: Path, monkeypatch
+) -> None:
+    from readyagents.replay.cassette import Cassette
+    from readyagents.testing.helpers import run_workflow_spec
+
+    decision = Decision(
+        answers={
+            "department": Answer(type="choice", choice="billing", confidence=0.7),
+            "is_urgent": Answer(type="noul", noul=0.2, confidence=0.6),
+        },
+        model="fake",
+        decider="fake",
+    )
+    _patch_decider(monkeypatch, decision)
+    tape = Cassette.new(run_id="r1", workflow="triage")
+    first = run_workflow_spec(
+        _triage_spec(),
+        pin_home=tmp_settings.home_path(),
+        workflow_dir=tmp_path,
+        cassette=tape,
+        recording=True,
+    )
+    assert first.output_keys["summary"] == "bill"
+    path = tmp_path / "c.json"
+    tape.save(path, root=tmp_path)
+
+    def boom(*_a, **_k):
+        raise AssertionError("offline replay must not construct a decider")
+
+    monkeypatch.setattr("readyagents.decide.node.get_decider", boom)
+    loaded = Cassette.load(path)
+    rerouted = _triage_spec()
+    rerouted["nodes"][0]["routes"] = {
+        "billing": "sales_inbox",
+        "technical": "page_oncall",
+        "sales": "billing_queue",
+    }
+    second = run_workflow_spec(
+        rerouted,
+        pin_home=tmp_settings.home_path(),
+        workflow_dir=tmp_path,
+        cassette=loaded,
+        offline=True,
+    )
+    assert second.output_keys["summary"] == "sales"
+
+    loaded2 = Cassette.load(path)
+    gated = _triage_spec(min_confidence=0.85, on_low_confidence="human_review")
+    third = run_workflow_spec(
+        gated,
+        pin_home=tmp_settings.home_path(),
+        workflow_dir=tmp_path,
+        cassette=loaded2,
+        offline=True,
+    )
+    assert third.output_keys["summary"] == "human"
+
+
+def test_decide_example_validates_and_dry_runs() -> None:
+    from typer.testing import CliRunner
+
+    from readyagents.cli import app
+
+    runner = CliRunner()
+    path = str(Path(__file__).resolve().parents[1] / "examples" / "decide_triage.yaml")
+    v = runner.invoke(app, ["validate", path])
+    assert v.exit_code == 0, v.stdout + v.stderr
+    d1 = runner.invoke(app, ["run", path, "--dry-run", "--no-persist"])
+    assert d1.exit_code == 0, d1.stdout + d1.stderr
+    d2 = runner.invoke(app, ["run", path, "--dry-run", "--no-persist"])
+    assert d2.exit_code == 0, d2.stdout + d2.stderr
