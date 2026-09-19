@@ -67,6 +67,6 @@ def _cassette(state: Any) -> Cassette | None:
     if isinstance(raw, str) and raw.strip() and Path(raw).is_file():
         try:
             return Cassette.load(raw)
-        except Exception:  # noqa: BLE001
+        except Exception:
             return None
     return None

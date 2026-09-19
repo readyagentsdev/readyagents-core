@@ -242,7 +242,7 @@ def _redact(text: str) -> str:
             patterns=settings.redact_pattern_list(),
             literals=settings.redact_literal_list(),
         )
-    except Exception:  # noqa: BLE001 — excerpts must still redact if settings fail
+    except Exception:
         configured = None
     active = configured if configured is not None else Redactor()
     return active.redact_text(text)

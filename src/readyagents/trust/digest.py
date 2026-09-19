@@ -88,7 +88,7 @@ def digest_workflow(
 
 
 class IncludeEntry:
-    __slots__ = ("path", "resolved", "digest", "source_text", "includes")
+    __slots__ = ("digest", "includes", "path", "resolved", "source_text")
 
     def __init__(
         self,
@@ -110,7 +110,7 @@ class IncludeEntry:
 
 
 class WorkflowDigest:
-    __slots__ = ("path", "digest", "kind", "document", "includes", "source_text")
+    __slots__ = ("digest", "document", "includes", "kind", "path", "source_text")
 
     def __init__(
         self,

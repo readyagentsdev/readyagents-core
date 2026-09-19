@@ -270,7 +270,7 @@ class _OverlappingLLM:
         self._barrier = threading.Barrier(parties, timeout=5)
         self.calls = inner.calls
 
-    def complete(self, messages, *, model, tools=None, **kwargs):  # noqa: ANN001
+    def complete(self, messages, *, model, tools=None, **kwargs):
         self._barrier.wait()
         time.sleep(0.15)
         return self._inner.complete(messages, model=model, tools=tools, **kwargs)

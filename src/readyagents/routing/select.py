@@ -381,7 +381,7 @@ def _distill_pin(
 
         settings = getattr(ctx, "settings", None) if ctx is not None else None
         pin = pin_for(node.id, settings=settings)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
     if not pin:
         return None

@@ -1,14 +1,17 @@
-.PHONY: test lint run-example fmt install smoke ci schema-check
+.PHONY: test lint typecheck run-example fmt install smoke ci schema-check
 
 install:
 	python -m pip install -e ".[dev]"
 
 test:
-	python -m pytest
+	python -m pytest -n auto
 
 lint:
 	ruff check src tests
 	ruff format --check src tests
+
+typecheck:
+	python scripts/typecheck.py
 
 fmt:
 	ruff check --fix src tests
@@ -26,4 +29,4 @@ smoke:
 schema-check:
 	readyagents schema --check schemas/workflow-v1.json
 
-ci: lint schema-check test smoke
+ci: lint typecheck schema-check test smoke

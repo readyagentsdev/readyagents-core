@@ -7,4 +7,4 @@ from readyagents.browser.protocol import (
     parse_actions,
 )
 
-__all__ = ["BrowserDriver", "DECLARED_ACTIONS", "parse_action", "parse_actions"]
+__all__ = ["DECLARED_ACTIONS", "BrowserDriver", "parse_action", "parse_actions"]

@@ -88,7 +88,7 @@ def test_allowlisted_private_host_permitted_and_recorded() -> None:
     try:
         from readyagents.sovereign import egress as eg
 
-        def _ok(self, address, *args, **kwargs):  # noqa: ANN001
+        def _ok(self, address, *args, **kwargs):
             return None
 
         eg._orig_connect = _ok
@@ -122,7 +122,7 @@ def test_thread_and_pack_direct_connect_refused() -> None:
     def _worker() -> None:
         try:
             socket.create_connection(("1.1.1.1", 443), timeout=0.2)
-        except BaseException as extra:  # noqa: BLE001
+        except BaseException as extra:
             caught.append(extra)
 
     try:
@@ -143,7 +143,7 @@ def test_guard_removed_after_run(tmp_settings) -> None:
     assert active_guard() is None
     reached = {"ok": False}
 
-    def _ok(*_a, **_k):  # noqa: ANN002
+    def _ok(*_a, **_k):
         reached["ok"] = True
         raise OSError("refused")
 
@@ -402,7 +402,7 @@ def test_write_bundle_fails_when_pip_download_fails(
     dest = tmp_path / "offline"
     real = subprocess.run
 
-    def fake(cmd, *args, **kwargs):  # noqa: ANN001, ANN002
+    def fake(cmd, *args, **kwargs):
         if isinstance(cmd, (list, tuple)) and "download" in cmd:
             return subprocess.CompletedProcess(list(cmd), 1, stdout="", stderr="download exploded")
         return real(cmd, *args, **kwargs)
@@ -519,7 +519,7 @@ def test_concurrent_install_guard_is_refcounted() -> None:
         try:
             held.set()
             finish.wait(timeout=5)
-        except BaseException as extra:  # noqa: BLE001
+        except BaseException as extra:
             errors.append(extra)
         finally:
             guard.close()

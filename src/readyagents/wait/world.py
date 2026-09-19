@@ -87,9 +87,9 @@ def _run_status(ctx: Any, run_id: str) -> str:
                 closer = getattr(opened, "close", None)
                 if callable(closer):
                     closer()
-        except Exception:  # noqa: BLE001
+        except Exception:
             return ""
     try:
         return str(store.get(run_id, allow_prefix=True).state.status)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return ""

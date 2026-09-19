@@ -105,7 +105,7 @@ def list_adapters(settings: Settings | None = None) -> list[AdapterRecord]:
             continue
         try:
             rows.append(AdapterRecord.model_validate(json.loads(rec.read_text(encoding="utf-8"))))
-        except Exception:  # noqa: BLE001
+        except Exception:
             continue
     return rows
 

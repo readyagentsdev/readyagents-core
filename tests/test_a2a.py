@@ -305,6 +305,39 @@ def _a2a_client(
             shutdown()
 
 
+def test_a2a_coordinator_records_started_by_kind(tmp_path: Path, tmp_settings) -> None:
+    """Drive serve_a2a's RunCoordinator construction, not run_workflow_file(started_by=...)."""
+    from readyagents.mcp.run_api import RunCoordinator
+
+    fresh = RunCoordinator(settings=tmp_settings, workspace=tmp_path)
+    try:
+        assert fresh.started_by_kind == "mcp"
+    finally:
+        fresh.shutdown(timeout=2.0)
+
+    wf = tmp_path / "workflow.yaml"
+    wf.write_text(
+        "name: t\nstart: a\nnodes:\n  - id: a\n    type: transform\n    template: 'ok'\n",
+        encoding="utf-8",
+    )
+    coordinator = RunCoordinator(settings=tmp_settings, workspace=wf.parent)
+    coordinator.started_by_kind = "a2a"
+    try:
+        handle = coordinator.start_run({"path": wf.name})
+        run_id = handle["run_id"]
+        deadline = time.monotonic() + 10.0
+        record: dict[str, Any] = {}
+        while time.monotonic() < deadline:
+            record = coordinator.get_run(run_id)
+            if record.get("status") in {"succeeded", "failed", "cancelled", "paused"}:
+                break
+            time.sleep(0.05)
+        assert record.get("status") == "succeeded", record
+        assert record["metadata"]["started_by"]["kind"] == "a2a"
+    finally:
+        coordinator.shutdown(timeout=2.0)
+
+
 def _client_exchange(client) -> Any:
     def exchange(
         url: str,

@@ -44,7 +44,7 @@ def known_secret_values(settings: Any, secrets: Any = None) -> list[str]:
                 for item in listing():
                     if isinstance(item, str) and item.strip():
                         found.append(item.strip())
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         elif isinstance(secrets, Mapping):
             for item in secrets.values():

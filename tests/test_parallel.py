@@ -43,7 +43,7 @@ def test_parallel_runs_independent_tools() -> None:
             ],
         }
     )
-    tools = default_registry(allow_http=False, workspace=Path("."))
+    tools = default_registry(allow_http=False, workspace=Path())
     state = run_workflow(spec, {}, ExecutionContext(spec, tools))
     assert state.status == "succeeded"
     assert state.output_keys["parts"]["a"] == 4

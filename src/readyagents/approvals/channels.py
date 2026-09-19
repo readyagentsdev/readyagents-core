@@ -52,7 +52,7 @@ def notify_channels(
                 _run_command(spec, payload)
             elif kind == "webhook":
                 _post_webhook(spec, payload)
-        except Exception as extra:  # noqa: BLE001
+        except Exception as extra:
             key = f"{kind}:{run_id}:{node_id}"
             if key not in seen_fail:
                 seen_fail.add(key)

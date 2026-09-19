@@ -73,6 +73,6 @@ def sync_workflow(
 def _walk_ids(source: Any, workspace: Path) -> set[str]:
     try:
         files = walk_source(source, workspace=workspace)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return set()
     return {str(item["document_id"]) for item in files}

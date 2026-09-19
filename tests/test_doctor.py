@@ -15,7 +15,7 @@ runner = CliRunner()
 
 
 def test_doctor_json_envelope_and_socket_guard(monkeypatch: pytest.MonkeyPatch) -> None:
-    def boom(*_a, **_k):  # noqa: ANN002
+    def boom(*_a, **_k):
         raise AssertionError("network")
 
     monkeypatch.setattr(socket, "create_connection", boom)

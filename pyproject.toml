@@ -59,7 +59,10 @@ table = ["pandas>=2.0", "pyarrow>=14"]
 all = ["openai>=1.40", "anthropic>=0.34", "mcp>=1.2,<3"]
 dev = [
     "pytest>=8.0",
+    "pytest-xdist>=3.6",
     "ruff>=0.6",
+    "mypy==2.3.1",
+    "mypy-baseline==0.7.4",
     "build>=1.2",
     "openai>=1.40",
     "anthropic>=0.34",
@@ -194,17 +197,67 @@ include = [
 testpaths = ["tests"]
 addopts = "-q"
 
+[tool.mypy]
+files = ["src/readyagents"]
+ignore_missing_imports = true
+show_error_codes = true
+pretty = false
+warn_unused_configs = true
+
+[tool.mypy-baseline]
+baseline_path = "baselines/mypy-baseline.txt"
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+select = ["E", "F", "I", "UP", "B", "S", "SIM", "PTH", "RUF"]
+# Deferred style/false-positive codes. One reviewable list: baselines/ruff.md.
+# Do not add a spray of # noqa in src. Burn these down after mypy union-attr.
+ignore = [
+    "SIM102",
+    "SIM103",
+    "SIM105",
+    "SIM108",
+    "SIM115",
+    "SIM117",
+    "SIM222",
+    "SIM401",
+    "RUF001",
+    "RUF003",
+    "RUF005",
+    "RUF007",
+    "RUF012",
+    "RUF015",
+    "RUF034",
+    "RUF043",
+    "RUF046",
+    "RUF059",
+    "S101",
+    "S104",
+    "S105",
+    "S106",
+    "S107",
+    "S110",
+    "S112",
+    "PTH101",
+    "PTH105",
+    "PTH123",
+    "PTH208",
+]
 
 [tool.ruff.lint.per-file-ignores]
+"src/readyagents/__init__.py" = ["RUF022"]
 "src/readyagents/cli/*" = ["B008"]
 "src/readyagents/cli/__init__.py" = ["B008", "E402", "F401"]
 "src/readyagents/registry/cli.py" = ["B008"]
 "src/readyagents/distill/cli.py" = ["B008"]
-"tests/**" = ["B018", "E501"]
+"src/readyagents/packs/loader.py" = ["S102"]
+"src/readyagents/skills/install.py" = ["S202"]
+"src/readyagents/mcp/probe.py" = ["S310"]
+"src/readyagents/simulate/generate.py" = ["S311"]
+"src/readyagents/sovereign/bundle.py" = ["S603"]
+"src/readyagents/code/runner.py" = ["S607"]
+"tests/**" = ["B018", "E501", "S102", "S108", "S310", "S603", "S607"]

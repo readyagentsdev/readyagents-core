@@ -44,7 +44,7 @@ def apply_redaction_bytes(
         if detector is None:
             try:
                 detector = _pillow_detector()
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 raise MediaError(missing_extra_message("image detection", "image")) from exc
         found = detector(None, data) or []
         for item in found:

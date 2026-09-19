@@ -110,5 +110,5 @@ def _fingerprints(name: str, settings: Any) -> list[str] | None:
             if fp is not None:
                 rows.append(fp.id)
         return rows or None
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None

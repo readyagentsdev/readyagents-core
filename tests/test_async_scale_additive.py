@@ -96,7 +96,7 @@ def test_approval_gate_pauses_then_resume(tmp_path: Path, monkeypatch) -> None:
     resumed = runner.invoke(app, ["resume", run_id, "--approve", "gate", "--json"])
     assert resumed.exit_code == 0, resumed.stdout + resumed.stderr
     done = _payload(resumed.stdout)
-    assert _RUN_JSON_KEYS <= set(done)
+    assert set(done) >= _RUN_JSON_KEYS
     assert done["status"] == "succeeded"
     assert done["ok"] is True
     assert "approval_gate ok" in str(done.get("outputs") or done.get("output_keys") or "")

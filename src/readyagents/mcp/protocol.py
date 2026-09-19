@@ -64,7 +64,7 @@ def package_version() -> str:
         from readyagents import __version__
 
         return str(__version__)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return "0.0.0"
 
 
@@ -308,7 +308,7 @@ def jsonrpc_result(
 def sdk_capability() -> dict[str, Any]:
     """What the installed ``mcp`` extra can honour. Never imports 2.x-only names at module load."""
     try:
-        import mcp  # noqa: F401
+        import mcp
     except ImportError:
         return {"package": "mcp", "version": None, "tier": "absent"}
     version: str | None = None
@@ -316,7 +316,7 @@ def sdk_capability() -> dict[str, Any]:
         from importlib.metadata import version as dist_version
 
         version = dist_version("mcp")
-    except Exception:  # noqa: BLE001
+    except Exception:
         version = getattr(mcp, "__version__", None)
     has_server = False
     has_fast = False

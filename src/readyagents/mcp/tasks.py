@@ -281,7 +281,7 @@ class TaskService:
             return
         try:
             audit_dir = settings.audit_dir()
-        except Exception:  # noqa: BLE001
+        except Exception:
             return
         payload = {"event": event, **fields}
         redactor = self._redactor()

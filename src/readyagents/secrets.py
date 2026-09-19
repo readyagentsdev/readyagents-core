@@ -71,7 +71,7 @@ def lookup_secret(
             continue
         try:
             value = getter(key)
-        except Exception:  # noqa: BLE001
+        except Exception:
             continue
         if value is None:
             continue

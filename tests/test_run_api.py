@@ -760,7 +760,7 @@ def test_cancel_inactive_queued_run_does_not_deadlock(tmp_settings) -> None:
     def _cancel() -> None:
         try:
             box["out"] = coord.cancel(run_id, {"actor": "tester"})
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             box["err"] = exc
 
     thread = threading.Thread(target=_cancel, name="cancel-inactive")

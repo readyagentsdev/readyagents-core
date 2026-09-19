@@ -79,9 +79,11 @@ def sanitise_claims(
         if name not in claims:
             continue
         raw = claims[name]
-        if isinstance(raw, bool) or raw is None:
-            out[name] = raw
-        elif isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        if (
+            isinstance(raw, bool)
+            or raw is None
+            or (isinstance(raw, (int, float)) and not isinstance(raw, bool))
+        ):
             out[name] = raw
         elif isinstance(raw, list):
             cleaned = [sanitise_text(item, max_len=64) for item in raw[:32]]

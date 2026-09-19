@@ -161,7 +161,7 @@ def _records(df: Any, names: list[str]) -> list[dict[str, Any]]:
             if hasattr(value, "item"):
                 try:
                     value = value.item()
-                except Exception:  # noqa: BLE001
+                except Exception:
                     pass
             if isinstance(value, float) and value != value:
                 value = None

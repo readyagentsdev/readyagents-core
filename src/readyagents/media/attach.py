@@ -81,7 +81,7 @@ def resolve_media_list(
                 path = stripped[2:-2].strip().split("|", 1)[0].strip()
                 try:
                     value = lookup(ns, path)
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     raise TemplateError(str(exc)) from exc
             else:
                 value = interpolate(item, ns)

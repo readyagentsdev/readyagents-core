@@ -80,7 +80,7 @@ def extract_with_pypdf(data: bytes, *, max_pages: int) -> list[dict[str, Any]] |
     try:
         reader = PdfReader(io.BytesIO(data), strict=False)
         used = len(reader.pages)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise MediaMalformed(f"malformed PDF container: {exc}") from exc
     if used > max_pages:
         raise MediaPageLimitExceeded(used, max_pages)
@@ -88,7 +88,7 @@ def extract_with_pypdf(data: bytes, *, max_pages: int) -> list[dict[str, Any]] |
     for index, page in enumerate(reader.pages):
         try:
             text = page.extract_text() or ""
-        except Exception:  # noqa: BLE001
+        except Exception:
             text = ""
         pages.append({"index": index, "page": index + 1, "text": text})
     return pages
@@ -134,7 +134,7 @@ def _page_pixels(pdf_bytes: bytes, index: int, *, dpi: int) -> tuple[int, int]:
         box = page.mediabox
         width_pt = float(box.width)
         height_pt = float(box.height)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return int(8.5 * dpi), int(11 * dpi)
     return max(1, int(width_pt * dpi / 72)), max(1, int(height_pt * dpi / 72))
 

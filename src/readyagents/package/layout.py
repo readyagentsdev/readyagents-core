@@ -9,15 +9,15 @@ from __future__ import annotations
 from readyagents.trust.digest import KIND_INDEX, KIND_PACKAGE
 
 __all__ = [
-    "KIND_INDEX",
-    "KIND_PACKAGE",
-    "KIND_MEMBER",
-    "MANIFEST_NAME",
-    "LOCK_NAME",
-    "OVERLAY_NAME",
     "ARCHIVE_SUFFIX",
-    "INDEX_NAME",
     "CATALOG",
+    "INDEX_NAME",
+    "KIND_INDEX",
+    "KIND_MEMBER",
+    "KIND_PACKAGE",
+    "LOCK_NAME",
+    "MANIFEST_NAME",
+    "OVERLAY_NAME",
 ]
 
 MANIFEST_NAME = "readyagents.pkg.yaml"

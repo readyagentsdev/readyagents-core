@@ -117,7 +117,7 @@ def make_chat_server(
                 raise SessionRefused("body must be an object", reason="body")
             return data
 
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             parsed = urlparse(self.path)
             path = parsed.path.rstrip("/") or "/"
             if widget and path in {"/", "/widget", "/widget/"}:
@@ -153,7 +153,7 @@ def make_chat_server(
                 return
             self._reject()
 
-        def do_POST(self) -> None:  # noqa: N802
+        def do_POST(self) -> None:
             if not self._auth():
                 self._reject()
                 return
@@ -267,7 +267,7 @@ def make_chat_server(
                 from readyagents.policy import redactor_from_settings
 
                 redactor = redactor_from_settings(settings)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 redactor = None
             pieces = list(say) if say else []
             chunks = redact_chunks(pieces, redactor) if pieces else []

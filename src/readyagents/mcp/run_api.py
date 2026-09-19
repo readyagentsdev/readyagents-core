@@ -59,7 +59,7 @@ _REJECT = "reject"
 class _OneShotDecisions(dict):
     """MCP-originated decisions apply to one occurrence, not every later loop."""
 
-    def get(self, key, default=None):  # noqa: ANN001
+    def get(self, key, default=None):
         if key in self:
             return self.pop(key)
         return default
@@ -70,7 +70,7 @@ def _default_max_body() -> int:
         from readyagents.config import MAX_HTTP_BODY_BYTES
 
         return int(MAX_HTTP_BODY_BYTES)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return 1_048_576
 
 
@@ -81,7 +81,7 @@ def _error_type(name: str, fallback: type[ReadyAgentsError]) -> type[ReadyAgents
         found = getattr(errmod, name, None)
         if isinstance(found, type) and issubclass(found, BaseException):
             return found
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
     return fallback
 
@@ -339,6 +339,8 @@ class _RateLimiter:
 class RunCoordinator:
     """In-process run queue, idempotency, and HTTP handlers for ``/runs``."""
 
+    started_by_kind: str = "mcp"
+
     def __init__(
         self,
         *,
@@ -354,6 +356,7 @@ class RunCoordinator:
         root = workspace if workspace is not None else bound.workspace_path()
         self.workspace = Path(root).expanduser().resolve()
         self.settings = bound.model_copy(update={"workspace": self.workspace})
+        self.started_by_kind = "mcp"
         self.max_concurrent_runs = max(1, int(max_concurrent_runs))
         self.max_pending_runs = max(0, int(max_pending_runs))
         self.max_body_bytes = int(max_body_bytes) if max_body_bytes else _default_max_body()
@@ -412,7 +415,7 @@ class RunCoordinator:
         for token in tokens:
             try:
                 token.request(actor="system", reason="shutdown")
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         self._executor.shutdown(wait=False, cancel_futures=True)
         self._resume_pool.shutdown(wait=False, cancel_futures=True)
@@ -420,7 +423,7 @@ class RunCoordinator:
         if callable(closer):
             try:
                 closer()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         deadline = time.monotonic() + max(0.0, float(timeout))
         while time.monotonic() < deadline:
@@ -483,7 +486,7 @@ class RunCoordinator:
                 "Cache-Control": "no-store",
             }
             return 202, headers, body
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             return self._caught(exc, request_id=request_id)
 
     def handle_get(
@@ -498,7 +501,7 @@ class RunCoordinator:
                 body = dict(body)
                 body["request_id"] = request_id
             return 200, {"Cache-Control": "no-store"}, body
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             return self._caught(exc, request_id=request_id, run_id=run_id)
 
     def handle_decide(
@@ -518,7 +521,7 @@ class RunCoordinator:
                 body = dict(body)
                 body["request_id"] = request_id
             return 202, {"Cache-Control": "no-store"}, body
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             return self._caught(exc, request_id=request_id, run_id=run_id)
 
     def handle_cancel(
@@ -538,7 +541,7 @@ class RunCoordinator:
                 body["request_id"] = request_id
             status = 200 if body.get("status") in _TERMINAL else 202
             return status, {"Cache-Control": "no-store"}, body
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             return self._caught(exc, request_id=request_id, run_id=run_id)
 
     def check_rate(self, client_host: str | None) -> None:
@@ -844,7 +847,7 @@ class RunCoordinator:
                 initial_state=state,
                 store=self._store,
                 stream=session,
-                started_by={"kind": getattr(self, "started_by_kind", "mcp")},
+                started_by={"kind": self.started_by_kind},
             )
         except ApprovalRequired:
             paused = True
@@ -971,7 +974,7 @@ class RunCoordinator:
                 state.metadata = meta
                 try:
                     self._persist(state)
-                except Exception as extra:  # noqa: BLE001
+                except Exception as extra:
                     from readyagents.errors import RunStoreConflict
 
                     with self._lock:
@@ -1114,7 +1117,7 @@ class RunCoordinator:
             state.finish("cancelled")
             try:
                 self._persist(state)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.exception("failed to persist cancelled run %s", run_id)
 
     def _mark_failed(self, run_id: str, message: str) -> None:
@@ -1129,7 +1132,7 @@ class RunCoordinator:
             state.finish("failed")
             try:
                 self._persist(state)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.exception("failed to persist failed run %s", run_id)
 
 

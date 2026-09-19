@@ -37,7 +37,7 @@ def discover_packs() -> list[Pack]:
             log.debug("Loaded pack %s %s", pack.name, pack.version)
         except ConfigError:
             raise
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise ConfigError(f"Failed to load pack '{ep.name}': {exc}") from exc
     return packs
 

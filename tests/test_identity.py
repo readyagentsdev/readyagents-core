@@ -174,7 +174,7 @@ def test_skew_boundary_accepts_inside_and_refuses_outside(
 
     class _FrozenDateTime(real_datetime):
         @classmethod
-        def now(cls, tz=None):  # noqa: ANN001
+        def now(cls, tz=None):
             if tz is None:
                 return frozen.replace(tzinfo=None)
             return frozen.astimezone(tz)

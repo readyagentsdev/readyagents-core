@@ -417,7 +417,7 @@ def load_settings(*, env_file: tuple[Path, ...] | None = None) -> Settings:
     files = env_file if env_file is not None else _env_files()
     try:
         return Settings(_env_file=files)  # type: ignore[call-arg]
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise ConfigError(f"Failed to load settings: {exc}") from exc
 
 

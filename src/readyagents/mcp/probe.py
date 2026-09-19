@@ -80,7 +80,7 @@ def probe_server(
             }
     except MCPError:
         raise
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
     init_body = {
         "jsonrpc": "2.0",
@@ -100,7 +100,7 @@ def probe_server(
         init_headers["Authorization"] = f"Bearer {bearer}"
     try:
         payload = _post_json(target, init_body, headers=init_headers, timeout=timeout)
-    except Exception as err:  # noqa: BLE001
+    except Exception as err:
         raise MCPError(f"mcp probe failed: {err}") from err
     result = payload.get("result") if isinstance(payload, dict) else None
     if not isinstance(result, dict):

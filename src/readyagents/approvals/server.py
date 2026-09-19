@@ -101,22 +101,22 @@ def serve_approvals(
 
 def _make_handler(application: ApprovalApplication) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             self._dispatch()
 
-        def do_POST(self) -> None:  # noqa: N802
+        def do_POST(self) -> None:
             self._dispatch()
 
-        def do_HEAD(self) -> None:  # noqa: N802
+        def do_HEAD(self) -> None:
             self._dispatch()
 
-        def do_PUT(self) -> None:  # noqa: N802
+        def do_PUT(self) -> None:
             self._dispatch()
 
-        def do_DELETE(self) -> None:  # noqa: N802
+        def do_DELETE(self) -> None:
             self._dispatch()
 
-        def do_PATCH(self) -> None:  # noqa: N802
+        def do_PATCH(self) -> None:
             self._dispatch()
 
         def _dispatch(self) -> None:
@@ -141,7 +141,7 @@ def _make_handler(application: ApprovalApplication) -> type[BaseHTTPRequestHandl
             if self.command != "HEAD":
                 self.wfile.write(response.body)
 
-        def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
+        def log_message(self, format: str, *args: Any) -> None:
             # Never log query strings (bootstrap token) or cookie/token material.
             path = urlparse(self.path).path
             sys.stderr.write(f"{self.address_string()} - {path}\n")

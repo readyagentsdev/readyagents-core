@@ -19,8 +19,8 @@ __all__ = [
     "barge_in",
     "close_session",
     "freeze_session",
-    "reply_session",
     "replay_session",
+    "reply_session",
     "sessions_dir",
     "start_session",
 ]

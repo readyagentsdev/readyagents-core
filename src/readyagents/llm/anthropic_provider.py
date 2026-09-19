@@ -82,7 +82,7 @@ class AnthropicProvider:
             return self._from_response(response, model=model)
         except LLMError:
             raise
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self._note_rate_limit(exc)
             raise LLMError(f"Anthropic request failed: {exc}") from exc
 
@@ -108,7 +108,7 @@ class AnthropicProvider:
             return self._from_response(response, model=model)
         except LLMError:
             raise
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self._note_rate_limit(exc)
             raise LLMError(f"Anthropic request failed: {exc}") from exc
 

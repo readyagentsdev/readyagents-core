@@ -49,7 +49,7 @@ def emit_event(observers: Sequence[Any] | None, event: RunEvent, *, redactor: An
             continue
         try:
             handler(event)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             message = str(exc)
             scrubber = redactor
             if scrubber is None:
@@ -78,7 +78,7 @@ def shutdown_observers(observers: Sequence[Any] | None, *, redactor: Any = None)
             continue
         try:
             handler()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             message = str(exc)
             if redactor is not None and hasattr(redactor, "redact_text"):
                 message = redactor.redact_text(message)

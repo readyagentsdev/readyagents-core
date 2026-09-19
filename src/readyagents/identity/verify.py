@@ -47,7 +47,7 @@ def verify_token(
         raise IdentityError(f"identity token exceeds {MAX_TOKEN_BYTES} bytes")
     try:
         header = jwt.get_unverified_header(raw)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise IdentityError(f"malformed identity token: {exc}") from exc
     if not isinstance(header, dict):
         raise IdentityError("malformed identity token header")
@@ -58,7 +58,7 @@ def verify_token(
         raise IdentityError(f"identity token refused: algorithm '{alg}' is not allowed")
     try:
         unverified = jwt.decode(raw, options={"verify_signature": False, "verify_exp": False})
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise IdentityError(f"malformed identity token payload: {exc}") from exc
     if not isinstance(unverified, dict):
         raise IdentityError("malformed identity token payload")
@@ -144,7 +144,7 @@ def _key_for_kid(jwks: dict[str, Any], kid: Any, *, alg: str) -> Any:
         raise IdentityError("identity token refused: symmetric JWKS keys are not accepted")
     try:
         return jwt.PyJWK.from_dict(material).key
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise IdentityError(f"identity token refused: JWKS key is unusable: {exc}") from exc
 
 

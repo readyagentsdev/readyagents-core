@@ -57,7 +57,7 @@ def test_calc_pipeline_without_browser_json_keys() -> None:
     assert second.exit_code == 0
     a = _payload(first.stdout)
     b = _payload(second.stdout)
-    assert _RUN_JSON_KEYS <= set(a)
+    assert set(a) >= _RUN_JSON_KEYS
     assert set(a) == set(b)
     blob = json.dumps(a)
     assert "browser" not in blob

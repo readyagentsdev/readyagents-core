@@ -469,7 +469,7 @@ def _observe(
             ),
             redactor=ctx.redactor,
         )
-    except Exception:  # noqa: BLE001
+    except Exception:
         return
 
 
@@ -519,7 +519,7 @@ def _notify_pause(ctx: ExecutionContext, exc: ApprovalRequired, state: RunState)
         return
     try:
         ctx.on_pause(exc, state)
-    except Exception as notify_exc:  # noqa: BLE001
+    except Exception as notify_exc:
         log.warning(
             "pause notify failed: %s",
             notify_exc,

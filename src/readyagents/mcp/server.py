@@ -116,12 +116,12 @@ def _advertise_tasks_extension(server: Any) -> None:
         payload = discover_result(honoured)
         try:
             return types.DiscoverResult.model_validate(payload)
-        except Exception:  # noqa: BLE001
+        except Exception:
             return payload
 
     try:
         add("server/discover", types.RequestParams, on_discover)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return
 
 
@@ -170,7 +170,7 @@ def _transport_security_settings(host: str, port: int) -> Any | None:
             allowed_hosts=_dns_allowed_hosts(host, port),
             allowed_origins=_dns_allowed_origins(host, port),
         )
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
 
 

@@ -185,7 +185,7 @@ def note_node_output(state: RunState, node: Any, output: Any) -> None:
 
                 if spec_for(tool) is not None:
                     source = f"connector:{tool}"
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         prov = untrusted(source=source, node_id=node_id)
     elif kind == "agent":

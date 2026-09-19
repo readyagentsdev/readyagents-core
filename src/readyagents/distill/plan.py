@@ -102,7 +102,7 @@ def _current_cost_latency(
             closer = getattr(store, "close", None)
             if callable(closer):
                 closer()
-    except Exception:  # noqa: BLE001
+    except Exception:
         return cost, latency
     times: list[float] = []
     node_cost = 0
@@ -126,7 +126,7 @@ def _current_cost_latency(
 def _ledger_cost(settings: Settings, workflow: str | None) -> int | None:
     try:
         rows = read_spend_entries(settings.ledger_dir())
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
     total = 0
     matched = 0
@@ -149,7 +149,7 @@ def _estimated_saving(current: int | None, rows: list[Any]) -> int | None:
         return None
     try:
         table = load_price_table()
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
     incumbent = models[0]
     quote = table.quote(incumbent)

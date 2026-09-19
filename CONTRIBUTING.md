@@ -19,14 +19,14 @@ make run-example
 make smoke
 ```
 
-`make lint` is `ruff check` plus `ruff format --check`. `make smoke` is the CI keyless set (`list_dir`, `eval`, `--pack`, dry-run, resume, approval, parallel, include). `make run-example` is the three-file shortcut.
+`make lint` is `ruff check` plus `ruff format --check`. `make typecheck` runs mypy on `src/readyagents` and fails only on errors not in `baselines/mypy-baseline.txt` (see [baselines/mypy.md](baselines/mypy.md)). `make smoke` is the CI keyless set (`list_dir`, `eval`, `--pack`, dry-run, resume, approval, parallel, include). `make run-example` is the three-file shortcut.
 
-GitHub CI's Ruff step matches `make lint`: `ruff check` plus `ruff format --check` on `src` and `tests` ([#32](https://github.com/readyagentsdev/readyagents-core/pull/32)).
+GitHub CI's Ruff step matches `make lint`: `ruff check` plus `ruff format --check` on `src` and `tests` ([#32](https://github.com/readyagentsdev/readyagents-core/pull/32)). The `typecheck` job matches `make typecheck`.
 
 Or:
 
 ```bash
-python -m pytest
+python -m pytest -n auto
 ruff check src tests
 ruff format --check src tests
 readyagents run examples/calc_pipeline.yaml

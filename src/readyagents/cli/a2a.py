@@ -77,18 +77,18 @@ def a2a_serve_cmd(
             allow_public_bind=allow_public_bind,
             token_env=token_env,
         )
-    except ReadyAgentsError as extra:
+    except ReadyAgentsError as err:
         if as_json:
             _print_json(
                 _json_envelope(
                     "a2a serve",
                     ok=False,
-                    error=type(extra).__name__,
-                    message=str(extra),
+                    error=type(err).__name__,
+                    message=str(err),
                 )
             )
-            raise typer.Exit(code=1) from extra
-        _fail(extra)
+            raise typer.Exit(code=1) from err
+        _fail(err)
 
 
 @a2a_app.command("card")
@@ -107,18 +107,18 @@ def a2a_card_cmd(
 
     try:
         card = load_workflow_card(path, url=url)
-    except ReadyAgentsError as extra:
+    except ReadyAgentsError as err:
         if as_json:
             _print_json(
                 _json_envelope(
                     "a2a card",
                     ok=False,
-                    error=type(extra).__name__,
-                    message=str(extra),
+                    error=type(err).__name__,
+                    message=str(err),
                 )
             )
-            raise typer.Exit(code=1) from extra
-        _fail(extra)
+            raise typer.Exit(code=1) from err
+        _fail(err)
         return
     if out is not None:
         out.write_text(
@@ -149,20 +149,20 @@ def a2a_probe_cmd(
     card_secret = (os.environ.get("READYAGENTS_A2A_CARD_SECRET") or "").strip() or None
     try:
         card = fetch_agent_card(url, token=token)
-    except ReadyAgentsError as extra:
+    except ReadyAgentsError as err:
         if as_json:
             _print_json(
                 _json_envelope(
                     "a2a probe",
                     ok=False,
-                    error=type(extra).__name__,
-                    message=str(extra),
+                    error=type(err).__name__,
+                    message=str(err),
                     url=url,
                 )
             )
         else:
-            err_console.print(f"[red]{type(extra).__name__}[/red]: {extra}")
-        raise typer.Exit(code=1) from extra
+            err_console.print(f"[red]{type(err).__name__}[/red]: {err}")
+        raise typer.Exit(code=1) from err
     schemes = card.get("securitySchemes")
     redacted_schemes: dict[str, Any] = {}
     if isinstance(schemes, dict):

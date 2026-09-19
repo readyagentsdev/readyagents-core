@@ -21,7 +21,7 @@ def test_round_trip_utf8_and_no_temp_residue(tmp_path: Path) -> None:
 def test_failure_removes_temp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     dest = tmp_path / "out.txt"
 
-    def boom(src: Path, dst: Path) -> None:  # noqa: ARG001
+    def boom(src: Path, dst: Path) -> None:
         raise OSError("replace failed")
 
     monkeypatch.setattr("readyagents.atomic.os.replace", boom)
@@ -38,7 +38,7 @@ def test_sharing_violation_retries_then_typed_error(
     dest.write_text("old", encoding="utf-8")
     calls = {"n": 0}
 
-    def sharing(src: Path, dst: Path) -> None:  # noqa: ARG001
+    def sharing(src: Path, dst: Path) -> None:
         calls["n"] += 1
         err = OSError("sharing violation")
         err.winerror = 32  # type: ignore[attr-defined]

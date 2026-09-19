@@ -231,7 +231,7 @@ def _health_score(name: str, settings: Any) -> float | None:
         for row in report.workflows:
             if row.name == name:
                 return float(row.success_rate)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
     return None
 
@@ -254,6 +254,6 @@ def _signed_release(path: Path, digest: str, settings: Any) -> bool:
                 pins = pointer.get("pins") or {}
                 if isinstance(pins, dict) and digest in {str(v) for v in pins.values()}:
                     return True
-    except Exception:  # noqa: BLE001
+    except Exception:
         return False
     return False

@@ -332,5 +332,5 @@ def _install_location() -> str:
     try:
         dist = metadata.distribution("readyagentsdev")
         return str(dist.locate_file(""))
-    except Exception:  # noqa: BLE001
+    except Exception:
         return str(Path(sys.modules["readyagents"].__file__ or "").resolve().parent)

@@ -30,7 +30,7 @@ EXIT_OTHER = 19
 _CFG: dict = {}
 _ALLOWED: set[str] = set()
 _NETWORK = False
-_SANDBOX = Path(".")
+_SANDBOX = Path()
 _READ: list[Path] = []
 _WRITE: list[Path] = []
 _FILE_SIZE = 4_194_304
@@ -336,7 +336,7 @@ def main() -> int:
     except Exception as exc:
         sys.stderr.write(f"{type(exc).__name__}: {exc}\n")
         return EXIT_OTHER
-    result = ns.get("result", None)
+    result = ns.get("result")
     if result is None:
         sys.stderr.write("code node must assign result\n")
         return EXIT_NO_RESULT
