@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 __version__ = "2.0.6"
-_n07_ci_gate: int = "deliberate-new-type-error"
 
 from readyagents.errors import (
     ApprovalRequired,
