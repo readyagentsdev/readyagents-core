@@ -14,6 +14,7 @@ from readyagents.cost.meter import SpendMeter
 from readyagents.errors import (
     NodeError,
     TableCapExceeded,
+    TableError,
     TableExtraMissing,
     TablePathDenied,
     TableRowError,
@@ -656,6 +657,137 @@ def test_classify_remainder_on_spend_ledger(tmp_settings, tmp_path: Path) -> Non
     assert entries
     assert entries[-1]["total_tokens"] == 15
     assert llm.calls and "ada@x.test" not in llm.calls[0]["messages"][0].content
+
+
+def _remainder_spec(remainder: dict) -> dict:
+    spec = _load_spec()
+    spec["nodes"][0]["next"] = "triage"
+    spec["nodes"].append(
+        {
+            "id": "triage",
+            "type": "classify",
+            "source": "{{ rows }}",
+            "rules": [],
+            "model_for_remainder": remainder,
+            "on_row_error": "quarantine",
+            "output_key": "labelled",
+        }
+    )
+    return spec
+
+
+def test_decider_remainder_labels_when_llm_parse_fails(tmp_settings, tmp_path: Path) -> None:
+    _csv(tmp_path)
+    store = TableStore(tmp_settings.home_path() / "tables")
+
+    llm_path = ScriptedLLM().enqueue("this is not a JSON array of labels")
+    llm_state = _run(
+        _remainder_spec({"model": "mock:test", "batch": 25, "labels": ["review", "reject"]}),
+        tmp_settings,
+        tmp_path,
+        llm=llm_path,
+    )
+    llm_ref = llm_state.output_keys["labelled"]
+    llm_good = list(store.iter_rows(llm_ref["sha256"]))
+    llm_err = (
+        list(store.iter_rows(llm_ref["errors_sha256"])) if llm_ref.get("errors_sha256") else []
+    )
+    llm_unlabelled = len(llm_err)
+    assert llm_unlabelled == 4
+    assert llm_good == []
+    assert all(row["reason"] == "unlabelled" for row in llm_err)
+    assert llm_state.metadata["classify"]["triage"]["model_rows"] == 4
+
+    llm_decider = ScriptedLLM()
+    for _ in range(4):
+        llm_decider.enqueue('{"label": "review"}')
+    meter = SpendMeter()
+    decider_state = _run(
+        _remainder_spec({"decider": "shim", "labels": ["review", "reject"], "batch": 25}),
+        tmp_settings,
+        tmp_path,
+        llm=llm_decider,
+        spend_meter=meter,
+    )
+    decider_ref = decider_state.output_keys["labelled"]
+    decider_good = list(store.iter_rows(decider_ref["sha256"]))
+    decider_err = (
+        list(store.iter_rows(decider_ref["errors_sha256"]))
+        if decider_ref.get("errors_sha256")
+        else []
+    )
+    assert len(decider_good) == 4
+    assert decider_err == []
+    assert all(row["label"] == "review" and row["decision"] == "decider" for row in decider_good)
+    assert decider_state.metadata["classify"]["triage"]["decider_rows"] == 4
+    assert decider_state.metadata["classify"]["triage"]["model_rows"] == 0
+    assert meter.model_calls == 4
+    assert len(llm_decider.calls) == 4
+
+    # Honest before/after for the CHANGELOG — measured on this fixture, not a vendor claim.
+    (tmp_path / "classify-before-after.txt").write_text(
+        f"llm_unlabelled={llm_unlabelled}\ndecider_unlabelled={len(decider_err)}\n"
+        f"remainder_rows=4\n",
+        encoding="utf-8",
+    )
+
+
+def test_decider_and_model_mutually_exclusive() -> None:
+    from pydantic import ValidationError
+
+    from readyagents.workflow.schema import WorkflowSpec
+
+    with pytest.raises(ValidationError, match="both 'decider' and 'model'"):
+        WorkflowSpec.model_validate(
+            {
+                "name": "x",
+                "nodes": [
+                    {
+                        "id": "triage",
+                        "type": "classify",
+                        "source": "{{ rows }}",
+                        "model_for_remainder": {
+                            "decider": "jev",
+                            "model": "openai:gpt-4o-mini",
+                            "labels": ["a", "b"],
+                        },
+                    }
+                ],
+            }
+        )
+
+
+def test_decider_low_confidence_reason_distinct(tmp_settings, tmp_path: Path) -> None:
+    _csv(tmp_path)
+    llm = ScriptedLLM()
+    for _ in range(4):
+        llm.enqueue('{"label": "review"}')
+    spec = _remainder_spec(
+        {
+            "decider": "shim",
+            "labels": ["review", "reject"],
+            "min_confidence": 0.5,
+            "on_low_confidence": "quarantine",
+        }
+    )
+    state = _run(spec, tmp_settings, tmp_path, llm=llm)
+    ref = state.output_keys["labelled"]
+    store = TableStore(tmp_settings.home_path() / "tables")
+    err = list(store.iter_rows(ref["errors_sha256"]))
+    assert len(err) == 4
+    assert all(row["reason"] == "low_confidence" for row in err)
+    assert list(store.iter_rows(ref["sha256"])) == []
+
+
+def test_decider_max_calls_guard(tmp_settings, tmp_path: Path) -> None:
+    _csv(tmp_path)
+    llm = ScriptedLLM()
+    for _ in range(4):
+        llm.enqueue('{"label": "review"}')
+    spec = _remainder_spec({"decider": "shim", "labels": ["review", "reject"]})
+    spec["nodes"][1]["limits"] = {"max_calls": 1}
+    with pytest.raises((TableError, NodeError), match="max_calls"):
+        _run(spec, tmp_settings, tmp_path, llm=llm)
 
 
 def test_read_on_row_error_skip_and_quarantine(tmp_settings, tmp_path: Path) -> None:

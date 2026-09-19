@@ -10,6 +10,8 @@ All notable changes to ReadyAgents Core.
   keyless shim for local/dev (#7). Not a workflow `type: decide` node yet; not a general
   LLM provider. The shim is an explicit non-Jev stand-in when `TYPESAFE_API_KEY` is unset.
   Ledger prices for `jev-*` are estimates only.
+- Classify remainder can use a Decider (`model_for_remainder.decider`) instead of an LLM
+  (#8 / Phase 1). Still no workflow `type: decide` node (that is Phase 2 / #9).
 
 ## 2.0.6 — 2026-09-19
 
