@@ -165,8 +165,8 @@ flowchart LR
 | `examples/expiring_gate.yaml` | Lazy deadline, `on_expire: reject` (keyless) |
 | `examples/multi_gate.yaml` | Two sequential approval gates |
 | `examples/fanout_gate.yaml` | Parallel branches + approval |
-| `examples/include_demo.yaml` | Sub-workflow `include` |
-| `examples/composed_gate.yaml` | Include + parallel + approval |
+| `examples/include_demo.yaml` | Sub-workflow `include` (clone) |
+| `examples/composed_gate.yaml` | Include + parallel + approval (clone) |
 | `examples/research_brief.yaml` | Agent node (needs a key) |
 | `examples/support_triage.yaml` | Classify then branch (needs a key) |
 | `examples/code_review.yaml` | `read_file` + review (needs a key) |

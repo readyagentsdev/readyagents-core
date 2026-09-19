@@ -22,7 +22,9 @@ readyagents run g/workflow.yaml
 ```
 
 `new --from-example` materializes any shipped example (`new --list-examples`
-shows all of them), so a clone is never required for the rest of this page.
+shows all of them). A clone is not required except for `include` graphs: those
+resolve `path:` next to the parent file, and `--from-example` copies a single
+file. Section 4 labels that beat.
 
 Windows: activate with `.venv\Scripts\activate` then the same commands. Attach
 `readyagents doctor --json` if something fails.
@@ -96,6 +98,52 @@ Offline: `readyagents schema --output .readyagents/workflow.schema.json`. See
 Add an `agent` node only after you install an extra
 (`pip install "readyagentsdev[openai]"` or `"readyagentsdev[anthropic]"`; from a
 clone, `pip install -e ".[openai]"`) and put your own key in `.env`.
+
+## 4. Compose
+
+Four node types cover most real graphs. All keyless.
+
+**foreach** — bounded sequential iteration:
+
+```bash
+readyagents new tour-each --from-example foreach_calc
+readyagents run tour-each/workflow.yaml
+```
+
+`{'results': [2, 4]}`. `max_items` caps the loop; the cap is declared in the workflow, not a
+runtime surprise.
+
+**parallel + approval** — fan out, then one human gate:
+
+```bash
+readyagents new tour-fan --from-example fanout_gate
+readyagents run tour-fan/workflow.yaml --approve gate
+```
+
+`fanout_gate ok: 42`. Without `--approve` it exits 2 and waits — the pause from section 2, now after a fan-out.
+
+**everything at once** — foreach, condition, parallel, and an approval in one graph:
+
+```bash
+readyagents new tour-all --from-example graph_complex
+readyagents graph tour-all/workflow.yaml
+readyagents run tour-all/workflow.yaml --approve gate
+```
+
+`readyagents graph` prints deterministic Mermaid and executes nothing. Read the shape, then run it.
+
+**include** — a workflow that calls another workflow. `include` resolves `path:` relative to the
+including file, so the child has to sit next to it. `--from-example` copies one file, so run this
+one from a clone:
+
+```bash
+readyagents run examples/include_demo.yaml --input n=5
+```
+
+`examples/included_min.yaml` is the child. In your own project, put both files in the same
+directory.
+
+Full syntax: [workflows.md](workflows.md). Gate mechanics: [approvals.md](approvals.md).
 
 ## Optional (2.0.5 surface)
 
