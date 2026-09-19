@@ -114,6 +114,7 @@ def test_new_from_example_unknown_errors(tmp_path: Path, monkeypatch) -> None:
     assert result.exit_code != 0
     assert "Unknown example" in result.output
 
+
 def test_materialize_include_demo_copies_child_and_runs(tmp_path: Path, monkeypatch) -> None:
     """Pip-road: include_demo materializes parent + child and runs keyless."""
     clear_settings_cache()

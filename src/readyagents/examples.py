@@ -252,8 +252,7 @@ def _confine_include(raw_path: str, root: Path, *, artifact: str) -> Path:
         resolved = resolve_within(raw_path, root, what="included workflow")
     except PathError as extra:
         raise TrustError(
-            f"include path escapes the parent workflow directory: {raw_path} "
-            f"(from {artifact})",
+            f"include path escapes the parent workflow directory: {raw_path} (from {artifact})",
             artifact=artifact,
             reason="escape",
         ) from extra
