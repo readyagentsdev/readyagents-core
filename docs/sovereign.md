@@ -29,6 +29,11 @@ Allowlisted destinations and every connect attempt (permitted or refused) are
 recorded on the run. A refusal raises `EgressDenied` naming destination and
 node.
 
+`type: decide` with `decider: jev` is a hosted call (no local weights) and is
+refused **before the first node**, naming the decide node. `decider: shim` over
+a local model (for example Ollama) is the sovereign-compatible path. See
+[decisions.md](decisions.md).
+
 ## What the attestation proves
 
 `readyagents attest RUN_ID` emits mode, recorded attempts, allowlist, model
