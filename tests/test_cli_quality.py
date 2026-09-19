@@ -68,7 +68,7 @@ def test_validate_missing_file(tmp_path: Path) -> None:
     text = result.stdout + result.stderr
     assert "ConfigError" in text
     assert "Workflow file not found" in text
-    assert "nope.yaml" in text
+    assert "nope.yaml" in _plain(text)
 
 
 def test_validate_shows_else_routing() -> None:
@@ -210,9 +210,9 @@ def test_init_does_not_overwrite(tmp_path: Path, monkeypatch) -> None:
     result = runner.invoke(app, ["init", "--dest", str(dest)])
     assert result.exit_code == 0, result.stdout + result.stderr
     assert dest.read_text(encoding="utf-8") == "KEEP=1\n"
-    out = " ".join(result.stdout.split())
-    assert "already exists" in out
-    assert "left unchanged" in out
+    out = _plain(result.stdout)
+    assert "alreadyexists" in out
+    assert "leftunchanged" in out
 
 
 def test_init_default_dest(tmp_path: Path, monkeypatch) -> None:
@@ -654,7 +654,7 @@ def test_run_missing_file_exits_1_not_pause_2(tmp_path: Path) -> None:
     text = result.stdout + result.stderr
     assert "ConfigError" in text
     assert "Workflow file not found" in text
-    assert "nope.yaml" in text
+    assert "nope.yaml" in _plain(text)
 
     paused = runner.invoke(app, ["run", "examples/approval_gate.yaml", "--no-persist"])
     assert paused.exit_code == 2, paused.stdout + paused.stderr
