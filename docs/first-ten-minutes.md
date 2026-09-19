@@ -22,9 +22,8 @@ readyagents run g/workflow.yaml
 ```
 
 `new --from-example` materializes any shipped example (`new --list-examples`
-shows all of them). A clone is not required except for `include` graphs: those
-resolve `path:` next to the parent file, and `--from-example` copies a single
-file. Section 4 labels that beat.
+shows all of them), including `include` graphs: child `path:` files are copied
+beside the parent. Section 4 has the compose tour.
 
 Windows: activate with `.venv\Scripts\activate` then the same commands. Attach
 `readyagents doctor --json` if something fails.
@@ -133,15 +132,15 @@ readyagents run tour-all/workflow.yaml --approve gate
 `readyagents graph` prints deterministic Mermaid and executes nothing. Read the shape, then run it.
 
 **include** — a workflow that calls another workflow. `include` resolves `path:` relative to the
-including file, so the child has to sit next to it. `--from-example` copies one file, so run this
-one from a clone:
+including file; `--from-example` copies each child beside the parent:
 
 ```bash
-readyagents run examples/include_demo.yaml --input n=5
+readyagents new tour-inc --from-example include_demo
+readyagents run tour-inc/workflow.yaml --input n=5
 ```
 
-`examples/included_min.yaml` is the child. In your own project, put both files in the same
-directory.
+`include_demo ok: 15`. `included_min.yaml` is the child (materialized next to `workflow.yaml`).
+Same pattern for `composed_gate` (add `--approve gate`).
 
 Full syntax: [workflows.md](workflows.md). Gate mechanics: [approvals.md](approvals.md).
 
