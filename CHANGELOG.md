@@ -4,6 +4,11 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Added
+
+- First ten minutes §4 Compose: `foreach`, parallel + approval, and `graph_complex` on the pip
+  road; `include` is shown from a clone because `new --from-example` copies a single file.
+
 ## 2.0.5 — 2026-09-18
 
 ### Fixed
