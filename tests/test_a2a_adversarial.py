@@ -369,16 +369,14 @@ def test_fetch_agent_card_rejects_oversized_wire_body() -> None:
     }
     raw = json.dumps(huge).encode("utf-8")
     assert len(raw) > 100_000
-    with _installed_transport(_static_exchange(raw)):
-        with pytest.raises((A2ACardError, A2AError)):
-            fetch_agent_card("http://partner.example.com")
+    with _installed_transport(_static_exchange(raw)), pytest.raises((A2ACardError, A2AError)):
+        fetch_agent_card("http://partner.example.com")
 
 
 def test_request_json_rejects_oversized_http_body() -> None:
     raw = b"x" * 1_000_001
-    with _installed_transport(_static_exchange(raw)):
-        with pytest.raises(A2AError):
-            request_json(f"http://partner.example.com{WELL_KNOWN_CARD}")
+    with _installed_transport(_static_exchange(raw)), pytest.raises(A2AError):
+        request_json(f"http://partner.example.com{WELL_KNOWN_CARD}")
 
 
 # --- 2. SSRF on agent URL (no transport hook) ---
@@ -580,21 +578,23 @@ def test_remote_input_required_prompt_is_attributed_untrusted(
     tmp_path: Path, tmp_settings, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("READYAGENTS_A2A_TOKEN", _TOKEN)
-    with _a2a_client(
-        tmp_path,
-        tmp_settings,
-        _PHISH_WF,
-        filename="remote.yaml",
-        canonical_url="http://partner.example.com",
-    ) as (
-        client,
-        _coord,
-        _remote,
+    with (
+        _a2a_client(
+            tmp_path,
+            tmp_settings,
+            _PHISH_WF,
+            filename="remote.yaml",
+            canonical_url="http://partner.example.com",
+        ) as (
+            client,
+            _coord,
+            _remote,
+        ),
+        _installed_transport(_client_exchange(client)),
     ):
-        with _installed_transport(_client_exchange(client)):
-            local = _write(tmp_path / "local.yaml", _DELEGATE_WF)
-            with pytest.raises(ApprovalRequired) as raised:
-                run_workflow_file(local, settings=tmp_settings, persist=True)
+        local = _write(tmp_path / "local.yaml", _DELEGATE_WF)
+        with pytest.raises(ApprovalRequired) as raised:
+            run_workflow_file(local, settings=tmp_settings, persist=True)
     exc = raised.value
     assert "untrusted" in exc.prompt.lower()
     assert exc.prompt != _PHISH_QUESTION

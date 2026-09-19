@@ -150,7 +150,7 @@ def embed_texts(
         return None
     try:
         return _openai_embed(list(texts), api_key=str(key))
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
 
 

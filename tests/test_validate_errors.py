@@ -106,7 +106,7 @@ def test_ansi_and_secret_stripped_from_excerpt(tmp_path: Path) -> None:
 def test_schema_and_validate_do_not_use_network(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def boom(*_a, **_k):  # noqa: ANN002
+    def boom(*_a, **_k):
         raise AssertionError("network")
 
     monkeypatch.setattr(socket, "socket", boom)
@@ -179,7 +179,7 @@ def test_success_path_load_does_not_require_compose(
 ) -> None:
     import readyagents.workflow.source_map as sm
 
-    def boom(*_a, **_k):  # noqa: ANN002
+    def boom(*_a, **_k):
         raise AssertionError("compose on success path")
 
     monkeypatch.setattr(sm.yaml, "compose", boom)

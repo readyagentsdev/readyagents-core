@@ -210,8 +210,9 @@ def test_init_does_not_overwrite(tmp_path: Path, monkeypatch) -> None:
     result = runner.invoke(app, ["init", "--dest", str(dest)])
     assert result.exit_code == 0, result.stdout + result.stderr
     assert dest.read_text(encoding="utf-8") == "KEEP=1\n"
-    assert "already exists" in result.stdout
-    assert "left unchanged" in result.stdout
+    out = " ".join(result.stdout.split())
+    assert "already exists" in out
+    assert "left unchanged" in out
 
 
 def test_init_default_dest(tmp_path: Path, monkeypatch) -> None:

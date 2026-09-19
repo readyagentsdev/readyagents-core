@@ -1190,7 +1190,7 @@ def _run_approval(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dic
             home=home,
             now=now,
         )
-    except Exception:  # noqa: BLE001
+    except Exception:
         grant = None
     if grant is not None:
         delegated_from = grant.from_actor
@@ -1237,11 +1237,11 @@ def _run_approval(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dic
         rec_norm = rec.strip().lower() if rec else ""
         override = False
         if rec_norm and rec_norm not in {"none", action}:
-            if rec_norm in _APPROVE_VALUES and action == "reject":
-                override = True
-            elif rec_norm in _REJECT_VALUES and action == "approve":
-                override = True
-            elif rec_norm != action:
+            if (
+                (rec_norm in _APPROVE_VALUES and action == "reject")
+                or (rec_norm in _REJECT_VALUES and action == "approve")
+                or rec_norm != action
+            ):
                 override = True
         declared = {normalize_actor(item) for item in pause.approver_roles}
         matched_role = next(
@@ -1645,7 +1645,7 @@ def execute_node_with_policy(
                 if attempt >= max_tries:
                     break
                 continue
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             last_error = exc
         log.warning(
             "Node %s attempt %s/%s failed: %s",
@@ -1750,7 +1750,7 @@ def _call_with_timeout(node: NodeSpec, state: RunState, ctx: ExecutionContext) -
     def _worker() -> None:
         try:
             box["value"] = execute_node(node, state, ctx)
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc:
             box["error"] = exc
 
     thread = threading.Thread(
@@ -1842,7 +1842,7 @@ def _run_foreach(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> list
             index = futures[fut]
             try:
                 collected[index] = fut.result()
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 if first_error is None:
                     first_error = exc
                 continue
@@ -1995,7 +1995,7 @@ def _run_parallel(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dic
             raise
         except NodeError:
             raise
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise NodeError(
                 branch.id,
                 f"parallel branch '{branch.id}' failed: {exc}",
@@ -2010,7 +2010,7 @@ def _run_parallel(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dic
             for fut in as_completed(futures):
                 try:
                     branch_id, output = fut.result()
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     if first_error is None:
                         first_error = exc
                     continue

@@ -255,13 +255,15 @@ def test_retry_after_blocks_provider_until_fake_clock_advances() -> None:
     def try_once() -> None:
         nonlocal acquired
         try:
-            with gov.acquire(
-                workflow="w",
-                provider="openai",
-                timeout=0.0,
+            with (
+                gov.acquire(
+                    workflow="w",
+                    provider="openai",
+                    timeout=0.0,
+                ),
+                lock,
             ):
-                with lock:
-                    acquired += 1
+                acquired += 1
         except GovernorBackpressure:
             pass
 
@@ -316,9 +318,8 @@ def test_shutdown_drains_holder_and_refuses_queued() -> None:
     t_wait.start()
     _wait_until(lambda: gov.queued() >= 1)
     gov.request_shutdown()
-    with pytest.raises(GovernorShutdown):
-        with gov.acquire(workflow="new"):
-            granted.append("new")
+    with pytest.raises(GovernorShutdown), gov.acquire(workflow="new"):
+        granted.append("new")
     finish.set()
     assert gov.wait_drain(timeout=5)
     _join([t_hold, t_wait])
@@ -351,9 +352,8 @@ def test_queue_bound_overflow_raises_governor_backpressure() -> None:
     for i, thread in enumerate(waiters, start=1):
         thread.start()
         _wait_until(lambda n=i: gov.queued() >= n)
-    with pytest.raises(GovernorBackpressure, match="full"):
-        with gov.acquire(workflow="overflow"):
-            pass
+    with pytest.raises(GovernorBackpressure, match="full"), gov.acquire(workflow="overflow"):
+        pass
     finish.set()
     _join([t_hold, *waiters])
     assert gov.in_flight() == 0

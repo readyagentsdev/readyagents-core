@@ -328,7 +328,7 @@ def test_openai_stream_on_token_cancel_does_not_complete(monkeypatch) -> None:
     from readyagents.llm.openai_provider import OpenAIProvider
 
     class FakeCompletions:
-        def create(self, **kwargs):  # noqa: ANN003
+        def create(self, **kwargs):
             if kwargs.get("stream"):
                 delta = SimpleNamespace(content="hello", tool_calls=None)
                 chunk = SimpleNamespace(
@@ -340,7 +340,7 @@ def test_openai_stream_on_token_cancel_does_not_complete(monkeypatch) -> None:
             return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=None)
 
     class FakeOpenAI:
-        def __init__(self, **kwargs):  # noqa: ANN003
+        def __init__(self, **kwargs):
             self.chat = SimpleNamespace(completions=FakeCompletions())
 
     monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
@@ -368,22 +368,22 @@ def test_anthropic_stream_on_token_cancel_does_not_complete(monkeypatch) -> None
         def __enter__(self):
             return self
 
-        def __exit__(self, *args):  # noqa: ANN002
+        def __exit__(self, *args):
             return False
 
         def get_final_message(self):
             return SimpleNamespace(usage=None, content=[])
 
     class FakeMessages:
-        def stream(self, **kwargs):  # noqa: ANN003
+        def stream(self, **kwargs):
             return FakeStream()
 
-        def create(self, **kwargs):  # noqa: ANN003
+        def create(self, **kwargs):
             block = SimpleNamespace(text="PHANTOM-OK")
             return SimpleNamespace(content=[block], usage=None)
 
     class FakeAnthropic:
-        def __init__(self, **kwargs):  # noqa: ANN003
+        def __init__(self, **kwargs):
             self.messages = FakeMessages()
 
     monkeypatch.setattr(anthropic, "Anthropic", FakeAnthropic)

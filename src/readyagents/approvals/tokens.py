@@ -33,7 +33,7 @@ def _unb64(text: str) -> bytes:
     pad = "=" * ((4 - len(text) % 4) % 4)
     try:
         return base64.urlsafe_b64decode(text + pad)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise TokenError(_GENERIC) from exc
 
 

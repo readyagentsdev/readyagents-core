@@ -189,7 +189,7 @@ class MCPClient:
             try:
                 if self._stack is not None:
                     loop.run(self._stack.aclose(), timeout=15)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
             loop.stop()
         self._loop = None
@@ -219,7 +219,7 @@ class MCPClient:
                     listed = await session.list_tools()
                 except MCPError:
                     raise
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     raise MCPError(f"Failed to connect to MCP server '{name}': {exc}") from exc
                 self._sessions[name] = session
                 for item in listed.tools:
@@ -254,7 +254,7 @@ class MCPClient:
             return loop.run(self._call_on(session, tool_name, arguments))
         except MCPError:
             raise
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise MCPError(f"MCP tool '{tool_name}' failed: {exc}") from exc
 
     async def _call_on(self, session: Any, tool_name: str, arguments: dict[str, Any]) -> Any:
@@ -262,7 +262,7 @@ class MCPClient:
             result = await session.call_tool(tool_name, arguments)
         except MCPError:
             raise
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise MCPError(f"MCP tool '{tool_name}' failed: {exc}") from exc
         if getattr(result, "isError", False) or getattr(result, "is_error", False):
             raise MCPError(f"MCP tool '{tool_name}' returned an error: {result}")
@@ -284,7 +284,7 @@ async def _negotiate_session(session: Any) -> None:
         try:
             await discover()
             return
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
     initialize = getattr(session, "initialize", None)
     if callable(initialize):

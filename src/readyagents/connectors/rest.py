@@ -131,7 +131,7 @@ class RestConnector:
                 raise ToolError(f"rest HTTP {resp.status}")
             try:
                 return resp.json()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 return {"body": resp.text(), "status": resp.status}
 
         key = str(args.get("idempotency_key") or "").strip()

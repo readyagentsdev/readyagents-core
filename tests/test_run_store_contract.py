@@ -148,7 +148,7 @@ def test_json_get_during_save(tmp_path) -> None:
             current.status = "paused" if i % 2 else "running"
             try:
                 store.save(current)
-            except BaseException as exc:  # noqa: BLE001
+            except BaseException as exc:
                 errors.append(exc)
 
     def reader() -> None:
@@ -156,7 +156,7 @@ def test_json_get_during_save(tmp_path) -> None:
         for _ in range(80):
             try:
                 store.get(state.run_id, allow_prefix=False)
-            except BaseException as exc:  # noqa: BLE001
+            except BaseException as exc:
                 errors.append(exc)
 
     threads = [threading.Thread(target=writer), threading.Thread(target=reader)]

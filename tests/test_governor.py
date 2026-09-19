@@ -106,9 +106,8 @@ def test_queue_bound_raises_backpressure() -> None:
     t_wait.start()
     waiting.wait(timeout=5)
     time.sleep(0.05)
-    with pytest.raises(GovernorBackpressure, match="full"):
-        with gov.acquire(workflow="x"):
-            pass
+    with pytest.raises(GovernorBackpressure, match="full"), gov.acquire(workflow="x"):
+        pass
     finish.set()
     t_hold.join(timeout=5)
     t_wait.join(timeout=5)
@@ -168,9 +167,8 @@ def test_shutdown_refuses_new_leases_and_drains() -> None:
     t_hold.start()
     assert held.wait(timeout=5)
     gov.request_shutdown()
-    with pytest.raises(GovernorShutdown):
-        with gov.acquire(workflow="new"):
-            pass
+    with pytest.raises(GovernorShutdown), gov.acquire(workflow="new"):
+        pass
     finish.set()
     t_hold.join(timeout=5)
     assert gov.wait_drain(timeout=2)
@@ -236,9 +234,8 @@ def test_retry_after_arms_bucket_so_release_is_not_a_stampede() -> None:
 
     def try_once() -> None:
         try:
-            with gov.acquire(workflow="w", provider="openai", timeout=0.0):
-                with lock:
-                    got.append(1)
+            with gov.acquire(workflow="w", provider="openai", timeout=0.0), lock:
+                got.append(1)
         except GovernorBackpressure:
             with lock:
                 got.append(0)
@@ -266,9 +263,8 @@ def test_per_workflow_limit() -> None:
     t_hold = threading.Thread(target=holder)
     t_hold.start()
     assert held.wait(timeout=5)
-    with pytest.raises(GovernorBackpressure):
-        with gov.acquire(workflow="only", timeout=0.0):
-            pass
+    with pytest.raises(GovernorBackpressure), gov.acquire(workflow="only", timeout=0.0):
+        pass
     with gov.acquire(workflow="other", timeout=0.0):
         pass
     finish.set()

@@ -59,8 +59,8 @@ def test_calc_pipeline_without_triggers_json_keys() -> None:
     assert second.exit_code == 0, second.stdout + second.stderr
     a = _payload(first.stdout)
     b = _payload(second.stdout)
-    assert _RUN_JSON_KEYS <= set(a)
-    assert _RUN_JSON_KEYS <= set(b)
+    assert set(a) >= _RUN_JSON_KEYS
+    assert set(b) >= _RUN_JSON_KEYS
     assert a["ok"] is True
     assert a["status"] == "succeeded"
     blob = json.dumps(a)

@@ -91,7 +91,7 @@ def decide_trigger(
     llm: Any = None,
 ) -> TriggerDecision:
     """Start a run, return the original, or refuse with a typed reason."""
-    home_path = Path(home) if home is not None else Path(".")
+    home_path = Path(home) if home is not None else Path()
     from readyagents.triggers.runtime import gate_for, limiter_for, spend_for, store_for
 
     store = store or store_for(home_path, clock=clock)

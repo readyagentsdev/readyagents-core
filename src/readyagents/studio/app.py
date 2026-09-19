@@ -98,7 +98,7 @@ def _cookies(header: str | None) -> dict[str, str]:
     parsed = SimpleCookie()
     try:
         parsed.load(header)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return {}
     return {key: morsel.value for key, morsel in parsed.items()}
 
@@ -271,7 +271,7 @@ class StudioApplication:
                 {"ok": False, "error": "ExternalChange", "message": str(exc)},
                 409,
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("studio handler error")
             return _json_body(
                 {"ok": False, "error": "InternalError", "message": "internal error"},

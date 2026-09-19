@@ -225,7 +225,7 @@ def replay_session(
             try:
                 state = replay_run(turn.run_id, settings=settings, offline=True)
                 row["replay_status"] = state.status
-            except Exception as extra:  # noqa: BLE001
+            except Exception as extra:
                 row["replay_status"] = "miss"
                 row["replay_error"] = str(extra)
         turns.append(row)

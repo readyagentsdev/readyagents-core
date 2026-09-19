@@ -105,7 +105,7 @@ def run_conformance(
                 failures.append(ConformanceFailure("non_granted_secret", str(extra)))
         except OSError:
             pass
-        except Exception as extra:  # noqa: BLE001
+        except Exception as extra:
             if own_socket["hit"] or "own socket" in str(extra).lower():
                 pass
             elif "not granted" in str(extra).lower() or "os.environ" in str(extra).lower():

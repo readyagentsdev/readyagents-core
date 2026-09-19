@@ -187,9 +187,9 @@ def _try_mint(backends: Any, name: str, ttl: int | None) -> GrantedSecret | None
         except TypeError:
             try:
                 raw = fn(name)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 continue
-        except Exception:  # noqa: BLE001
+        except Exception:
             continue
         if raw is None:
             continue

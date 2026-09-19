@@ -80,7 +80,7 @@ class OtelObserver:
         if exporter is not None and hasattr(exporter, "export"):
             try:
                 exporter.export([record])
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         if self._tracer is None:
             return
@@ -111,7 +111,7 @@ class OtelObserver:
                 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
                 provider.add_span_processor(SimpleSpanProcessor(exporter))
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         self._provider = provider
         self._tracer = provider.get_tracer("readyagents.otel")

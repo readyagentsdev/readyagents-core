@@ -79,7 +79,7 @@ def sign_assertion(
     }
     try:
         return jwt.encode(payload, pem, algorithm="RS256", headers={"kid": kid})
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise IdentityError(f"workload assertion failed: {exc}") from exc
 
 
@@ -110,7 +110,7 @@ def _fingerprint(key_path: Path, pub_path: Path | None) -> str:
     pem = _read_private(key_path)
     try:
         key = load_pem_private_key(pem, password=None)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise IdentityError(f"workload key is unusable: {exc}") from exc
     public = key.public_key().public_bytes(
         serialization.Encoding.DER,

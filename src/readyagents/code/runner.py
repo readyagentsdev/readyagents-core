@@ -128,7 +128,7 @@ def _run_subprocess(
     if os.name != "nt":
         kwargs["close_fds"] = True
         kwargs["preexec_fn"] = preexec
-    proc = subprocess.Popen(**kwargs)  # noqa: S603
+    proc = subprocess.Popen(**kwargs)
     started = time.monotonic()
     mem_bytes = int(bound["memory_mb"]) * 1024 * 1024
     stdout, stderr = _wait_child(

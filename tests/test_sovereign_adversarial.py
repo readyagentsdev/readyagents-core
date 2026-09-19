@@ -22,14 +22,14 @@ runner = CliRunner()
 
 
 def _stub_orig_connect(eg) -> None:
-    def _ok(self, address, *args, **kwargs):  # noqa: ANN001, ANN002
+    def _ok(self, address, *args, **kwargs):
         return None
 
     eg._orig_connect = _ok
 
 
 def _stub_orig_create(eg) -> None:
-    def _ok(*args, **kwargs):  # noqa: ANN002
+    def _ok(*args, **kwargs):
         raise OSError("stubbed connect")
 
     eg._orig_create = _ok
@@ -81,7 +81,7 @@ def test_thread_create_connection_raises_egress_denied() -> None:
     def _worker() -> None:
         try:
             socket.create_connection(("1.1.1.1", 443), timeout=0.2)
-        except BaseException as extra:  # noqa: BLE001
+        except BaseException as extra:
             caught.append(extra)
 
     try:
@@ -137,7 +137,7 @@ def test_dns_public_literal_allow_spec_refused() -> None:
 
 
 def test_dns_hostname_resolving_public_refused_at_install() -> None:
-    def fake_gai(host, port, *args, **kwargs):  # noqa: ANN001, ANN002
+    def fake_gai(host, port, *args, **kwargs):
         if str(host).rstrip(".").lower() == "evil.example":
             return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 0))]
         raise OSError("unexpected host")
@@ -153,7 +153,7 @@ def test_dns_allowlist_toctou_public_flip_refused() -> None:
     """Hostname private at install must not stay trusted after DNS flips public."""
     state = {"mode": "private"}
 
-    def flip_gai(host, port, *args, **kwargs):  # noqa: ANN001, ANN002
+    def flip_gai(host, port, *args, **kwargs):
         if str(host).rstrip(".").lower() != "flip.example":
             raise OSError("unexpected")
         ip = "10.0.0.9" if state["mode"] == "private" else "1.1.1.1"
@@ -184,7 +184,7 @@ def test_after_close_egress_denied_not_raised() -> None:
     assert active_guard() is None
     reached = {"ok": False}
 
-    def stub(*_a, **_k):  # noqa: ANN002
+    def stub(*_a, **_k):
         reached["ok"] = True
         raise OSError("refused")
 

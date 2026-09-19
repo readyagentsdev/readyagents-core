@@ -439,7 +439,7 @@ def run_eval(
                     converse_replies=case.converse_replies or None,
                     dry_run=dry_run,
                 )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             attached = getattr(exc, "state", None)
             if isinstance(attached, RunState):
                 ok, reason = _score(attached, case)

@@ -164,12 +164,12 @@ def run_browser_node(node: Any, state: Any, ctx: Any) -> Any:
         if hasattr(driver, "scrub_credentials"):
             try:
                 driver.scrub_credentials()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         if session != "persist" and hasattr(driver, "close"):
             try:
                 driver.close()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         del mapping
         secret_values.clear()

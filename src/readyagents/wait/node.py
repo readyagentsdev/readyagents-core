@@ -189,7 +189,7 @@ def _count_waiting_others(ctx: Any, state: Any) -> int:
             return sum(
                 1 for item in store.list(RunQuery(status="waiting")) if item.state.run_id != current
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
             return 0
     pin = getattr(ctx, "pin_home", None)
     if pin is None:

@@ -182,5 +182,5 @@ def _load_runs(settings: Settings) -> list[Any]:
             closer = getattr(store, "close", None)
             if callable(closer):
                 closer()
-    except Exception:  # noqa: BLE001
+    except Exception:
         return []

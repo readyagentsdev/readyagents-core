@@ -582,7 +582,7 @@ def run_workflow_file(
             payload = build_pause_event(exc, state)
             try:
                 post_json(pause_url, payload)
-            except Exception as notify_exc:  # noqa: BLE001
+            except Exception as notify_exc:
                 log.warning("pause webhook failed: %s", notify_exc)
 
     cred_policy = _load_credentials(credentials, source_path.parent)
@@ -870,9 +870,7 @@ def _refuse_to_start(
     over_tokens = meter.max_tokens is not None and estimate.ceiling_tokens >= meter.max_tokens
     over_spend = False
     if meter.max_spend_micros is not None:
-        if estimate.unpriced:
-            over_spend = True
-        elif (estimate.ceiling_micros or 0) >= meter.max_spend_micros:
+        if estimate.unpriced or (estimate.ceiling_micros or 0) >= meter.max_spend_micros:
             over_spend = True
     if not over_tokens and not over_spend:
         return

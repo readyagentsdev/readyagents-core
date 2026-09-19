@@ -341,7 +341,7 @@ def _load_include(
         return None
     try:
         candidate = resolve_within(raw_path, workflow_dir, what="included workflow")
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
     if not candidate.is_file():
         return None

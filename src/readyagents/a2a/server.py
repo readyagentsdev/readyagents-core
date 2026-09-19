@@ -395,7 +395,7 @@ class A2ASurface:
     def _load(self, run_id: str):
         try:
             return self.coordinator._load_exact(run_id)
-        except Exception as extra:  # noqa: BLE001
+        except Exception as extra:
             raise ConfigError(NOT_FOUND_MESSAGE) from extra
 
     def _audit(self, event: str, **fields: Any) -> None:
@@ -410,7 +410,7 @@ class A2ASurface:
 def _header(request: Any, name: str) -> str | None:
     try:
         return request.headers.get(name)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
 
 

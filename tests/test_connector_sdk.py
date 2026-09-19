@@ -33,7 +33,7 @@ def test_exchange_429_notifies_process_governor(tmp_path: Path, monkeypatch) -> 
     reset_governor_for_tests()
     calls = {"n": 0}
 
-    def fake_once(ctx, method, url, **kwargs):  # noqa: ANN001
+    def fake_once(ctx, method, url, **kwargs):
         calls["n"] += 1
         if calls["n"] == 1:
             return HttpResponse(status=429, headers={"Retry-After": "45"}, body=b"slow")
@@ -61,7 +61,7 @@ def test_parse_retry_after_seconds() -> None:
 def test_cursor_pagination_hits_page_cap() -> None:
     calls = {"n": 0}
 
-    def fetch(cursor):  # noqa: ANN001
+    def fetch(cursor):
         calls["n"] += 1
         return {"next_cursor": str(calls["n"]), "items": [calls["n"]]}
 
@@ -134,7 +134,7 @@ def test_connector_http_refuses_redirect_to_loopback(
             return _resolve_public_ips(host, kind=kind)
         return ["203.0.113.1"]
 
-    def fake_exchange(scheme, hostname, ip, port, path, **kwargs):  # noqa: ANN001
+    def fake_exchange(scheme, hostname, ip, port, path, **kwargs):
         if hostname in {"127.0.0.1", "localhost"}:
             raise AssertionError("must not connect to loopback")
         return 302, b"", {"Location": "http://127.0.0.1/secret"}

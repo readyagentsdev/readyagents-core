@@ -65,7 +65,7 @@ def approval_payload(
     diff = ""
     try:
         diff = diff_versions(workflow, prompt_id, left=left, right=right)
-    except Exception:  # noqa: BLE001
+    except Exception:
         diff = ""
     return {
         "required": True,

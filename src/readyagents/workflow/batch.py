@@ -297,7 +297,7 @@ def run_batch(
                 error_type=type(exc).__name__,
                 outputs=_outputs(state) if isinstance(state, RunState) else None,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             return BatchRowResult(
                 index=index,
                 status="failed",

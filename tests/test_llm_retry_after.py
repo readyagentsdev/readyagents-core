@@ -34,11 +34,11 @@ def test_openai_complete_429_notes_governor(monkeypatch) -> None:
     reset_governor_for_tests()
 
     class FakeCompletions:
-        def create(self, **kwargs):  # noqa: ANN003
+        def create(self, **kwargs):
             raise _RateLimit("30")
 
     class FakeOpenAI:
-        def __init__(self, **kwargs):  # noqa: ANN003
+        def __init__(self, **kwargs):
             self.chat = SimpleNamespace(completions=FakeCompletions())
 
     monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
@@ -60,11 +60,11 @@ def test_anthropic_complete_429_notes_governor(monkeypatch) -> None:
     reset_governor_for_tests()
 
     class FakeMessages:
-        def create(self, **kwargs):  # noqa: ANN003
+        def create(self, **kwargs):
             raise _RateLimit("30")
 
     class FakeAnthropic:
-        def __init__(self, **kwargs):  # noqa: ANN003
+        def __init__(self, **kwargs):
             self.messages = FakeMessages()
 
     monkeypatch.setattr(anthropic, "Anthropic", FakeAnthropic)
@@ -103,12 +103,12 @@ def test_run_batch_without_llm_kwarg_waits_on_openai_429(tmp_path: Path, monkeyp
     hits: list[float] = []
 
     class FakeCompletions:
-        def create(self, **kwargs):  # noqa: ANN003
+        def create(self, **kwargs):
             hits.append(time.monotonic())
             raise _RateLimit("0.5")
 
     class FakeOpenAI:
-        def __init__(self, **kwargs):  # noqa: ANN003
+        def __init__(self, **kwargs):
             self.chat = SimpleNamespace(completions=FakeCompletions())
 
     monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
@@ -147,12 +147,12 @@ def test_cli_batch_429_blocks_later_row(tmp_path: Path, monkeypatch) -> None:
     hits: list[float] = []
 
     class FakeCompletions:
-        def create(self, **kwargs):  # noqa: ANN003
+        def create(self, **kwargs):
             hits.append(time.monotonic())
             raise _RateLimit("0.5")
 
     class FakeOpenAI:
-        def __init__(self, **kwargs):  # noqa: ANN003
+        def __init__(self, **kwargs):
             self.chat = SimpleNamespace(completions=FakeCompletions())
 
     monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)

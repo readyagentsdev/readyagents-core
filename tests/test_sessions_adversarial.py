@@ -173,7 +173,7 @@ def test_no_audio_import_and_docs_honesty() -> None:
             for name in names:
                 assert name not in forbidden, f"{path} imports {name}"
     docs = (ROOT / "docs" / "conversational-sessions.md").read_text(encoding="utf-8").lower()
-    assert "hosted" in docs and "not a hosted" in docs or "no hosted" in docs
+    assert ("hosted" in docs and "not a hosted" in docs) or "no hosted" in docs
     assert "cdn" in docs
     assert "audio" in docs
     assert "webrtc" in docs or "no audio" in docs

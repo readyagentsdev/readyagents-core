@@ -112,6 +112,6 @@ def _summarize(
         out = getattr(result, "text", None)
         if isinstance(out, str) and out.strip():
             return out.strip(), None
-    except Exception as extra:  # noqa: BLE001
+    except Exception as extra:
         return None, f"summarize failed: {type(extra).__name__}"
     return None, "summarize returned empty"

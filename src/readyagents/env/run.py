@@ -216,7 +216,7 @@ def _maybe_shadow(
             policy=policy,
             **extra,
         )
-    except Exception as extra_err:  # noqa: BLE001
+    except Exception as extra_err:
         store.append_history(env, {"event": "shadow_error", "error": str(extra_err)})
         return None
     cost = int((shadow.usage or {}).get("cost_micros") or 0)

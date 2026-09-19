@@ -201,7 +201,7 @@ def _relative(value: str) -> str:
     if not text:
         raise ValueError(f"path refused: {value}")
     parts = Path(text).parts
-    if ".." in parts or parts[:1] == (".",) and len(parts) == 1:
+    if ".." in parts or (parts[:1] == (".",) and len(parts) == 1):
         raise ValueError(f"path refused: {value}")
     if not _REL.fullmatch(text):
         raise ValueError(f"path refused: {value}")

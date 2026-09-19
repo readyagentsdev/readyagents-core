@@ -16,7 +16,7 @@ def count_tokens(text: str) -> tuple[int, bool]:
     if encoder is not None:
         try:
             return max(0, len(encoder.encode(raw))), True
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
     return heuristic_tokens(raw), False
 
@@ -35,5 +35,5 @@ def _tiktoken_encoder() -> Any | None:
         return None
     try:
         return tiktoken.get_encoding("cl100k_base")
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
