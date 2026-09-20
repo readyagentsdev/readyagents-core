@@ -165,3 +165,55 @@ def test_examples_match_v1_9_0_or_clean() -> None:
             text=True,
         )
         assert status.stdout.strip() == "", status.stdout
+
+
+def test_classify_without_decider_still_calls_llm_not_decider(
+    tmp_path: Path, tmp_settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from readyagents.table.store import TableStore
+    from readyagents.testing.helpers import ScriptedLLM
+
+    def boom(*_a, **_k):
+        raise AssertionError("decider must not run when model_for_remainder has no decider")
+
+    monkeypatch.setattr("readyagents.decide.registry.get_decider", boom)
+    path = tmp_path / "exports.csv"
+    path.write_text("id,email,amount\n1,ada@x.test,5\n2,bob@x.test,20\n", encoding="utf-8")
+    llm = ScriptedLLM().enqueue(
+        '[{"index": 0, "label": "review"}, {"index": 1, "label": "reject"}]',
+        model="mock:test",
+    )
+    spec = {
+        "name": "pipe",
+        "nodes": [
+            {
+                "id": "load",
+                "type": "table",
+                "op": "read",
+                "source": {"kind": "csv", "path": "exports.csv"},
+                "schema": {"id": "int", "email": "str", "amount": "float"},
+                "output_key": "rows",
+                "next": "triage",
+            },
+            {
+                "id": "triage",
+                "type": "classify",
+                "source": "{{ rows }}",
+                "rules": [],
+                "model_for_remainder": {
+                    "model": "mock:test",
+                    "batch": 25,
+                    "labels": ["review", "reject"],
+                },
+                "output_key": "labelled",
+            },
+        ],
+    }
+    state = run_workflow_spec(
+        spec, pin_home=tmp_settings.home_path(), workflow_dir=tmp_path, llm=llm
+    )
+    assert state.status == "succeeded"
+    assert len(llm.calls) == 1
+    store = TableStore(tmp_settings.home_path() / "tables")
+    rows = list(store.iter_rows(state.output_keys["labelled"]["sha256"]))
+    assert {r["decision"] for r in rows} == {"model"}

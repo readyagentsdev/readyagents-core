@@ -2644,7 +2644,7 @@
                   }
                 ],
                 "default": null,
-                "description": "classify remainder: {model, batch, labels}.",
+                "description": "classify remainder: {model, batch, labels} or {decider, labels, criteria, min_confidence, on_low_confidence}. decider and model are exclusive.",
                 "title": "Model For Remainder"
               },
               "on_row_error": {

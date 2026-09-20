@@ -877,7 +877,10 @@ class NodeSpec(BaseModel):
     )
     model_for_remainder: dict[str, Any] | None = Field(
         default=None,
-        description="classify remainder: {model, batch, labels}.",
+        description=(
+            "classify remainder: {model, batch, labels} or {decider, labels, "
+            "criteria, min_confidence, on_low_confidence}. decider and model are exclusive."
+        ),
     )
     on_row_error: str | None = Field(
         default=None,
@@ -1181,6 +1184,11 @@ class NodeSpec(BaseModel):
                     f"Node '{self.id}': on_row_error must be fail, skip, or quarantine"
                 )
             self.on_row_error = err
+            rem = dict(self.model_for_remainder or {})
+            if rem.get("decider") and rem.get("model"):
+                raise ValueError(
+                    f"Node '{self.id}': model_for_remainder cannot set both 'decider' and 'model'"
+                )
         if self.media and t != NodeType.agent.value:
             raise ValueError(f"Node '{self.id}': 'media' is only valid on agent nodes")
         if self.render is not None and t != NodeType.document.value:
