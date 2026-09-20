@@ -4,6 +4,14 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Added
+
+- Phase 3 decide governance: state taint into decide, `--sovereign` preflight that refuses
+  hosted `jev` (names the node; `shim` + local model allowed), and policy `deciders.<name>`
+  allow/deny with optional `allow_models` / `on_tainted` (#10). `type: decide` stays
+  experimental. Not a general LLM node. `shim` ≠ `jev`. Cassette digests use pre-redact
+  state so sealed replay stays honest.
+
 ## 2.0.7 — 2026-09-20
 
 ### Added

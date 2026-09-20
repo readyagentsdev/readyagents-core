@@ -21,6 +21,12 @@ system prompt, decides whether a tool runs.
 - Agent tool-calls whose prompt or system interpolates untrusted state, even
   when the model emits literal arguments.
 - Known secret values being placed into a model request.
+- A `type: decide` node using untrusted state as the sole gate on an
+  irreversible action — **it must not be**. Jev is documented as vulnerable to
+  adversarial text injection. Confidence is a margin, not trustworthiness.
+  `min_confidence` is a quality control, not a security control. Decide output
+  is tainted from its state. Defence in depth, not a solution to prompt
+  injection. See [decisions.md](decisions.md).
 
 ## Supply chain
 
