@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 2.0.8 — 2026-09-20
+
 ### Added
 
 - Phase 3 decide governance: state taint into decide, `--sovereign` preflight that refuses

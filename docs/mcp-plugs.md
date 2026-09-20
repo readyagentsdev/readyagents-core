@@ -1,7 +1,7 @@
 # MCP paste catalog (client plugs)
 > **Tier:** stable — documentation only. See [stability](stability.md). Companion to [mcp.md](mcp.md).
 
-Curated **one-shot / client-side** MCP plugs for local workflow YAML. Current package **2.0.7**: `pip install "readyagentsdev[mcp]"`.
+Curated **one-shot / client-side** MCP plugs for local workflow YAML. Current package **2.0.8**: `pip install "readyagentsdev[mcp]"`.
 
 | This is | This is not |
 | --- | --- |
@@ -17,7 +17,7 @@ Prefer ReadyAgents builtins (`list_dir`, `read_file`, `write_file`, `http_get` o
 ```bash
 pip install "readyagentsdev[mcp]"
 # or: pip install -U "readyagentsdev[mcp]"
-readyagents version   # expect 2.0.7
+readyagents version   # expect 2.0.8
 ```
 
 1. Paste a block under top-level **`mcp_servers:`** in your workflow YAML.

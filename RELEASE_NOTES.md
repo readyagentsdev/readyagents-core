@@ -1,3 +1,26 @@
+# ReadyAgents Core 2.0.8
+
+**Phase 3 decide governance: taint, `--sovereign` preflight, and policy deciders.**
+
+- State taint into decide; `--sovereign` preflight refuses hosted `jev` (names the node;
+  `shim` + local model allowed) (#10).
+- Policy `deciders.<name>` allow/deny with optional `allow_models` / `on_tainted`.
+- `type: decide` stays **experimental** — not a general LLM node. `shim` ≠ `jev`.
+  Cassette digests use pre-redact state so sealed replay stays honest.
+
+## Try it
+
+```bash
+pip install readyagentsdev==2.0.8
+readyagents version
+readyagents new /tmp/decide208 --from-example decide_triage
+readyagents run /tmp/decide208/workflow.yaml --dry-run
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
+
+
 # ReadyAgents Core 2.0.7
 
 **Decider protocol, Phase 1 classify-via-Decider, and experimental `type: decide`.**

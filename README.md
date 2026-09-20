@@ -11,7 +11,7 @@ This repository is the free core. You keep the provider account and the bill. In
 
 ## 60-second start
 
-Requires **Python 3.11–3.14** on Linux, macOS, or Windows. Current version is **2.0.7**. Install with `pip install readyagentsdev`, or from this clone. The `2` versions the [core contract](docs/stability.md#what-the-version-number-means) only; extras carry their own maturity tiers.
+Requires **Python 3.11–3.14** on Linux, macOS, or Windows. Current version is **2.0.8**. Install with `pip install readyagentsdev`, or from this clone. The `2` versions the [core contract](docs/stability.md#what-the-version-number-means) only; extras carry their own maturity tiers.
 
 ```bash
 pip install readyagentsdev
@@ -232,7 +232,7 @@ flowchart LR
 - [Compliance evidence](docs/compliance.md) (Articles 12–14 mapping; not certification)
 - [Observability](docs/observability.md)
 - [Changelog](CHANGELOG.md)
-- [Release notes 2.0.7](RELEASE_NOTES.md)
+- [Release notes 2.0.8](RELEASE_NOTES.md)
 
 ## Install extras
 
