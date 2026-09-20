@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from readyagents import __all__ as TOP_LEVEL
 from readyagents.replay.cassette import classify_node_type
 from readyagents.workflow.schema import NodeType
@@ -39,12 +41,12 @@ def test_existing_classify_node_type_values_unchanged() -> None:
         "memory": "unsealable",
         "a2a": "unsealable",
         "team": "unsealable",
+        "decide": "sealed",
     }
     for kind, bucket in expected.items():
         assert classify_node_type(kind) == bucket, kind
-    # Phase 0 does not register NodeType.decide.
-    assert not hasattr(NodeType, "decide")
-    assert classify_node_type("decide") == "unsealable"
+    assert NodeType.decide.value == "decide"
+    assert classify_node_type("decide") == "sealed"
 
 
 def test_doctor_typesafe_row_is_informational() -> None:
@@ -56,6 +58,17 @@ def test_doctor_typesafe_row_is_informational() -> None:
     assert "configured" in row
     if not row["configured"]:
         assert report["ok"] is True or all(item["id"] != "typesafe" for item in report["findings"])
+
+
+def test_generated_schema_still_validates_existing_examples() -> None:
+    from readyagents.workflow.runner import load_workflow
+
+    root = Path(__file__).resolve().parents[1] / "examples"
+    skip = {"readyagents.policy.yaml"}
+    for path in sorted(root.glob("*.yaml")):
+        if path.name in skip:
+            continue
+        load_workflow(path)
 
 
 def test_prices_table_lists_jev() -> None:

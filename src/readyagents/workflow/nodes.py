@@ -422,6 +422,10 @@ def _execute_node_body(node: NodeSpec, state: RunState, ctx: ExecutionContext) -
         from readyagents.sessions.converse import run_converse_node
 
         output = run_converse_node(node, state, ctx)
+    elif kind == NodeType.decide.value:
+        from readyagents.decide.node import run_decide_node
+
+        output = run_decide_node(node, state, ctx)
     else:
         known = ", ".join(t.value for t in NodeType)
         raise WorkflowError(

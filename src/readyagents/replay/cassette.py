@@ -28,6 +28,7 @@ _TRANSCRIBE = "transcribe"
 _TABLE = "table"
 _MEDIA = "media"
 _BROWSER = "browser"
+_DECIDE = "decide"
 
 DETERMINISTIC_TOOLS = frozenset({"calc", "json_get", "json_set", "json_merge"})
 SEALABLE_TOOLS = frozenset({"now", "http_get", "read_file", "list_dir"})
@@ -78,6 +79,8 @@ def classify_node_type(node_type: str) -> str:
     if kind in {"document", "transcribe", "table"}:
         return "sealed"
     if kind == "browser":
+        return "sealed"
+    if kind == "decide":
         return "sealed"
     if kind == "classify":
         return "unsealable"
@@ -177,6 +180,23 @@ class Cassette:
     def tool_digest(self, name: str, arguments: Mapping[str, Any] | None) -> str:
         return tool_call_key(name, arguments)
 
+    def decide_digest(self, model: str, state: Any, questions: Mapping[str, Any]) -> str:
+        import hashlib
+
+        from readyagents.llm.cache import canonical_json_bytes
+
+        wired: dict[str, Any] = {}
+        for key, question in dict(questions or {}).items():
+            wire = getattr(question, "wire", None)
+            if callable(wire):
+                wired[str(key)] = wire()
+            elif isinstance(question, Mapping):
+                wired[str(key)] = dict(question)
+            else:
+                wired[str(key)] = question
+        payload = {"model": model, "state": state, "questions": wired}
+        return hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
     def record_llm(
         self,
         *,
@@ -218,6 +238,54 @@ class Cassette:
             }
             if media_hashes:
                 entry["media"] = media_hashes
+            self.report.note(node_id, "sealed")
+        if self.pending_route:
+            entry["route"] = dict(self.pending_route)
+            self.pending_route = None
+        self._put(key, entry)
+        return key
+
+    def record_decide(
+        self,
+        *,
+        node_id: str,
+        model: str,
+        state: Any,
+        questions: Mapping[str, Any],
+        decision: Any,
+        blocked: bool = False,
+    ) -> str:
+        digest = self.decide_digest(model, state, questions)
+        occ = self._record.get(f"{_DECIDE}:{digest}", 0)
+        self._record[f"{_DECIDE}:{digest}"] = occ + 1
+        key = entry_storage_key(_DECIDE, digest, occ)
+        if blocked:
+            entry = {
+                "kind": _DECIDE,
+                "node_id": node_id,
+                "occurrence": occ,
+                "digest": digest,
+                "redacted_blocked": True,
+                "sealed": False,
+            }
+            self.blocked_nodes.add(node_id)
+            self.report.note(node_id, "unsealable")
+        else:
+            projection = decision.as_dict() if hasattr(decision, "as_dict") else dict(decision)
+            entry = {
+                "kind": _DECIDE,
+                "node_id": node_id,
+                "occurrence": occ,
+                "digest": digest,
+                "decider": getattr(decision, "decider", None) or projection.get("decider"),
+                "model": getattr(decision, "model", None) or projection.get("model") or model,
+                "answers": projection.get("answers") or {},
+                "usage": dict(getattr(decision, "usage", None) or projection.get("usage") or {}),
+                "cost_micros": (getattr(decision, "usage", None) or {}).get("cost_micros")
+                if isinstance(getattr(decision, "usage", None), dict)
+                else None,
+                "sealed": True,
+            }
             self.report.note(node_id, "sealed")
         if self.pending_route:
             entry["route"] = dict(self.pending_route)
@@ -625,6 +693,75 @@ class Cassette:
             tool_calls=tool_calls_from_json(entry.get("tool_calls")),
         )
 
+    def replay_decide(
+        self,
+        *,
+        node_id: str,
+        model: str,
+        state: Any,
+        questions: Mapping[str, Any],
+    ) -> Any:
+        from typing import cast
+
+        from readyagents.decide.types import Answer, Decision, QuestionType
+        from readyagents.errors import DecideError
+
+        digest = self.decide_digest(model, state, questions)
+        occ = self._consume.get(f"{_DECIDE}:{digest}", 0)
+        key = entry_storage_key(_DECIDE, digest, occ)
+        entry = self.entries.get(key)
+        if entry is None and occ == 0:
+            entry = self.entries.get(f"{_DECIDE}:{digest}")
+        if entry is None or entry.get("redacted_blocked"):
+            nearest = self.nearest_key(_DECIDE, digest)
+            reason = "redacted_blocked" if entry and entry.get("redacted_blocked") else "missing"
+            miss = {
+                "node_id": node_id,
+                "reason": reason,
+                "nearest_key": nearest,
+                "digest": digest,
+            }
+            self.report.note(node_id, "miss", miss=miss)
+            raise CassetteMiss(
+                f"Cassette miss at decide node '{node_id}': {reason} "
+                f"(digest {digest[:12]}…, nearest {nearest or 'none'}). "
+                "Offline replay never falls through to a live call. "
+                "Record a cassette with --record.",
+                node_id=node_id,
+                reason=reason,
+                nearest_key=nearest,
+            )
+        self._consume[f"{_DECIDE}:{digest}"] = occ + 1
+        self.report.note(node_id, "sealed")
+        raw_answers = entry.get("answers")
+        if not isinstance(raw_answers, dict):
+            raw_answers = {}
+        answers: dict[str, Answer] = {}
+        for qid, blob in raw_answers.items():
+            if not isinstance(blob, dict):
+                raise DecideError(f"cassette answer {qid!r} is not an object")
+            qtype = str(blob.get("type") or "")
+            if qtype not in {"noul", "choice", "score"}:
+                raise DecideError(f"cassette answer {qid!r} has unknown type {qtype!r}")
+            answers[str(qid)] = Answer(
+                type=cast(QuestionType, qtype),
+                noul=blob.get("noul"),
+                choice=blob.get("choice"),
+                score=blob.get("score"),
+                confidence=blob.get("confidence"),
+                probabilities=dict(blob.get("probabilities") or {}),
+                legend={str(k): str(v) for k, v in dict(blob.get("legend") or {}).items()},
+            )
+        usage = entry.get("usage")
+        if not isinstance(usage, dict):
+            usage = {}
+        return Decision(
+            answers=answers,
+            model=str(entry.get("model") or model),
+            decider=str(entry.get("decider") or "jev"),
+            usage=dict(usage),
+        )
+
     def replay_tool(
         self,
         *,
@@ -781,6 +918,7 @@ class Cassette:
                 _TABLE,
                 _MEDIA,
                 _BROWSER,
+                _DECIDE,
             }:
                 raise CassetteError(f"Cassette {file} entry {key!r} has invalid kind")
             tape.entries[key] = dict(row)

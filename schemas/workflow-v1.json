@@ -3115,6 +3115,234 @@
             ],
             "type": "object"
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "decide"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "contract": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContractSpec"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Opt-in output contract: structural schema, named content rules, and a declared action (fail, repair, fallback, gate, redact_and_continue)."
+              },
+              "decider": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Decider ref for type: decide (jev, shim, jev:jev-1.13.0). Omitted uses shim when no TypeSafe key.",
+                "title": "Decider"
+              },
+              "default": {
+                "default": null,
+                "description": "Wait on_deadline: continue payload. Never grants an approval.",
+                "title": "Default"
+              },
+              "else": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Successor node id when the condition/approval is false.",
+                "title": "Else"
+              },
+              "limits": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "code limits: cpu_seconds, memory_mb, wall_seconds, output_bytes, nproc.",
+                "title": "Limits"
+              },
+              "min_confidence": {
+                "anyOf": [
+                  {
+                    "maximum": 1.0,
+                    "minimum": 0.0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Quality-control margin threshold for type: decide. Not a security control.",
+                "title": "Min Confidence"
+              },
+              "model": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "LLM ref for this agent (provider:model). Overrides default_model.",
+                "title": "Model"
+              },
+              "next": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Default successor node id.",
+                "title": "Next"
+              },
+              "on_low_confidence": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Successor node id, or fail, when a decide answer is below min_confidence.",
+                "title": "On Low Confidence"
+              },
+              "output_key": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Alias for this node's output in templates ({{key}}).",
+                "title": "Output Key"
+              },
+              "questions": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Typed questions for type: decide: {id: {type, instructions, criteria}}.",
+                "title": "Questions"
+              },
+              "route_on": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Question key to branch on for type: decide.",
+                "title": "Route On"
+              },
+              "routes": {
+                "anyOf": [
+                  {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "choice routing: {criteria_key: node_id} for type: decide.",
+                "title": "Routes"
+              },
+              "state": {
+                "anyOf": [
+                  {},
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Material to judge for type: decide. String, mapping, or list; templates allowed.",
+                "title": "State"
+              },
+              "then": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Successor node id when the condition/approval is true.",
+                "title": "Then"
+              },
+              "threshold": {
+                "anyOf": [
+                  {
+                    "maximum": 1.0,
+                    "minimum": 0.0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "noul routing threshold for type: decide (default 0.5 at runtime).",
+                "title": "Threshold"
+              }
+            },
+            "required": [
+              "questions",
+              "state"
+            ],
+            "type": "object"
+          }
         }
       ],
       "description": "One node in the workflow graph.",
@@ -3137,19 +3365,6 @@
           "minLength": 1,
           "title": "Id",
           "type": "string"
-        },
-        "output_key": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Alias for this node's output in templates ({{key}}).",
-          "title": "Output Key"
         },
         "recovery": {
           "anyOf": [
@@ -3234,14 +3449,15 @@
                 "wait",
                 "skill",
                 "browser",
-                "converse"
+                "converse",
+                "decide"
               ]
             },
             {
               "type": "string"
             }
           ],
-          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory, code, team, document, transcribe, ingest, table, classify, wait, skill, browser, converse. Packs may add additional types.",
+          "description": "Node kind. Built-in values: agent, tool, condition, transform, approval, parallel, include, foreach, a2a, memory, code, team, document, transcribe, ingest, table, classify, wait, skill, browser, converse, decide. Packs may add additional types.",
           "title": "Type"
         }
       },
