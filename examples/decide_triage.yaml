@@ -2,8 +2,9 @@ name: decide_triage
 version: "1"
 description: >
   Typed triage with a System One decider, then a confidence-gated human gate.
-  Keyless dry-run: readyagents run examples/decide_triage.yaml --dry-run
-  With a TypeSafe key, set decider: jev on the triage node.
+  Keyless (no TypeSafe key, no LLM): readyagents run examples/decide_triage.yaml
+  uses the shim heuristic and pauses at human_review (exit 2) — uncalibrated on purpose.
+  Dry-run also works. With a TypeSafe key, set decider: jev on the triage node.
 
 inputs:
   message: >

@@ -177,7 +177,7 @@ def format_doctor(report: dict[str, Any]) -> str:
         (
             "TypeSafe Jev configured="
             f"{(report.get('keys') or {}).get('typesafe', {}).get('configured')} "
-            "(informational; decide works keyless via shim)"
+            "(informational; decide shim runs keyless — uncalibrated; use on_low_confidence)"
         ),
     ]
     if report["findings"]:
