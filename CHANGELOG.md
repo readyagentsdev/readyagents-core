@@ -4,6 +4,13 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Added
+
+- Decider protocol (`readyagents.decide`) with an optional TypeSafe Jev HTTP client and a
+  keyless shim for local/dev (#7). Not a workflow `type: decide` node yet; not a general
+  LLM provider. The shim is an explicit non-Jev stand-in when `TYPESAFE_API_KEY` is unset.
+  Ledger prices for `jev-*` are estimates only.
+
 ## 2.0.6 — 2026-09-19
 
 ### Fixed
