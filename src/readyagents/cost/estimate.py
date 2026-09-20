@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -205,6 +206,9 @@ def _emit_node(
             )
         )
         return
+    if kind == NodeType.classify.value:
+        into.extend(_classify_decider_calls(node, state, assume=assume, measured=measured))
+        return
     if kind == NodeType.parallel.value:
         for branch in node.branches or []:
             _emit_node(
@@ -300,6 +304,68 @@ def _agent_calls(
         "measured": prompt_measured or sys_measured,
     }
     return [row]
+
+
+def _classify_decider_calls(
+    node: NodeSpec,
+    state: RunState,
+    *,
+    assume: str,
+    measured: dict[str, bool],
+) -> list[dict[str, Any]]:
+    """One billed call per remainder row when model_for_remainder.decider is set.
+
+    The LLM remainder path is unchanged (still unestimated) — additive only.
+    """
+    spec = dict(getattr(node, "model_for_remainder", None) or {})
+    ref = spec.get("decider")
+    if not ref:
+        return []
+    from readyagents.cost.tokens import heuristic_tokens
+
+    rows = _classify_remainder_count(node, state, assume)
+    prompt = heuristic_tokens(
+        json.dumps(spec.get("labels") or spec.get("criteria") or [], default=str)
+    )
+    model = str(ref)
+    if ":" in model:
+        _, model_id = model.split(":", 1)
+        model = model_id or model
+    elif model == "jev":
+        model = "jev-1.13.0"
+    return [
+        {
+            "node_id": node.id,
+            "model": model,
+            "prompt_tokens": prompt,
+            "completion_tokens": 0,
+            "multiplier": max(1, rows),
+            "measured": False,
+        }
+    ]
+
+
+def _classify_remainder_count(node: NodeSpec, state: RunState, assume: str) -> int:
+    limits = dict(getattr(node, "limits", None) or {})
+    cap = limits.get("max_calls")
+    cap_n = int(cap) if cap is not None else 32
+    source = getattr(node, "source", None)
+    row_count = None
+    if isinstance(source, str):
+        from readyagents.workflow.templates import lookup
+
+        try:
+            ref = lookup(state.mapping(), source.strip("{} ").strip() if "{{" in source else source)
+        except Exception:
+            ref = None
+        if isinstance(ref, dict) and ref.get("row_count") is not None:
+            try:
+                row_count = int(ref["row_count"])
+            except (TypeError, ValueError):
+                row_count = None
+    if row_count is not None:
+        return max(0, min(row_count, cap_n))
+    return 1 if assume == "floor" else cap_n
 
 
 def _foreach_count(node: NodeSpec, state: RunState, assume: str) -> int:
