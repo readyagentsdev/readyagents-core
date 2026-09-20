@@ -74,6 +74,9 @@ If the node has no explicit `model:` and the default provider has no key, the en
 | `GEMINI_API_KEY` / `GOOGLE_API_KEY` | Gemini extra (`gemini:` refs) |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` | Bedrock extra (`bedrock:` refs). Loaded only when that route is selected. |
 | `VERTEX_PROJECT` / `GOOGLE_CLOUD_PROJECT` | Vertex extra (`vertex:` refs) |
+| `TYPESAFE_API_KEY` / `READYAGENTS_TYPESAFE_API_KEY` | TypeSafe Jev (`decider: jev`). Optional — `type: decide` falls back to the keyless `shim` when unset. |
+| `TYPESAFE_BASE_URL` | TypeSafe API origin (default `https://api.typesafe.ai`). User-supplied hosts go through the same SSRF checks as other outbound URLs. |
+| `TYPESAFE_SYSTEMONE_PATH` | System One evaluate path (default `/v1/systemone`). |
 | `READYAGENTS_FALLBACK_MODELS` | Comma-separated `provider:model` list tried after the primary fails |
 | `READYAGENTS_CIRCUIT_FAILURE_THRESHOLD` | Consecutive failures before skipping a model (default 3) |
 | `READYAGENTS_CIRCUIT_COOLDOWN_SECONDS` | How long a skipped model stays skipped (default 60) |

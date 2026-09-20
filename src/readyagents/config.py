@@ -110,6 +110,25 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("GOOGLE_APPLICATION_CREDENTIALS"),
     )
+    typesafe_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("TYPESAFE_API_KEY", "READYAGENTS_TYPESAFE_API_KEY"),
+    )
+    typesafe_base_url: str = Field(
+        default="https://api.typesafe.ai",
+        validation_alias=AliasChoices(
+            "TYPESAFE_BASE_URL",
+            "READYAGENTS_TYPESAFE_BASE_URL",
+        ),
+    )
+    typesafe_systemone_path: str = Field(
+        default="/v1/systemone",
+        validation_alias=AliasChoices(
+            "TYPESAFE_SYSTEMONE_PATH",
+            "READYAGENTS_TYPESAFE_SYSTEMONE_PATH",
+            "SYSTEM_ONE_PATH",
+        ),
+    )
     capability_matrix: Path | None = Field(
         default=None,
         validation_alias=AliasChoices("READYAGENTS_CAPABILITY_MATRIX"),
@@ -338,6 +357,7 @@ class Settings(BaseSettings):
         "aws_session_token",
         "vertex_project",
         "google_application_credentials",
+        "typesafe_api_key",
         "decision_secret",
         "mcp_protocol_max",
         mode="before",
@@ -409,6 +429,8 @@ class Settings(BaseSettings):
             return self.aws_access_key_id
         if provider == "vertex":
             return self.vertex_project
+        if provider in {"typesafe", "jev"}:
+            return self.typesafe_api_key
         return None
 
 
@@ -456,6 +478,12 @@ def require_api_key(
         "gemini": "Set GEMINI_API_KEY or GOOGLE_API_KEY (copy .env.example to .env).",
         "bedrock": "Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (and AWS_REGION).",
         "vertex": "Set VERTEX_PROJECT or GOOGLE_CLOUD_PROJECT.",
+        "typesafe": (
+            "Set TYPESAFE_API_KEY or READYAGENTS_TYPESAFE_API_KEY (copy .env.example to .env)."
+        ),
+        "jev": (
+            "Set TYPESAFE_API_KEY or READYAGENTS_TYPESAFE_API_KEY (copy .env.example to .env)."
+        ),
     }
     hint = hints.get(provider.lower(), f"Set an API key for provider '{provider}'.")
     raise LLMError(f"No API key configured for provider '{provider}'. ReadyAgents is BYOK — {hint}")

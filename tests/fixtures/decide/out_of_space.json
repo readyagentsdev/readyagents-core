@@ -1,0 +1,13 @@
+{
+  "_provenance": "Synthesised: choice outside the declared criteria. Implementation must raise.",
+  "model": "jev-1.13.0",
+  "answers": {
+    "department": {
+      "type": "choice",
+      "choice": "legal",
+      "probabilities": { "legal": 1.0 },
+      "confidence": 0.9
+    }
+  },
+  "usage": { "input_tokens": 8, "output_tokens": 1 }
+}

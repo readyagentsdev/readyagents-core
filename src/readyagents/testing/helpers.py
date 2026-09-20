@@ -6,7 +6,9 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from readyagents.errors import LLMError
+from readyagents.decide.base import validate_questions
+from readyagents.decide.types import Answer, DecideState, Decision, Question
+from readyagents.errors import DecideError, LLMError
 from readyagents.llm.base import CompletionResult, Message, ToolCall
 from readyagents.tools import ToolRegistry
 from readyagents.workflow.engine import run_workflow
@@ -14,6 +16,107 @@ from readyagents.workflow.nodes import ExecutionContext
 from readyagents.workflow.runner import run_workflow_file
 from readyagents.workflow.schema import WorkflowSpec
 from readyagents.workflow.state import RunState
+
+
+class FakeDecider:
+    """In-process Decider. Queue decisions or errors; never opens a socket."""
+
+    name = "fake"
+
+    def __init__(self, *, model: str = "fake") -> None:
+        self.calls: list[dict[str, Any]] = []
+        self._queue: list[Decision | BaseException | Mapping[str, Any]] = []
+        self._model = model
+
+    def enqueue(
+        self,
+        decision: Decision | Mapping[str, Any] | None = None,
+        *,
+        error: BaseException | None = None,
+    ) -> FakeDecider:
+        if error is not None:
+            self._queue.append(error)
+        elif decision is not None:
+            self._queue.append(decision)
+        return self
+
+    def decide(
+        self,
+        *,
+        state: DecideState,
+        questions: Mapping[str, Question],
+        model: str,
+        timeout: float | None = None,
+    ) -> Decision:
+        validate_questions(questions)
+        self.calls.append(
+            {"state": state, "questions": dict(questions), "model": model, "timeout": timeout}
+        )
+        if self._queue:
+            item = self._queue.pop(0)
+            if isinstance(item, BaseException):
+                raise item
+            if isinstance(item, Decision):
+                return item
+            return _decision_from_mapping(item, questions, model=model or self._model)
+        return _default_decision(questions, model=model or self._model)
+
+
+def _default_decision(questions: Mapping[str, Question], *, model: str) -> Decision:
+    answers: dict[str, Answer] = {}
+    for key, question in questions.items():
+        if question.type == "choice" and isinstance(question.criteria, Mapping):
+            choice = next(iter(question.criteria))
+            answers[key] = Answer(type="choice", choice=str(choice), confidence=1.0)
+        elif question.type == "score":
+            answers[key] = Answer(type="score", score=0.0, confidence=1.0)
+        else:
+            answers[key] = Answer(type="noul", noul=0.9, confidence=0.8)
+    return Decision(answers=answers, model=model, decider="fake")
+
+
+def _decision_from_mapping(
+    raw: Mapping[str, Any], questions: Mapping[str, Question], *, model: str
+) -> Decision:
+    answers: dict[str, Answer] = {}
+    blob = raw.get("answers") if isinstance(raw.get("answers"), Mapping) else raw
+    if not isinstance(blob, Mapping):
+        raise DecideError("fake decision answers must be a mapping")
+    for key, question in questions.items():
+        payload = blob.get(key)
+        if isinstance(payload, Answer):
+            answers[key] = payload
+            continue
+        if question.type == "choice":
+            if isinstance(payload, str):
+                choice = payload
+            elif isinstance(payload, Mapping):
+                choice = str(payload.get("choice"))
+            else:
+                choice = str(payload)
+            answers[key] = Answer(type="choice", choice=choice, confidence=1.0)
+        elif question.type == "score":
+            if isinstance(payload, (int, float)):
+                score = float(payload)
+            elif isinstance(payload, Mapping):
+                score = float(payload.get("score") or 0)
+            else:
+                score = 0.0
+            answers[key] = Answer(type="score", score=score, confidence=1.0)
+        else:
+            if isinstance(payload, (int, float)):
+                noul = float(payload)
+            elif isinstance(payload, Mapping):
+                noul = float(payload.get("noul") or 0)
+            else:
+                noul = 0.0
+            answers[key] = Answer(type="noul", noul=noul, confidence=1.0)
+    return Decision(
+        answers=answers,
+        model=str(raw.get("model") or model),
+        decider=str(raw.get("decider") or "fake"),
+        usage=dict(raw.get("usage") or {}),
+    )
 
 
 class ScriptedLLM:
