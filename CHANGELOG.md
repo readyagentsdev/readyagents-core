@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 2.0.7 — 2026-09-20
+
 ### Added
 
 - Decider protocol (`readyagents.decide`) with an optional TypeSafe Jev HTTP client and a

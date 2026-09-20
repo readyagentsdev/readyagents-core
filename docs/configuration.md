@@ -74,7 +74,7 @@ If the node has no explicit `model:` and the default provider has no key, the en
 | `GEMINI_API_KEY` / `GOOGLE_API_KEY` | Gemini extra (`gemini:` refs) |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` | Bedrock extra (`bedrock:` refs). Loaded only when that route is selected. |
 | `VERTEX_PROJECT` / `GOOGLE_CLOUD_PROJECT` | Vertex extra (`vertex:` refs) |
-| `TYPESAFE_API_KEY` / `READYAGENTS_TYPESAFE_API_KEY` | TypeSafe Jev HTTP Decider (`decider: jev` via `get_decider`). Optional — without a key, `get_decider()` uses the keyless `shim` (non-Jev local/dev stand-in). Workflow `type: decide` is not on main yet. |
+| `TYPESAFE_API_KEY` / `READYAGENTS_TYPESAFE_API_KEY` | TypeSafe Jev HTTP Decider (`decider: jev` via `get_decider`). Optional for experimental `type: decide` — without a key, `get_decider()` / omit-`decider:` uses the keyless `shim` (non-Jev local/dev stand-in; not calibrated like `jev`). See [decisions.md](decisions.md). |
 | `TYPESAFE_BASE_URL` | TypeSafe API origin (default `https://api.typesafe.ai`). User-supplied hosts go through the same SSRF checks as other outbound URLs. |
 | `TYPESAFE_SYSTEMONE_PATH` | System One evaluate path (default `/v1/systemone`). |
 | `READYAGENTS_FALLBACK_MODELS` | Comma-separated `provider:model` list tried after the primary fails |

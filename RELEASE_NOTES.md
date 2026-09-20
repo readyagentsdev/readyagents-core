@@ -1,3 +1,31 @@
+# ReadyAgents Core 2.0.7
+
+**Decider protocol, Phase 1 classify-via-Decider, and experimental `type: decide`.**
+
+- Decider protocol (`readyagents.decide`) with optional TypeSafe Jev HTTP client and a
+  keyless shim for local/dev (#7). **Not** a general LLM provider or node. The shim is an
+  explicit non-Jev stand-in when `TYPESAFE_API_KEY` is unset (`shim` ≠ `jev`; shim has no
+  calibrated confidence). Ledger/prices for `jev-*` are estimates only.
+- Phase 1: classify remainder can use a Decider (`model_for_remainder.decider`) instead of
+  an LLM (#8).
+- Workflow `type: decide` (experimental): typed questions, confidence-gated routing, and
+  sealed cassette replay (#9). Keyless `shim` keeps the format runnable offline. See
+  `docs/decisions.md`. CLI `readyagents decide` remains **external approval injection** —
+  it is not the YAML `type: decide` node.
+
+## Try it
+
+```bash
+pip install readyagentsdev==2.0.7
+readyagents version
+readyagents new /tmp/decide --from-example decide_triage
+readyagents run /tmp/decide/workflow.yaml --dry-run
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
+
+
 # ReadyAgents Core 2.0.6
 
 **`readyagents new --from-example` recursively materializes `type: include` children.**
