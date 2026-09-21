@@ -1,4 +1,4 @@
-"""Keyless LLM-backed Decider. Not a Jev replacement; no calibrated confidence."""
+"""Shim Decider: LLM when present, else keyless heuristic. Not a Jev replacement."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from readyagents.workflow.structured import parse_json_payload
 
 
 class ShimDecider:
-    """Structured-output fallback so decide workflows run without a TypeSafe key."""
+    """Fallback so decide workflows run without a TypeSafe key (LLM or keyless heuristic)."""
 
     name = "shim"
 
@@ -32,7 +32,10 @@ class ShimDecider:
     ) -> Decision:
         validate_questions(questions)
         if self._llm is None or not hasattr(self._llm, "complete"):
-            raise DecideError("shim decider requires an LLM")
+            # Keyless cold-pip path: uncalibrated heuristic answers. Decision.low_confidence_keys
+            # still treats every shim answer as low-confidence when min_confidence is set, so
+            # workflows degrade to on_low_confidence (human gate) rather than inventing certainty.
+            return _heuristic_decision(state, questions, model=model or self._model or "shim")
         answering = (model or self._model or getattr(self._llm, "name", None) or "shim").strip()
         prompt = _render_prompt(state, questions)
         try:
@@ -64,6 +67,67 @@ class ShimDecider:
             usage=usage,
             raw=payload,
         )
+
+
+def _state_text(state: DecideState) -> str:
+    if isinstance(state, str):
+        return state
+    return json.dumps(state, ensure_ascii=False, default=str)
+
+
+def _tokenize(text: str) -> set[str]:
+    cleaned = "".join(ch.lower() if ch.isalnum() else " " for ch in text)
+    return {part for part in cleaned.split() if part}
+
+
+def _heuristic_answer(state_text: str, question: Question) -> Answer:
+    """Deterministic, uncalibrated stand-in when no LLM is configured."""
+    hay = _tokenize(state_text)
+    if question.type == "choice":
+        criteria = question.criteria if isinstance(question.criteria, Mapping) else {}
+        best_key: str | None = None
+        best_score = -1
+        for option, description in criteria.items():
+            score = len(hay & _tokenize(f"{option} {description}"))
+            if score > best_score:
+                best_score = score
+                best_key = str(option)
+        if best_key is None:
+            raise DecideError("shim heuristic has no choice options")
+        return Answer(type="choice", choice=best_key, confidence=None)
+    if question.type == "noul":
+        urgency = {
+            "urgent",
+            "urgency",
+            "asap",
+            "immediately",
+            "critical",
+            "outage",
+            "down",
+            "500",
+            "escalate",
+        }
+        hit = 1.0 if hay & urgency else 0.0
+        # Mid prior keeps derived confidence weak; shim low-confidence routing still applies.
+        value = 0.75 if hit else 0.25
+        return Answer(type="noul", noul=value, confidence=None)
+    levels = question.criteria if isinstance(question.criteria, list) else []
+    high = max(len(levels) - 1, 1)
+    return Answer(type="score", score=float(high) / 2.0, confidence=None)
+
+
+def _heuristic_decision(
+    state: DecideState, questions: Mapping[str, Question], *, model: str
+) -> Decision:
+    text = _state_text(state)
+    answers = {key: _heuristic_answer(text, question) for key, question in questions.items()}
+    return Decision(
+        answers=answers,
+        model=model or "shim",
+        decider="shim",
+        usage={},
+        raw={"heuristic": True},
+    )
 
 
 def _render_prompt(state: DecideState, questions: Mapping[str, Question]) -> str:

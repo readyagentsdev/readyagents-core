@@ -115,6 +115,52 @@ def test_new_from_example_unknown_errors(tmp_path: Path, monkeypatch) -> None:
     assert "Unknown example" in result.output
 
 
+def test_shim_keyless_heuristic_without_llm() -> None:
+    """Cold-pip: shim must not raise when no LLM is configured."""
+    from readyagents.decide.base import questions_from_mapping
+    from readyagents.decide.shim import ShimDecider
+
+    questions = questions_from_mapping(
+        {
+            "department": {
+                "type": "choice",
+                "instructions": "Which team",
+                "criteria": {
+                    "billing": "Payment issues",
+                    "technical": "Bugs or checkout errors",
+                    "sales": "Pricing",
+                },
+            },
+            "is_urgent": {"type": "noul", "instructions": "Urgency"},
+        }
+    )
+    decision = ShimDecider(None).decide(
+        state="production checkout returning 500s; please escalate",
+        questions=questions,
+        model="shim",
+    )
+    assert decision.decider == "shim"
+    assert decision.answers["department"].choice == "technical"
+    assert decision.low_confidence_keys(0.85) == ["department", "is_urgent"]
+
+
+def test_new_from_example_decide_triage_runs_keyless(tmp_path: Path, monkeypatch) -> None:
+    """Doctor claim: decide_triage materializes and runs without keys/LLM (pauses at HITL)."""
+    clear_settings_cache()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("READYAGENTS_HOME", str(tmp_path / ".readyagents"))
+    for key in ("TYPESAFE_API_KEY", "READYAGENTS_TYPESAFE_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    created = runner.invoke(app, ["new", "triage", "--from-example", "decide_triage"])
+    assert created.exit_code == 0, created.output
+    result = runner.invoke(app, ["run", "triage/workflow.yaml", "--no-persist"])
+    # Exit 2 = paused at approval (human_review); must not be exit 1 NodeError about LLM.
+    assert result.exit_code == 2, result.output
+    combined = result.output.lower()
+    assert "requires an llm" not in combined
+    assert "approval" in combined or "paused" in combined or "human_review" in combined
+
+
 def test_materialize_include_demo_copies_child_and_runs(tmp_path: Path, monkeypatch) -> None:
     """Pip-road: include_demo materializes parent + child and runs keyless."""
     clear_settings_cache()

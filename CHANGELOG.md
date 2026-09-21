@@ -4,6 +4,13 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Fixed
+
+- Shim `decide` path is truly keyless when no LLM is configured: a deterministic,
+  uncalibrated heuristic fills answers so cold-pip `new --from-example decide_triage`
+  + `run` reaches the human gate (exit 2) instead of NodeError. Doctor wording matches
+  (uncalibrated; use `on_low_confidence`). Not a general LLM; shim ≠ jev.
+
 ## 2.0.8 — 2026-09-20
 
 ### Added
