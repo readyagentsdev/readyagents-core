@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+from collections.abc import Mapping
 from pathlib import Path
 
 from readyagents.workflow.state import RunState
@@ -11,7 +12,7 @@ from readyagents.workflow.state import RunState
 def render_html(state: RunState) -> str:
     rows = []
     for result in state.results:
-        preview = result.error or result.output
+        preview = result.error if result.error else result.output
         cost = result.usage.get("cost_micros") if result.usage else None
         cost_cell = "—" if cost is None else str(cost)
         rows.append(
@@ -19,7 +20,7 @@ def render_html(state: RunState) -> str:
             f"<td><code>{html.escape(result.node_id)}</code></td>"
             f"<td>{html.escape(result.type)}</td>"
             f"<td class='st-{html.escape(result.status)}'>{html.escape(result.status)}</td>"
-            f"<td><pre>{html.escape(_preview(preview))}</pre></td>"
+            f"<td>{_render_output(preview)}</td>"
             f"<td>{result.attempts}</td>"
             f"<td>{html.escape(cost_cell)}</td>"
             "</tr>"
@@ -96,6 +97,53 @@ def write_html_report(state: RunState, dest: Path) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(render_html(state), encoding="utf-8")
     return dest
+
+
+def _render_output(value: object) -> str:
+    """HTML for one node cell. Decision-shaped outputs get an answers table."""
+    table = _answers_table(value)
+    if table is not None:
+        return table
+    return f"<pre>{html.escape(_preview(value))}</pre>"
+
+
+def _answers_table(value: object) -> str | None:
+    """Render an ``answers`` mapping whose entries carry ``confidence``.
+
+    Any other shape stays on the generic preview. This is not a per-node-type
+    renderer. The numbers are a margin, not a probability.
+    """
+    if not isinstance(value, Mapping):
+        return None
+    answers = value.get("answers")
+    if not isinstance(answers, Mapping) or not answers:
+        return None
+    rows: list[str] = []
+    for key, answer in answers.items():
+        if not isinstance(answer, Mapping) or "confidence" not in answer:
+            return None
+        shown = answer.get("value")
+        if shown is None:
+            shown = answer.get("choice", answer.get("noul", answer.get("score", "")))
+        rows.append(
+            "<tr>"
+            f"<td><code>{html.escape(str(key))}</code></td>"
+            f"<td>{html.escape(str(shown))}</td>"
+            f"<td>{html.escape(str(answer.get('confidence')))}</td>"
+            "</tr>"
+        )
+    notes: list[str] = []
+    if value.get("min_confidence") is not None:
+        notes.append(f"min_confidence {html.escape(str(value.get('min_confidence')))}")
+    routed = value.get("routed")
+    if routed:
+        notes.append(f"routed {html.escape(str(routed))}")
+    note = f"<p>{' · '.join(notes)}</p>" if notes else ""
+    return (
+        "<table class='answers'>"
+        "<thead><tr><th>question</th><th>value</th><th>confidence</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>" + note
+    )
 
 
 def _preview(value: object, limit: int = 800) -> str:

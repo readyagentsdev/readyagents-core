@@ -15,6 +15,7 @@ TEMPLATES = (
     "foreach",
     "agent-tools",
     "gated",
+    "decide",
 )
 
 _ENV = """# ReadyAgents BYOK — fill in your keys. Never commit real keys.
@@ -295,6 +296,82 @@ nodes:
     template: "gated denied: {{{{total}}}}"
     output_key: summary
 """,
+    "decide": """name: {name}
+version: "1"
+description: >
+  Confidence-gated triage from `readyagents new --template decide`.
+  Keyless (no TypeSafe key): the shim pauses at human_review.
+  That path is not calibration. It completes after approval.
+  Run: readyagents run workflow.yaml --approve human_review
+
+inputs:
+  message: >
+    Hi, our production checkout has been returning 500s for 20 minutes.
+    Customers cannot pay. Please escalate.
+
+start: triage
+nodes:
+  - id: triage
+    type: decide
+    state: "{{{{message}}}}"
+    questions:
+      department:
+        type: choice
+        instructions: "Which team should handle this"
+        criteria:
+          billing: "Payment or subscription issues"
+          technical: "Bugs or integration problems"
+          sales: "Pricing or account questions"
+      is_urgent:
+        type: noul
+        instructions: "The message conveys urgency or time-sensitivity"
+    output_key: triage
+    min_confidence: 0.85
+    on_low_confidence: human_review
+    route_on: department
+    routes:
+      billing: billing_queue
+      technical: page_oncall
+      sales: sales_inbox
+    default: human_review
+
+  - id: human_review
+    type: approval
+    prompt: >
+      Decider was not confident ({{{{triage.low_confidence}}}}).
+      Message: {{{{message}}}}
+      Route this ticket manually.
+    next: manual_route
+
+  - id: manual_route
+    type: transform
+    template: "Manual routing — decider was not confident on {{{{triage.low_confidence}}}}"
+    output_key: summary
+    next: done
+
+  - id: page_oncall
+    type: transform
+    template: "PAGE oncall — urgency {{{{triage.answers.is_urgent.value}}}}"
+    output_key: summary
+    next: done
+
+  - id: billing_queue
+    type: transform
+    template: "Billing queue — {{{{triage.answers.department.value}}}}"
+    output_key: summary
+    next: done
+
+  - id: sales_inbox
+    type: transform
+    template: "Sales inbox — {{{{triage.answers.department.value}}}}"
+    output_key: summary
+    next: done
+
+  - id: done
+    type: transform
+    template: "triage complete: {{{{summary}}}}"
+    output_key: result
+""",
 }
 
 _READMES: dict[str, str] = {
@@ -381,6 +458,18 @@ readyagents run workflow.yaml
 readyagents resume <run_id> --approve gate
 readyagents run workflow.yaml --approve gate
 ```
+""",
+    "decide": """# {name}
+
+Confidence-gated triage (`--template decide`). No API key required.
+The keyless shim is not calibration: with `min_confidence` set it pauses
+at `human_review`. Approve to record a manual route and finish.
+
+```bash
+readyagents run workflow.yaml --approve human_review
+```
+
+See `docs/decisions.md` before treating confidence as a probability.
 """,
 }
 

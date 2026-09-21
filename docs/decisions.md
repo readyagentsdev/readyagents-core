@@ -62,9 +62,11 @@ change. The CLI verb is unchanged.
   default: human_review
 ```
 
-Worked example: [`examples/decide_triage.yaml`](../examples/decide_triage.yaml)
-(keyless under `--dry-run`; omit `decider:` so the registry falls back to
-`shim`).
+Worked example: [`examples/decide_triage.yaml`](../examples/decide_triage.yaml).
+Omit `decider:` and the registry uses `shim`. That keyless path is not
+calibration: it reaches `human_review` and completes after
+`--approve human_review`. Mechanism cases live in
+[`examples/eval/decide_triage/`](../examples/eval/decide_triage/README.md).
 
 `readyagents validate` catches question-shape errors and `routes` keys that
 are not declared criteria — no key and no network required.
@@ -108,9 +110,32 @@ For a `noul` at threshold `t=0.5`:
 A `False` with probability `0.01` is *far* from a coin flip, so the margin is
 high. That is not "98% chance the answer is correct".
 
-Thresholds must be calibrated **per action**, not set globally. Low for
-read-only/reversible steps, high for risky ones. `readyagents eval` is the
-way to calibrate against labelled examples.
+Thresholds must be calibrated **per action**, not set globally. The harness
+is [`examples/eval/decide_triage/`](../examples/eval/decide_triage/README.md):
+
+1. Write 20–50 labelled cases from your own data.
+2. Run the suite at several thresholds. The CLI cannot sweep thresholds. A
+   shell loop is enough: copy the workflow, set `min_confidence`, and run
+   `readyagents eval` on each copy.
+
+   ```bash
+   for t in 0.50 0.70 0.85 0.95; do
+     echo "min_confidence=$t"
+     # set min_confidence on a copy of the workflow, then:
+     # readyagents eval examples/eval/decide_triage
+   done
+   ```
+
+3. Read the tradeoff: raising `min_confidence` sends more tickets to a human
+   and fewer wrong ones through.
+4. Pick the threshold for the cost of being wrong on **that action** — low if
+   the step is reversible, high if it is irreversible.
+
+A keyless pass of that suite proves the mechanism (the human gate fires, and
+route labels match the deterministic shim heuristic only on workflows that
+omit `min_confidence`). It does not validate a threshold. With `min_confidence`
+set, the shim treats every answer as low-confidence, so the loop above cannot
+tune the shim.
 
 **`min_confidence` is a quality control, not a security control.** An injected
 state can produce a confident wrong label. Never use a decide node as the
@@ -179,9 +204,11 @@ guessed:
 
 ## Calibrating with `readyagents eval`
 
-Vendor guidance is to calibrate thresholds against labelled examples. Point
-`readyagents eval` at a fixture suite of messages with expected routes. That
-is the working pattern; this page does not invent a global number.
+Use the four steps in [Confidence](#confidence). The shipped suite is
+[`examples/eval/decide_triage/`](../examples/eval/decide_triage/README.md).
+Point `readyagents eval` at your own labelled cases when you have a real
+decider. This page does not invent a global number, and a keyless pass does
+not validate a threshold.
 
 ## Configuration
 

@@ -18,6 +18,7 @@ STEPS: list[list[str]] = [
     ["run", str(EXAMPLES / "calc_pipeline.yaml"), "--no-persist"],
     ["run", str(EXAMPLES / "list_dir.yaml"), "--no-persist"],
     ["eval", str(EXAMPLES / "eval" / "pass.yaml")],
+    ["eval", str(EXAMPLES / "eval" / "decide_triage")],
     [
         "run",
         str(EXAMPLES / "connector_demo.yaml"),

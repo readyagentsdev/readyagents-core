@@ -164,6 +164,8 @@ def new_cmd(
         console.print(f"Run: [cyan]readyagents run {wf} --dry-run[/cyan]")
     elif template == "research":
         console.print(f"Run: [cyan]readyagents run {wf} --approve publish[/cyan]")
+    elif template == "decide":
+        console.print(f"Run: [cyan]readyagents run {wf} --approve human_review[/cyan]")
     else:
         console.print(f"Run: [cyan]readyagents run {wf} --approve gate[/cyan]")
 
@@ -256,6 +258,11 @@ def eval_cmd(
 ) -> None:
     """Score a keyless fixture suite."""
     try:
+        if path.is_dir():
+            nested = path / "suite.yaml"
+            if not nested.is_file():
+                raise ConfigError(f"Eval suite directory {path} has no suite.yaml")
+            path = nested
         cases = load_eval_suite(path)
         report = run_eval(cases)
     except ReadyAgentsError as extra:

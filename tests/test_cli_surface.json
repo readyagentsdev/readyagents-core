@@ -4195,7 +4195,7 @@
       {
         "default": "'pipeline'",
         "envvar": [],
-        "help": "Starter kind: basic, approval, research, pipeline, review, foreach, agent-tools, gated.",
+        "help": "Starter kind: basic, approval, research, pipeline, review, foreach, agent-tools, gated, decide.",
         "kind": "option",
         "name": "template",
         "opts": [

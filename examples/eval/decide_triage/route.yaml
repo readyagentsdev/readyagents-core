@@ -1,0 +1,72 @@
+name: decide_triage_route
+version: "1"
+description: >
+  Same triage graph as examples/decide_triage.yaml with min_confidence omitted,
+  so the deterministic shim heuristic's choice is the branch taken.
+  Route labels in the sibling suite are that heuristic, not calibration.
+  The keyless path with a threshold is examples/decide_triage.yaml.
+
+inputs:
+  message: >
+    Hi, our production checkout has been returning 500s for 20 minutes.
+    Customers cannot pay. Please escalate.
+
+start: triage
+nodes:
+  - id: triage
+    type: decide
+    state: "{{message}}"
+    questions:
+      department:
+        type: choice
+        instructions: "Which team should handle this"
+        criteria:
+          billing: "Payment or subscription issues"
+          technical: "Bugs or integration problems"
+          sales: "Pricing or account questions"
+      is_urgent:
+        type: noul
+        instructions: "The message conveys urgency or time-sensitivity"
+    output_key: triage
+    route_on: department
+    routes:
+      billing: billing_queue
+      technical: page_oncall
+      sales: sales_inbox
+    default: human_review
+
+  - id: human_review
+    type: approval
+    prompt: >
+      Route this ticket manually.
+      Message: {{message}}
+    next: manual_route
+
+  - id: manual_route
+    type: transform
+    template: "Manual routing — decider was not confident on {{triage.low_confidence}}"
+    output_key: summary
+    next: done
+
+  - id: page_oncall
+    type: transform
+    template: "PAGE oncall — urgency {{triage.answers.is_urgent.value}}"
+    output_key: summary
+    next: done
+
+  - id: billing_queue
+    type: transform
+    template: "Billing queue — {{triage.answers.department.value}}"
+    output_key: summary
+    next: done
+
+  - id: sales_inbox
+    type: transform
+    template: "Sales inbox — {{triage.answers.department.value}}"
+    output_key: summary
+    next: done
+
+  - id: done
+    type: transform
+    template: "triage complete: {{summary}}"
+    output_key: result

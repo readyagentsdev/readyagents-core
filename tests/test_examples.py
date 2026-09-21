@@ -144,6 +144,52 @@ def test_shim_keyless_heuristic_without_llm() -> None:
     assert decision.low_confidence_keys(0.85) == ["department", "is_urgent"]
 
 
+def test_new_template_decide_completes_after_approval(tmp_path: Path, monkeypatch) -> None:
+    """The decide scaffold finishes the way its own text says to approve it."""
+    import re
+
+    clear_settings_cache()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("READYAGENTS_HOME", str(tmp_path / ".readyagents"))
+    for key in ("TYPESAFE_API_KEY", "READYAGENTS_TYPESAFE_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    created = runner.invoke(app, ["new", "f", "--template", "decide"])
+    assert created.exit_code == 0, created.output
+    workflow = (tmp_path / "f" / "workflow.yaml").read_text(encoding="utf-8")
+    match = re.search(r"--approve (\S+)", workflow)
+    assert match, workflow
+    result = runner.invoke(
+        app,
+        ["run", "f/workflow.yaml", "--approve", match.group(1), "--no-persist"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "succeeded" in result.output
+    assert "Missing template variable" not in result.output
+    help_text = runner.invoke(app, ["new", "--help"])
+    assert help_text.exit_code == 0, help_text.output
+    assert "decide" in help_text.output
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "gated\\|decide" in readme or "gated|decide" in readme
+
+
+def test_decide_triage_eval_suite_passes_keyless(tmp_path: Path, monkeypatch) -> None:
+    """The shipped suite passes keyless. A pass is mechanism, not calibration."""
+    clear_settings_cache()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("READYAGENTS_HOME", str(tmp_path / ".readyagents"))
+    for key in ("TYPESAFE_API_KEY", "READYAGENTS_TYPESAFE_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    suite = ROOT / "examples" / "eval" / "decide_triage"
+    readme = (suite / "README.md").read_text(encoding="utf-8").lower()
+    assert "proves the mechanism, not calibration" in readme
+    assert "does not tune or" in readme
+    assert "validate a threshold" in readme
+    result = runner.invoke(app, ["eval", str(suite)])
+    assert result.exit_code == 0, result.output
+    assert "failed=0" in result.output or "failed=0" in result.output.replace(" ", "")
+    assert "PASS" in result.output
+
+
 def test_new_from_example_decide_triage_completes_after_approval(
     tmp_path: Path, monkeypatch
 ) -> None:

@@ -1,0 +1,201 @@
+# Keyless mechanism suite. A passing run does not calibrate a threshold.
+# Route cases omit min_confidence and expect the shim heuristic.
+# Gate cases set min_confidence (via the shipped example) and expect the human gate.
+cases:
+  - name: route-refund
+    workflow: route.yaml
+    inputs:
+      message: "Please refund the duplicate payment on my subscription"
+    expect_status: succeeded
+    expect_nodes: [triage, billing_queue, done]
+    expect_contains:
+      result: "Billing queue"
+
+  - name: route-invoice
+    workflow: route.yaml
+    inputs:
+      message: "Invoice shows I was charged twice for the subscription"
+    expect_status: succeeded
+    expect_nodes: [triage, billing_queue, done]
+    expect_contains:
+      result: "Billing queue"
+
+  - name: route-renewal
+    workflow: route.yaml
+    inputs:
+      message: "My subscription renewal payment failed"
+    expect_status: succeeded
+    expect_nodes: [triage, billing_queue, done]
+    expect_contains:
+      result: "Billing queue"
+
+  - name: route-bugs
+    workflow: route.yaml
+    inputs:
+      message: "The integration has bugs and technical problems after deploy"
+    expect_status: succeeded
+    expect_nodes: [triage, page_oncall, done]
+    expect_contains:
+      result: "PAGE oncall"
+
+  - name: route-checkout-bug
+    workflow: route.yaml
+    inputs:
+      message: "Checkout integration is broken; this is a technical bug"
+    expect_status: succeeded
+    expect_nodes: [triage, page_oncall, done]
+    expect_contains:
+      result: "PAGE oncall"
+
+  - name: route-api-bug
+    workflow: route.yaml
+    inputs:
+      message: "API integration bugs: requests fail with errors"
+    expect_status: succeeded
+    expect_nodes: [triage, page_oncall, done]
+    expect_contains:
+      result: "PAGE oncall"
+
+  - name: route-pricing
+    workflow: route.yaml
+    inputs:
+      message: "What is the pricing for an extra account seat"
+    expect_status: succeeded
+    expect_nodes: [triage, sales_inbox, done]
+    expect_contains:
+      result: "Sales inbox"
+
+  - name: route-sales-quote
+    workflow: route.yaml
+    inputs:
+      message: "Sales question about account pricing and a quote"
+    expect_status: succeeded
+    expect_nodes: [triage, sales_inbox, done]
+    expect_contains:
+      result: "Sales inbox"
+
+  - name: route-account
+    workflow: route.yaml
+    inputs:
+      message: "I have account questions before I upgrade"
+    expect_status: succeeded
+    expect_nodes: [triage, sales_inbox, done]
+    expect_contains:
+      result: "Sales inbox"
+
+  - name: route-hello-tie
+    workflow: route.yaml
+    inputs:
+      message: "hello there"
+    expect_status: succeeded
+    expect_nodes: [triage, billing_queue, done]
+    expect_contains:
+      result: "Billing queue"
+
+  - name: route-overlap-tie
+    workflow: route.yaml
+    inputs:
+      message: "Not sure if this is a billing charge or a technical bug"
+    expect_status: succeeded
+    expect_nodes: [triage, billing_queue, done]
+    expect_contains:
+      result: "Billing queue"
+
+  - name: route-mixed-integration
+    workflow: route.yaml
+    inputs:
+      message: "The invoice looks wrong and the API integration is down"
+    expect_status: succeeded
+    expect_nodes: [triage, page_oncall, done]
+    expect_contains:
+      result: "PAGE oncall"
+
+  - name: gate-checkout-outage
+    workflow: ../../decide_triage.yaml
+    inputs:
+      message: >
+        Hi, our production checkout has been returning 500s for 20 minutes.
+        Customers cannot pay. Please escalate.
+    decisions:
+      human_review: approve
+    expect_status: succeeded
+    expect_nodes: [triage, human_review, manual_route, done]
+    expect_contains:
+      result: "Manual routing"
+
+  - name: gate-ambiguous-billing-or-bug
+    workflow: ../../decide_triage.yaml
+    inputs:
+      message: "Not sure if this is a billing charge or a technical bug"
+    decisions:
+      human_review: approve
+    expect_status: succeeded
+    expect_nodes: [triage, human_review, manual_route, done]
+    expect_contains:
+      result: "Manual routing"
+
+  - name: gate-ambiguous-invoice-and-api
+    workflow: ../../decide_triage.yaml
+    inputs:
+      message: "The invoice looks wrong and the API integration is down"
+    decisions:
+      human_review: approve
+    expect_status: succeeded
+    expect_nodes: [triage, human_review, manual_route, done]
+    expect_contains:
+      result: "Manual routing"
+
+  - name: gate-vague-problem
+    workflow: ../../decide_triage.yaml
+    inputs:
+      message: "we have a problem"
+    decisions:
+      human_review: approve
+    expect_status: succeeded
+    expect_nodes: [triage, human_review, manual_route, done]
+    expect_contains:
+      result: "Manual routing"
+
+  - name: gate-hello
+    workflow: ../../decide_triage.yaml
+    inputs:
+      message: "hello there"
+    decisions:
+      human_review: approve
+    expect_status: succeeded
+    expect_nodes: [triage, human_review, manual_route, done]
+    expect_contains:
+      result: "Manual routing"
+
+  - name: gate-urgent-words
+    workflow: ../../decide_triage.yaml
+    inputs:
+      message: "production is down, 500 errors, please escalate immediately"
+    decisions:
+      human_review: approve
+    expect_status: succeeded
+    expect_nodes: [triage, human_review, manual_route, done]
+    expect_contains:
+      result: "Manual routing"
+
+  - name: gate-thanks
+    workflow: ../../decide_triage.yaml
+    inputs:
+      message: "thanks"
+    decisions:
+      human_review: approve
+    expect_status: succeeded
+    expect_nodes: [triage, human_review, manual_route, done]
+    expect_contains:
+      result: "Manual routing"
+
+  - name: gate-ambiguous-sales-or-bug
+    workflow: ../../decide_triage.yaml
+    inputs:
+      message: "maybe sales pricing, maybe a bug, I don't know"
+    decisions:
+      human_review: approve
+    expect_status: succeeded
+    expect_nodes: [triage, human_review, manual_route, done]
+    expect_contains:
+      result: "Manual routing"

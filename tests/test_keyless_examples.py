@@ -70,6 +70,8 @@ SKIP: dict[str, str] = {
     "connectors/support.yaml": "connector config, not a workflow",
     "converse_order.yaml": "needs a converse reply, not an approval",
     "document_pages.yaml": "needs invoice.pdf; documented as validate-only",
+    "eval/decide_triage/README.md": "suite readme, not a workflow",
+    "eval/decide_triage/suite.yaml": "eval suite, not a workflow run",
     "env/readyagents.env.yaml": "environment pin, not a workflow",
     "eval/fail.yaml": "eval suite (intentional failure), not a workflow run",
     "eval/pass.yaml": "eval suite, not a workflow run",

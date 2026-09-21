@@ -4,6 +4,14 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Added
+
+- `examples/eval/decide_triage/` is a keyless mechanism suite for `type: decide`
+  (about 20 cases, including ambiguous ones that expect the human gate). A
+  keyless pass does not validate a threshold. `readyagents new --template decide`
+  scaffolds the fixed low-confidence path. HTML reports render an `answers` +
+  `confidence` table when a node output has that shape.
+
 ### Fixed
 
 - `examples/decide_triage.yaml` failed after `--approve human_review` with

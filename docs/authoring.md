@@ -98,6 +98,26 @@ If a location cannot be mapped (YAML anchors/aliases, some graph-wide validators
 
 Cycle detection, route targets, include graphs, and other whole-document rules stay in Pydantic. A file can look fine in the editor and still fail `readyagents validate`. Packs may add node types and fields; node objects are open (`additionalProperties` is not closed), so a pack field should not draw a false squiggle.
 
+## `type: decide`
+
+`criteria` is a **mapping** for `choice` (`{label: description}`) and a **list**
+for `score` (ordered level descriptions). That asymmetry is the usual authoring
+mistake. `noul` omits `criteria`, or uses a `{true, false}` mapping.
+
+`readyagents validate` checks `routes` keys against the declared `choice`
+criteria, so a typo'd label fails before a run instead of falling through to
+`default`.
+
+Routing depends on the question you name with `route_on`:
+
+- `choice` uses `routes` (`{criteria_key: node_id}`).
+- `noul` uses `route_on` plus `then` / `else` (optional `threshold`, default 0.5).
+  It does not use `routes`.
+- `score` is not directly routable. Read the value from a later `condition` node.
+
+`min_confidence` is a margin check, not a probability and not a security
+control. Full treatment, including how to pick a threshold: [decisions.md](decisions.md).
+
 ## Scope
 
 - Recorded LLM mocks and a tiny eval harness.

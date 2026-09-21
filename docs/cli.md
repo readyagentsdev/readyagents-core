@@ -32,7 +32,7 @@ readyagents new --list-examples
 readyagents new f --from-example calc_pipeline
 ```
 
-Templates: `basic`, `approval`, `research` (parallel + approval), `pipeline` (default; calc/json/condition), `review` (read_file + approval), `foreach`, `agent-tools`, `gated`.
+Templates: `basic`, `approval`, `research` (parallel + approval), `pipeline` (default; calc/json/condition), `review` (read_file + approval), `foreach`, `agent-tools`, `gated`, `decide` (confidence-gated triage; keyless run is not calibration).
 
 ## `readyagents import SOURCE PATH`
 

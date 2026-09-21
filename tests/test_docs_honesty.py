@@ -170,6 +170,26 @@ def test_readme_current_version_matches_package() -> None:
     assert "Release notes 0.8.0" not in text
 
 
+def test_authoring_covers_decide_criteria_and_routes() -> None:
+    text = (ROOT / "docs" / "authoring.md").read_text(encoding="utf-8")
+    assert "mapping" in text and "list" in text
+    assert "choice" in text and "score" in text
+    assert "readyagents validate" in text
+    assert "routes" in text
+    assert "then" in text and "else" in text
+    assert "noul" in text
+    assert "not directly routable" in text
+    assert "decisions.md" in text
+    decisions = (ROOT / "docs" / "decisions.md").read_text(encoding="utf-8")
+    assert "examples/eval/decide_triage/" in decisions
+    assert "Write 20–50 labelled cases" in decisions
+    assert "several thresholds" in decisions
+    assert "raising `min_confidence` sends more" in decisions
+    assert "reversible" in decisions and "irreversible" in decisions
+    assert "not P(correct)" in decisions
+    assert "not a security control" in decisions
+
+
 def test_readme_version_line_matches_package_and_pyproject() -> None:
     """The README version sentence, ``__version__``, and pyproject are one value."""
     import tomllib

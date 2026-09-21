@@ -52,7 +52,7 @@ HITL next: [docs/first-ten-minutes.md](docs/first-ten-minutes.md).
 - Run **agent**, **tool**, **condition**, **transform**, **approval**, **parallel**, **include**, **foreach**, and **decide** nodes. Agent nodes may declare a `tools:` allowlist for a bounded tool-use loop. `type: decide` is experimental; see [docs/decisions.md](docs/decisions.md).
 - Persist after every node and **resume** a paused or failed run from the last successful node
 - Inspect past runs: `readyagents runs list` / `show` / `replay` / `fork` / `diff` / `freeze` / `report` (local HTML)
-- Scaffold a starter: `readyagents new my-flow` (`basic`, `approval`, `research`, `pipeline`, `review`, `foreach`, `agent-tools`, `gated`)
+- Scaffold a starter: `readyagents new my-flow` (`basic`, `approval`, `research`, `pipeline`, `review`, `foreach`, `agent-tools`, `gated`, `decide`)
 - Builtin tools with **zero extra servers**: `now`, `calc`, `json_get`, `list_dir`, `read_file`, `write_file`
 - MCP client and server (`readyagents mcp serve`, `readyagents mcp probe`) with official tasks and MRTR approvals
 - Policy, spend ledger, budgets and caps: per-node token/cost, `--estimate` / `--max-spend` caps, model fallback, JSON logs
@@ -88,7 +88,7 @@ flowchart LR
 | Command | Purpose |
 | --- | --- |
 | `readyagents init` | Write `.env` from `.env.example` if missing |
-| `readyagents new [name] [--template basic\|approval\|research\|pipeline\|review\|foreach\|agent-tools\|gated] [--from-example NAME] [--list-examples]` | Scaffold workflow + README + `.env.example` + local JSON Schema, or copy a shipped example |
+| `readyagents new [name] [--template basic\|approval\|research\|pipeline\|review\|foreach\|agent-tools\|gated\|decide] [--from-example NAME] [--list-examples]` | Scaffold workflow + README + `.env.example` + local JSON Schema, or copy a shipped example |
 | `readyagents import SOURCE PATH [--out DIR] [--explain SOURCE]` | Import n8n / LangGraph / CrewAI / trigger-action exports (structural translation only) |
 | `readyagents validate PATH` | Schema-validate a workflow (source-located errors on failure) |
 | `readyagents schema` | Print/write/check the generated workflow JSON Schema |
