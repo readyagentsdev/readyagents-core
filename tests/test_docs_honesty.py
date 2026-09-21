@@ -170,6 +170,18 @@ def test_readme_current_version_matches_package() -> None:
     assert "Release notes 0.8.0" not in text
 
 
+def test_readme_version_line_matches_package_and_pyproject() -> None:
+    """The README version sentence, ``__version__``, and pyproject are one value."""
+    import tomllib
+
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    match = re.search(r"Current version is \*\*([0-9]+\.[0-9]+\.[0-9]+)\*\*", text)
+    assert match, "README version line not found"
+    with (ROOT / "pyproject.toml").open("rb") as handle:
+        package = tomllib.load(handle)["project"]["version"]
+    assert match.group(1) == __version__ == package
+
+
 def test_fail_preserves_mcp_brackets_in_rich_markup(monkeypatch: pytest.MonkeyPatch) -> None:
     """Rich markup must not strip [mcp] from install hints printed via _fail."""
     from io import StringIO
