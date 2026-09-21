@@ -4,6 +4,13 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Fixed
+
+- Official MCP Registry tag-push publish waits until PyPI lists the tagged
+  `readyagentsdev` version (bounded) and retries only the registry's
+  version-not-found 400, so a `v*` tag no longer fails solely because PyPI
+  has not yet indexed the matching release.
+
 ## 2.0.9 — 2026-09-21
 
 ### Fixed

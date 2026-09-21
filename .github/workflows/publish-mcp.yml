@@ -1,5 +1,7 @@
 # Official MCP Registry (OIDC). No registry token in GitHub secrets.
 # Namespace io.github.readyagentsdev/* is granted to this GitHub org.
+# Tag-push waits until PyPI lists the tagged readyagentsdev version (bounded)
+# and retries only the registry's version-not-found 400.
 name: Publish to MCP Registry
 
 on:
@@ -27,7 +29,12 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           jq --arg v "$VERSION" '.version = $v | (.packages[]? .version) = $v' server.json > server.tmp
           mv server.tmp server.json
+      - name: Wait until PyPI lists the tagged version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          python3 scripts/wait_pypi_version.py wait --package readyagentsdev --version "$VERSION" --timeout 600 --interval 15
       - name: Authenticate to MCP Registry
         run: ./mcp-publisher login github-oidc
       - name: Publish server.json
-        run: ./mcp-publisher publish
+        run: python3 scripts/wait_pypi_version.py retry-publish --timeout 300 --interval 15 ./mcp-publisher publish

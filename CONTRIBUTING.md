@@ -69,8 +69,10 @@ before any release:
    check run on the tagged commit is green. Never bypass the gate with an
    empty release commit — fix the red first. Publish PyPI first
    (`workflow_dispatch` on `publish.yml` while CI is green), then cut the
-   `v*` tag / GitHub Release so MCP Registry publish can see the PyPI
-   version; rerun MCP publish if it raced.
+   `v*` tag / GitHub Release. MCP Registry publish on that tag waits until
+   PyPI lists the matching `readyagentsdev` version (bounded) and retries
+   only the registry's version-not-found 400; it fails closed if the version
+   never appears.
 2. **The release names its audience.** If the changelog entry does not say what
    a user can now do that they could not before, it is not a release; it is a
    commit. No release without a reason a user would recognise.
