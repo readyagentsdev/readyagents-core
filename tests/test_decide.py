@@ -858,6 +858,61 @@ def test_decide_example_validates_and_dry_runs() -> None:
     assert d2.exit_code == 0, d2.stdout + d2.stderr
 
 
+def test_decide_example_runs_to_completion_keyless(tmp_path: Path, monkeypatch) -> None:
+    """The shipped example must finish on the shim path, not only reach the gate.
+
+    Dry-run never resolves ``{{summary}}``. Approval is the shipped ``--approve``
+    flag, not a blocking prompt. A default ``summary`` input is not the fix.
+    """
+    from typer.testing import CliRunner
+
+    from readyagents.cli import app
+    from readyagents.config import clear_settings_cache
+    from readyagents.workflow.runner import load_workflow
+
+    runner = CliRunner()
+    path = Path(__file__).resolve().parents[1] / "examples" / "decide_triage.yaml"
+    spec = load_workflow(path)
+    assert "summary" not in spec.input_defaults()
+    description = path.read_text(encoding="utf-8").split("inputs:", 1)[0]
+    folded = " ".join(description.lower().split())
+    assert "completes after" in folded
+    assert "uncalibrated" in folded
+    assert "is calibrated" not in folded
+
+    def once() -> str:
+        clear_settings_cache()
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("READYAGENTS_HOME", str(tmp_path / "home"))
+        for key in (
+            "TYPESAFE_API_KEY",
+            "READYAGENTS_TYPESAFE_API_KEY",
+            "OPENAI_API_KEY",
+            "READYAGENTS_OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "READYAGENTS_ANTHROPIC_API_KEY",
+        ):
+            monkeypatch.delenv(key, raising=False)
+        result = runner.invoke(
+            app,
+            ["run", str(path), "--approve", "human_review", "--no-persist"],
+        )
+        blob = f"{result.stdout}\n{result.stderr or ''}"
+        assert result.exit_code == 0, blob
+        assert "succeeded" in blob
+        assert "Missing template variable" not in blob
+        assert "manual_route" in blob
+        assert "Manual routing" in blob
+        assert "triage complete:" in blob
+        return blob
+
+    first = once()
+    second = once()
+    done = [line.strip() for line in first.splitlines() if "triage complete:" in line]
+    again = [line.strip() for line in second.splitlines() if "triage complete:" in line]
+    assert done and done == again
+
+
 def test_redactor_applies_to_vendor_body_not_cassette_digest(
     tmp_settings, tmp_path: Path, monkeypatch
 ) -> None:

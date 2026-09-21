@@ -53,7 +53,9 @@ STEPS: list[list[str]] = [
     ["run", str(EXAMPLES / "code_reshape.yaml"), "--no-persist"],
     ["run", str(EXAMPLES / "contract_reshape.yaml"), "--no-persist"],
     ["run", str(EXAMPLES / "team_pipeline.yaml"), "--no-persist"],
-    ["run", str(EXAMPLES / "decide_triage.yaml"), "--dry-run", "--no-persist"],
+    # Completion, not --dry-run. Dry-run stubs outputs and never resolves
+    # {{summary}}, which let the keyless human_review path ship broken.
+    ["run", str(EXAMPLES / "decide_triage.yaml"), "--approve", "human_review", "--no-persist"],
 ]
 
 

@@ -6,6 +6,11 @@ All notable changes to ReadyAgents Core.
 
 ### Fixed
 
+- `examples/decide_triage.yaml` failed after `--approve human_review` with
+  `Missing template variable: summary` on the keyless shim path (the branch a
+  keyless run takes whenever `min_confidence` is set). The low-confidence
+  branch now records its own summary and completes. The shim stays uncalibrated.
+
 - Official MCP Registry tag-push publish waits until PyPI lists the tagged
   `readyagentsdev` version (bounded) and retries only the registry's
   version-not-found 400, so a `v*` tag no longer fails solely because PyPI

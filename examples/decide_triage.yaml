@@ -3,7 +3,8 @@ version: "1"
 description: >
   Typed triage with a System One decider, then a confidence-gated human gate.
   Keyless (no TypeSafe key, no LLM): readyagents run examples/decide_triage.yaml
-  uses the shim heuristic and pauses at human_review (exit 2) — uncalibrated on purpose.
+  uses the shim heuristic, pauses at human_review (exit 2), and completes after
+  --approve human_review. The shim path is uncalibrated on purpose.
   Dry-run also works. With a TypeSafe key, set decider: jev on the triage node.
 
 inputs:
@@ -43,6 +44,12 @@ nodes:
       Decider was not confident ({{triage.low_confidence}}).
       Message: {{message}}
       Route this ticket manually.
+    next: manual_route
+
+  - id: manual_route
+    type: transform
+    template: "Manual routing — decider was not confident on {{triage.low_confidence}}"
+    output_key: summary
     next: done
 
   - id: page_oncall

@@ -144,6 +144,28 @@ def test_shim_keyless_heuristic_without_llm() -> None:
     assert decision.low_confidence_keys(0.85) == ["department", "is_urgent"]
 
 
+def test_new_from_example_decide_triage_completes_after_approval(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Cold copy of decide_triage finishes after the human gate is approved."""
+    clear_settings_cache()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("READYAGENTS_HOME", str(tmp_path / ".readyagents"))
+    for key in ("TYPESAFE_API_KEY", "READYAGENTS_TYPESAFE_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    created = runner.invoke(app, ["new", "f", "--from-example", "decide_triage"])
+    assert created.exit_code == 0, created.output
+    result = runner.invoke(
+        app,
+        ["run", "f/workflow.yaml", "--approve", "human_review", "--no-persist"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "succeeded" in result.output
+    assert "Missing template variable" not in result.output
+    assert "triage complete:" in result.output
+    assert "Manual routing" in result.output
+
+
 def test_new_from_example_decide_triage_runs_keyless(tmp_path: Path, monkeypatch) -> None:
     """Doctor claim: decide_triage materializes and runs without keys/LLM (pauses at HITL)."""
     clear_settings_cache()
