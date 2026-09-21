@@ -1,3 +1,26 @@
+# ReadyAgents Core 2.0.9
+
+**Keyless shim heuristic for cold-pip `decide_triage` (honest, uncalibrated).**
+
+- When no LLM is configured, the shim `decide` path uses a deterministic heuristic so
+  `new --from-example decide_triage` + `run` reaches the human gate (exit 2) instead of
+  NodeError "shim requires LLM".
+- Confidence is **uncalibrated**; low `min_confidence` still routes to the human gate.
+  Doctor wording matches. Not a general LLM; `shim` ≠ `jev`.
+
+## Try it
+
+```bash
+pip install readyagentsdev==2.0.9
+readyagents version
+readyagents new /tmp/decide209 --from-example decide_triage
+readyagents run /tmp/decide209/workflow.yaml
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
+
+
 # ReadyAgents Core 2.0.8
 
 **Phase 3 decide governance: taint, `--sovereign` preflight, and policy deciders.**
