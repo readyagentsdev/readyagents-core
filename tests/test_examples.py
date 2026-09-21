@@ -115,7 +115,6 @@ def test_new_from_example_unknown_errors(tmp_path: Path, monkeypatch) -> None:
     assert "Unknown example" in result.output
 
 
-
 def test_shim_keyless_heuristic_without_llm() -> None:
     """Cold-pip: shim must not raise when no LLM is configured."""
     from readyagents.decide.base import questions_from_mapping

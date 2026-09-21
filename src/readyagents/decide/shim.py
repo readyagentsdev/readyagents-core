@@ -97,8 +97,15 @@ def _heuristic_answer(state_text: str, question: Question) -> Answer:
         return Answer(type="choice", choice=best_key, confidence=None)
     if question.type == "noul":
         urgency = {
-            "urgent", "urgency", "asap", "immediately",
-            "critical", "outage", "down", "500", "escalate",
+            "urgent",
+            "urgency",
+            "asap",
+            "immediately",
+            "critical",
+            "outage",
+            "down",
+            "500",
+            "escalate",
         }
         hit = 1.0 if hay & urgency else 0.0
         # Mid prior keeps derived confidence weak; shim low-confidence routing still applies.
