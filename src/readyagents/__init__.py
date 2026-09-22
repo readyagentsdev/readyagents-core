@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-__version__ = "2.0.9"
+__version__ = "2.0.10"
 
 from readyagents.errors import (
     ApprovalRequired,

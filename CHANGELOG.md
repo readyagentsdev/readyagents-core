@@ -4,20 +4,24 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 2.0.10 — 2026-09-22
+
 ### Added
 
 - `examples/eval/decide_triage/` is a keyless mechanism suite for `type: decide`
   (about 20 cases, including ambiguous ones that expect the human gate). A
   keyless pass does not validate a threshold. `readyagents new --template decide`
   scaffolds the fixed low-confidence path. HTML reports render an `answers` +
-  `confidence` table when a node output has that shape.
+  `confidence` table when a node output has that shape. Soft honesty: packs are
+  waitlisted; `shim` ≠ `jev`; do not treat Jev as a general LLM.
 
 ### Fixed
 
 - `examples/decide_triage.yaml` failed after `--approve human_review` with
   `Missing template variable: summary` on the keyless shim path (the branch a
   keyless run takes whenever `min_confidence` is set). The low-confidence
-  branch now records its own summary and completes. The shim stays uncalibrated.
+  branch now records its own summary and completes. The shim stays uncalibrated
+  (`shim` ≠ `jev`).
 
 - Official MCP Registry tag-push publish waits until PyPI lists the tagged
   `readyagentsdev` version (bounded) and retries only the registry's

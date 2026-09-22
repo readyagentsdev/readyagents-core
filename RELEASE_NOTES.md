@@ -1,3 +1,32 @@
+# ReadyAgents Core 2.0.10
+
+**Decide eval suite, after-approve triage fix, README version lock, MCP wait-for-PyPI.**
+
+- `examples/eval/decide_triage/` is a keyless mechanism suite for `type: decide`
+  (~20 cases, including ambiguous ones that expect the human gate). A keyless
+  pass does not validate a threshold. `readyagents new --template decide`
+  scaffolds the fixed low-confidence path.
+- After `--approve human_review`, `decide_triage` no longer fails with
+  `Missing template variable: summary` on the keyless shim path. The shim stays
+  uncalibrated. Soft honesty: packs are waitlisted; `shim` ≠ `jev`; do **not**
+  advertise Jev as a general LLM.
+- Official MCP Registry tag-push waits until PyPI lists the tagged
+  `readyagentsdev` version (bounded) before publish.
+- README / docs Current pins stay locked to the package and pyproject.
+
+## Try it
+
+```bash
+pip install readyagentsdev==2.0.10
+readyagents version
+readyagents new /tmp/decide210 --from-example decide_triage
+readyagents run /tmp/decide210/workflow.yaml
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
+
+
 # ReadyAgents Core 2.0.9
 
 **Keyless shim heuristic for cold-pip `decide_triage` (honest, uncalibrated).**

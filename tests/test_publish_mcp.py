@@ -9,14 +9,14 @@ from types import SimpleNamespace
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-PYPI_JSON = "https://pypi.org/pypi/readyagentsdev/2.0.9/json"
+PYPI_JSON = "https://pypi.org/pypi/readyagentsdev/2.0.10/json"
 VERSION_NOT_FOUND = (
     'Error: publish failed: server returned status 400: {"title":"Bad Request",'
     '"status":400,"detail":"Failed to publish server","errors":[{"message":'
     '"registry validation failed for package 0 (readyagentsdev): PyPI package '
-    "'readyagentsdev' exists, but version '2.0.9' was not found (status: 404). "
+    "'readyagentsdev' exists, but version '2.0.10' was not found (status: 404). "
     "A newly published release can take a moment to appear on PyPI. Wait and "
-    "retry, or publish version '2.0.9' before registering it\"}]}"
+    "retry, or publish version '2.0.10' before registering it\"}]}"
 )
 OWNERSHIP_400 = (
     'Error: publish failed: server returned status 400: {"title":"Bad Request",'
@@ -61,7 +61,7 @@ def test_wait_404_then_200_proceeds() -> None:
 
     wait_pypi.wait_until_pypi_version_visible(
         "readyagentsdev",
-        "2.0.9",
+        "2.0.10",
         timeout=60,
         interval=10,
         get=get,
@@ -87,7 +87,7 @@ def test_wait_does_not_succeed_before_version_is_visible() -> None:
 
     wait_pypi.wait_until_pypi_version_visible(
         "readyagentsdev",
-        "2.0.9",
+        "2.0.10",
         timeout=60,
         interval=10,
         get=get,
@@ -112,7 +112,7 @@ def test_wait_persistent_404_fails_after_bound() -> None:
     with pytest.raises(wait_pypi.PyPIVersionNotVisible, match="was not found") as exc:
         wait_pypi.wait_until_pypi_version_visible(
             "readyagentsdev",
-            "2.0.9",
+            "2.0.10",
             timeout=30,
             interval=10,
             get=get,
@@ -135,7 +135,7 @@ def test_wait_persistent_non_2xx_fails_after_bound() -> None:
     with pytest.raises(wait_pypi.PyPIVersionNotVisible, match="last status: 500"):
         wait_pypi.wait_until_pypi_version_visible(
             "readyagentsdev",
-            "2.0.9",
+            "2.0.10",
             timeout=20,
             interval=10,
             get=get,
@@ -148,7 +148,7 @@ def test_wait_first_try_200_does_not_sleep() -> None:
     clock = _Clock()
     wait_pypi.wait_until_pypi_version_visible(
         "readyagentsdev",
-        "2.0.9",
+        "2.0.10",
         timeout=600,
         interval=15,
         get=lambda url: 200,
@@ -238,7 +238,7 @@ def test_main_wait_404_then_200(monkeypatch: pytest.MonkeyPatch) -> None:
             "--package",
             "readyagentsdev",
             "--version",
-            "2.0.9",
+            "2.0.10",
             "--timeout",
             "60",
             "--interval",
@@ -254,7 +254,7 @@ def test_main_wait_timeout_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(wait_pypi, "http_get", lambda url: 404)
     monkeypatch.setattr(wait_pypi, "sleep", clock.sleep)
     monkeypatch.setattr(wait_pypi, "monotonic", clock.monotonic)
-    rc = wait_pypi.main(["wait", "--version", "2.0.9", "--timeout", "20", "--interval", "10"])
+    rc = wait_pypi.main(["wait", "--version", "2.0.10", "--timeout", "20", "--interval", "10"])
     assert rc == 1
 
 
