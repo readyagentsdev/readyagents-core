@@ -4,6 +4,14 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Added
+
+- Every approval `decision` audit line (approve and reject, classic and
+  enterprise gates) now carries `prompt_sha256`, the digest of the prompt the
+  decision was made on. After a `reapprove_required` refusal the pause is
+  re-baselined to the new prompt, so the re-approval's line carries the new
+  digest, not the one on the original `paused` line.
+
 ## 2.0.11 — 2026-09-30
 
 ### Added
