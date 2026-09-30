@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 2.0.11 — 2026-09-30
+
 ### Added
 
 - Approve what you saw: an approval pause stores `prompt_sha256` (sha256 of the

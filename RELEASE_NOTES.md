@@ -1,3 +1,32 @@
+# ReadyAgents Core 2.0.11
+
+**Approve what you saw: approval prompt digest and `reapprove_required`.**
+
+- An approval pause stores `prompt_sha256` (sha256 of the rendered gate prompt)
+  in the run file and the `paused` audit line.
+- `resume --approve` / `decide --decision approve` re-renders the prompt and
+  compares. If it changed since the pause, the approve is refused: CLI exit
+  **3**, reason `reapprove_required` (stderr and `--json`, with
+  `expected_sha256` / `actual_sha256`), a `decision_refused` audit line, and the
+  run stays paused on the new prompt. Review it, then approve again.
+- Reject is never blocked. Runs paused before 2.0.11 have no digest and resume
+  as before with a warning. Exit codes 0/1/2 are unchanged.
+
+## Try it
+
+```bash
+pip install readyagentsdev==2.0.11
+readyagents new /tmp/gate211 --from-example approval_gate
+readyagents run /tmp/gate211/workflow.yaml            # exit 2, paused
+# edit the gate prompt in workflow.yaml, then:
+readyagents resume <run_id> --approve gate --json    # exit 3, reason reapprove_required
+readyagents resume <run_id> --approve gate           # exit 0
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
+
+
 # ReadyAgents Core 2.0.10
 
 **Decide eval suite, after-approve triage fix, README version lock, MCP wait-for-PyPI.**
