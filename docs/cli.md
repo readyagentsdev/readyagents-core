@@ -30,6 +30,8 @@ readyagents new demo --template gated
 readyagents run demo/workflow.yaml --approve gate
 readyagents new --list-examples
 readyagents new f --from-example calc_pipeline
+readyagents new g --from-example approval_gate   # pip path for examples/approval_gate.yaml
+readyagents run g/workflow.yaml
 ```
 
 Templates: `basic`, `approval`, `research` (parallel + approval), `pipeline` (default; calc/json/condition), `review` (read_file + approval), `foreach`, `agent-tools`, `gated`, `decide` (confidence-gated triage; keyless run is not calibration).

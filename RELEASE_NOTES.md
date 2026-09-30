@@ -1,3 +1,31 @@
+# ReadyAgents Core 2.0.12
+
+**The decision line records which prompt was approved.**
+
+- Every approval `decision` audit line (approve and reject, classic and
+  enterprise gates) now carries `prompt_sha256`, the digest of the prompt the
+  decision was made on.
+- After a `reapprove_required` refusal the pause is re-baselined to the new
+  prompt, so the re-approval's `decision` line carries the new digest, not the
+  one on the original `paused` line.
+- `docs/cli.md` shows the pip path for the gate example:
+  `readyagents new g --from-example approval_gate`.
+
+## Try it
+
+```bash
+pip install readyagentsdev==2.0.12
+readyagents new /tmp/gate212 --from-example approval_gate
+readyagents run /tmp/gate212/workflow.yaml            # exit 2, paused
+# edit the gate prompt in workflow.yaml, then:
+readyagents resume <run_id> --approve gate --json    # exit 3, reason reapprove_required
+readyagents resume <run_id> --approve gate           # exit 0; decision line has the new prompt_sha256
+```
+
+Or clone https://github.com/readyagentsdev/readyagents-core and `pip install -e .`.
+
+
+
 # ReadyAgents Core 2.0.11
 
 **Approve what you saw: approval prompt digest and `reapprove_required`.**
