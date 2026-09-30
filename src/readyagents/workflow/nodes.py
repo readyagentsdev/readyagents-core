@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import threading
 from collections.abc import Callable, Iterator, Mapping
@@ -29,6 +30,7 @@ from readyagents.errors import (
     NodeError,
     PolicyDenied,
     ReadyAgentsError,
+    ReapprovalRequired,
     RouteBudgetExceeded,
     RoutingError,
     RunawayGuard,
@@ -1046,6 +1048,53 @@ def _run_condition(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> di
     return {"matched": matched, "next": nxt}
 
 
+def approval_prompt_digest(prompt: str) -> str:
+    """sha256 hex of the rendered approval prompt the approver is shown."""
+    return hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+
+
+def _check_approval_digest(
+    node: NodeSpec, state: RunState, ctx: ExecutionContext, prompt: str
+) -> None:
+    """Refuse ``--approve`` when the prompt differs from the one paused on."""
+    # Peek: decision_for() consumes MCP decisions, the gate below must still see it.
+    if ctx.decisions.get(node.id) not in _APPROVE_VALUES:
+        return
+    pending = state.pending if isinstance(state.pending, dict) else {}
+    if pending.get("node_id") != node.id or pending.get("type") != "approval":
+        return
+    expected = pending.get("prompt_sha256")
+    if not expected:
+        log.warning(
+            "approval %s: run record has no prompt_sha256 (paused before 2.0.11); "
+            "approving without a prompt check",
+            node.id,
+            extra={"run_id": state.run_id, "node_id": node.id},
+        )
+        return
+    actual = approval_prompt_digest(prompt)
+    if actual == expected:
+        return
+    if ctx.auditor is not None:
+        ctx.auditor(
+            "decision_refused",
+            run_id=state.run_id,
+            node_id=node.id,
+            actor=ctx.actor,
+            reason=ReapprovalRequired.reason,
+            expected_sha256=expected,
+            actual_sha256=actual,
+        )
+    raise ReapprovalRequired(
+        node.id,
+        state.run_id,
+        prompt,
+        expected_sha256=str(expected),
+        actual_sha256=actual,
+        state=state,
+    )
+
+
 def _run_approval(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dict[str, Any]:
     from readyagents.approvals.gate import (
         Vote,
@@ -1065,6 +1114,7 @@ def _run_approval(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dic
 
     ns = state.mapping()
     prompt = interpolate(_prompt_text(node, ctx) or f"Approve node '{node.id}'?", ns)
+    _check_approval_digest(node, state, ctx, prompt)
     pending = state.pending if isinstance(state.pending, dict) else {}
     use_enterprise = enterprise_fields_set(node) or (
         isinstance(pending, dict)

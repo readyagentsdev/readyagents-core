@@ -158,7 +158,7 @@ Everything else, including `readyagents.replay` internals, is not stable.
 
 - Workflow file format v1 (`schemas/workflow-v1.json`, schema `$id`).
 - Run-record format `record_version: 1`. A 0.9-era record without that field still loads.
-- CLI command names and exit codes (approval pause remains **2**).
+- CLI command names and exit codes (approval pause remains **2**; **3** is `reapprove_required`, added in 2.0.11).
 - Documented `--json` envelope keys `ok` and `command` are stable; other keys are additive.
 - Pack protocol (`get_pack()`) and tool/node type names.
 

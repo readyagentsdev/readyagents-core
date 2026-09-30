@@ -25,6 +25,7 @@ from readyagents.errors import (
 from readyagents.logging import get_logger, log_event
 from readyagents.workflow.nodes import (
     ExecutionContext,
+    approval_prompt_digest,
     evaluate_condition,
     execute_node_with_policy,
 )
@@ -209,6 +210,7 @@ def run_workflow(
             "node_id": exc.node_id,
             "type": "approval",
             "prompt": exc.prompt,
+            "prompt_sha256": approval_prompt_digest(exc.prompt or ""),
             "then": getattr(paused, "then", None),
             "else": getattr(paused, "else_", None),
             "resume": f"readyagents resume {state.run_id} --approve {exc.node_id}",
@@ -231,6 +233,7 @@ def run_workflow(
                 run_id=state.run_id,
                 node_id=exc.node_id,
                 actor=ctx.actor,
+                prompt_sha256=state.pending["prompt_sha256"],
             )
         _notify_pause(ctx, exc, state)
         _observe(

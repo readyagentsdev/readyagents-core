@@ -730,6 +730,39 @@ class ApprovalRequired(ReadyAgentsError):
         )
 
 
+class ReapprovalRequired(ApprovalRequired):
+    """``--approve`` was refused: the gate prompt changed since the run paused.
+
+    The run stays paused with the new prompt and digest, so the approver must
+    review it and approve again. CLI exit code ``REAPPROVE_EXIT_CODE``.
+    """
+
+    reason = "reapprove_required"
+
+    def __init__(
+        self,
+        node_id: str,
+        run_id: str,
+        prompt: str,
+        *,
+        expected_sha256: str,
+        actual_sha256: str,
+        state: object | None = None,
+        pause: dict | None = None,
+    ) -> None:
+        super().__init__(node_id, run_id, prompt, state=state, pause=pause)
+        self.expected_sha256 = expected_sha256
+        self.actual_sha256 = actual_sha256
+        self.args = (
+            f"reapprove_required: approval prompt for node '{node_id}' (run {run_id}) "
+            f"changed since the pause (sha256 {expected_sha256[:12]} -> {actual_sha256[:12]}). "
+            f"Review it, then: readyagents resume {run_id} --approve {node_id}",
+        )
+
+
+REAPPROVE_EXIT_CODE = 3
+
+
 class BudgetExceeded(ReadyAgentsError):
     """An LLM call was blocked because the run is over its token or cost budget."""
 
