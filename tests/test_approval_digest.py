@@ -99,6 +99,50 @@ def test_changed_prompt_refuses_then_reapproves(tmp_settings) -> None:
     assert state.status == "succeeded"
 
 
+def _decisions(home: Path, run_id: str) -> list[dict]:
+    return [e for e in _audit_events(home, run_id) if e["event"] == "decision"]
+
+
+def test_decision_line_carries_prompt_digest(tmp_settings) -> None:
+    path = _write(tmp_settings.workspace_path() / "dg.yaml", "Pay 42?")
+    with pytest.raises(ApprovalRequired) as paused:
+        run_workflow_file(path, settings=tmp_settings, persist=True)
+    run_id = paused.value.run_id
+    resume_run(run_id, settings=tmp_settings, decisions={"g": "approve"})
+    lines = _decisions(tmp_settings.home, run_id)
+    assert [e["decision"] for e in lines] == ["approve"]
+    assert lines[0]["prompt_sha256"] == approval_prompt_digest("Pay 42?")
+
+
+def test_reapprove_after_mismatch_records_new_digest(tmp_settings) -> None:
+    path = _write(tmp_settings.workspace_path() / "dg.yaml", "Pay 42?")
+    with pytest.raises(ApprovalRequired) as paused:
+        run_workflow_file(path, settings=tmp_settings, persist=True)
+    run_id = paused.value.run_id
+    _write(path, "Pay 4200?")
+    with pytest.raises(ReapprovalRequired):
+        resume_run(run_id, settings=tmp_settings, decisions={"g": "approve"})
+    assert _decisions(tmp_settings.home, run_id) == []
+    state = resume_run(run_id, settings=tmp_settings, decisions={"g": "approve"})
+    assert state.status == "succeeded"
+    lines = _decisions(tmp_settings.home, run_id)
+    assert [e["decision"] for e in lines] == ["approve"]
+    # The approve is recorded against the prompt re-shown after the refusal.
+    assert lines[0]["prompt_sha256"] == approval_prompt_digest("Pay 4200?")
+
+
+def test_reject_line_carries_prompt_digest(tmp_settings) -> None:
+    path = _write(tmp_settings.workspace_path() / "dg.yaml", "Pay 42?")
+    with pytest.raises(ApprovalRequired) as paused:
+        run_workflow_file(path, settings=tmp_settings, persist=True)
+    run_id = paused.value.run_id
+    _write(path, "Pay 4200?")
+    resume_run(run_id, settings=tmp_settings, decisions={"g": "reject"})
+    lines = _decisions(tmp_settings.home, run_id)
+    assert [e["decision"] for e in lines] == ["reject"]
+    assert lines[0]["prompt_sha256"] == approval_prompt_digest("Pay 4200?")
+
+
 def test_reject_is_never_blocked_by_digest(tmp_settings) -> None:
     path = _write(tmp_settings.workspace_path() / "dg.yaml", "Pay 42?")
     with pytest.raises(ApprovalRequired) as paused:

@@ -1335,6 +1335,7 @@ def _run_approval(node: NodeSpec, state: RunState, ctx: ExecutionContext) -> dic
                 node_id=node.id,
                 decision=action,
                 actor=ctx.actor,
+                prompt_sha256=approval_prompt_digest(prompt),
                 delegated_from=delegated_from,
                 override=override,
                 signature_status=vote.signature_status,
@@ -1414,6 +1415,7 @@ def _run_approval_classic(
             node_id=node.id,
             decision=action,
             actor=ctx.actor,
+            prompt_sha256=approval_prompt_digest(prompt),
             **extra,
             **extra_audit,
         )
