@@ -4,6 +4,8 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+## 2.0.12 — 2026-09-30
+
 ### Added
 
 - Every approval `decision` audit line (approve and reject, classic and
@@ -11,6 +13,11 @@ All notable changes to ReadyAgents Core.
   decision was made on. After a `reapprove_required` refusal the pause is
   re-baselined to the new prompt, so the re-approval's line carries the new
   digest, not the one on the original `paused` line.
+
+### Docs
+
+- `docs/cli.md` shows the pip path for the gate example
+  (`readyagents new g --from-example approval_gate`).
 
 ## 2.0.11 — 2026-09-30
 
