@@ -10,11 +10,13 @@ from rich.panel import Panel
 from rich.table import Table
 
 from readyagents.errors import (
+    REAPPROVE_EXIT_CODE,
     ApprovalRequired,
     CassetteMiss,
     ConverseRequired,
     EnvRefused,
     ReadyAgentsError,
+    ReapprovalRequired,
     WaitingRequired,
 )
 from readyagents.workflow.state import (
@@ -129,6 +131,29 @@ def _emit_run_exception(
         else:
             err_console.print(f"[yellow]waiting[/yellow] {escape(str(exc))}")
         raise typer.Exit(code=2) from exc
+
+    if isinstance(exc, ReapprovalRequired):
+        state = _state_from_exc(exc)
+        if as_json:
+            payload = {
+                "error": type(exc).__name__,
+                "reason": exc.reason,
+                "message": str(exc),
+                "run_id": exc.run_id,
+                "node_id": exc.node_id,
+                "prompt": exc.prompt,
+                "expected_sha256": exc.expected_sha256,
+                "actual_sha256": exc.actual_sha256,
+                "status": "paused",
+            }
+            if state is not None:
+                payload["run"] = state.to_record()
+            _print_json(_json_envelope(command, ok=False, **payload))
+        else:
+            err_console.print(f"[red]{exc.reason}[/red] {escape(str(exc))}", highlight=False)
+            if exc.prompt:
+                console.print(Panel(escape(exc.prompt), title=f"Approval: {exc.node_id}"))
+        raise typer.Exit(code=REAPPROVE_EXIT_CODE) from exc
 
     if isinstance(exc, (ApprovalRequired, ConverseRequired)):
         state = _state_from_exc(exc)

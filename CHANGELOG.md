@@ -4,6 +4,16 @@ All notable changes to ReadyAgents Core.
 
 ## Unreleased
 
+### Added
+
+- Approve what you saw: an approval pause stores `prompt_sha256` (sha256 of the
+  rendered gate prompt) in the run file and the `paused` audit line. An approve
+  on resume/decide re-renders and compares; on a change it is refused with
+  `ReapprovalRequired`, CLI exit **3**, reason `reapprove_required` (stderr and
+  `--json`), a `decision_refused` audit line, and the run re-pauses on the new
+  prompt. Reject is never blocked. Runs paused before this release have no digest
+  and resume as before with a warning. Exit codes 0/1/2 are unchanged.
+
 ## 2.0.10 — 2026-09-22
 
 ### Added

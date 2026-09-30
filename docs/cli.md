@@ -404,7 +404,7 @@ readyagents run examples/calc_pipeline.yaml --stream --json
 
 Signing proves origin, not safety. See [supply-chain.md](supply-chain.md).
 
-Exit code `1` on validation or execution errors, including a missing workflow file (`ConfigError`). Exit code `2` is reserved for an **approval** node pausing for a decision. The CLI prints `ErrorClass: message` rather than a full traceback. Logs include `run=<id>` and `node=<id>`.
+Exit code `1` on validation or execution errors, including a missing workflow file (`ConfigError`). Exit code `2` is reserved for an **approval** node pausing for a decision. Exit code `3` means `resume --approve` / `decide` was refused because the approval prompt changed since the pause (`reapprove_required`; `--json` carries `reason`, `expected_sha256`, `actual_sha256`); the run stays paused on the new prompt, so review and approve again. The CLI prints `ErrorClass: message` rather than a full traceback. Logs include `run=<id>` and `node=<id>`.
 
 Failed runs print the **node timeline**, `run_id`, and a `readyagents resume RUN_ID` hint (same idea as approval pauses). `--json` is an envelope with additive `ok` and `command` plus existing keys (`run_id`, `error`, `message`, `run`). Pause is exit 2 and still includes `run_id`. `resume` and `runs replay` accept `--json` too. JSON is written without Rich markup, so values like `[dry-run]` stay intact.
 

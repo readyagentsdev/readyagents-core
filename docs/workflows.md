@@ -188,6 +188,8 @@ The approval YAML is unchanged. The optional page is a foreground loopback UI, n
 
 Optional enterprise fields (all inert unless set): `approvals_required`, `distinct_actors`, `deny_actor`, `approver_roles`, `require`, `expires_in`, `on_expire` (`reject` / `escalate` / `fail`; **`approve` is refused**), `escalate_to`, `require_reason`, `reject_short_circuit`, `recommendation`, `notify`. Core starts **no timer** — expiry is lazy. Full model: [approvals.md](approvals.md).
 
+**Approve what you saw.** At the pause, the engine stores the sha256 of the rendered prompt in `pending.prompt_sha256` (run file and `paused` audit line). `resume --approve` / `decide --decision approve` re-renders the prompt and compares. If it changed (workflow edited, upstream state differs), the approve is refused: CLI exit **3**, reason `reapprove_required` (stderr and `--json` `reason`, plus `expected_sha256` / `actual_sha256`), a `decision_refused` audit line, and the run stays **paused** on the new prompt. Review it and approve again. Reject is never blocked. Runs paused before 2.0.11 have no digest and resume as before with a warning.
+
 `then` is the approve path; `else` is the reject path. `next` is used when approved if `then` is omitted.
 
 Multiple gates in one graph are allowed. Each needs its own `--approve NODE` (or `--reject`), or an injected JSON decision (`readyagents decide` / `--decision-file`). See `examples/multi_gate.yaml` (in a checkout; `new --from-example multi_gate` from PyPI).
